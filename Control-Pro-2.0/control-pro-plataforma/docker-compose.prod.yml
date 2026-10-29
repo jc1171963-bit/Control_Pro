@@ -1,0 +1,23 @@
+# Producción de referencia. Requiere un archivo .env.prod con las variables listadas en backend/.env.example.
+# Coloca un proxy con TLS (por ejemplo Caddy o Nginx con certificados) delante del servicio "web".
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    env_file: .env.prod
+    volumes: [pgdata:/var/lib/postgresql/data]
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    env_file: .env.prod
+    environment: { FLASK_ENV_CONFIG: production, COOKIE_SECURE: "true" }
+    depends_on: [db]
+    volumes: [uploads:/app/uploads]
+  web:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on: [backend]
+    ports: ["8080:80"]
+volumes:
+  pgdata:
+  uploads:

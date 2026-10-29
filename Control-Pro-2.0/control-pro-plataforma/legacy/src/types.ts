@@ -1,0 +1,11 @@
+export type Role = 'Administrador' | 'Representante de sucursal' | 'Gerente de ventas' | 'Responsable de inventario' | 'Supervisor / auditor';
+export type Employee = { id:string; number:string; name:string; branch:string; job:string; active:boolean; joined:string };
+export type Product = { id:string; sku:string; name:string; category:string; sizes:string[]; price:number; active:boolean; jobs:string[] };
+export type OrderItem = { employeeId:string; productId:string; size:string; qty:number; exception?:string };
+export type Order = { id:string; branch:string; created:string; status:string; items:OrderItem[]; note:string; reviewer?:string; inventoryId?:string };
+export type InventoryOrder = { id:string; orderId:string; branch:string; status:string; created:string };
+export type PackageRecord = { id:string; orderId:string; employeeIds:string[]; status:string; carrier?:string; guide?:string; tracking:string[]; received:boolean; difference?:string };
+export type Delivery = { id:string; orderId:string; packageId:string; employeeId:string; status:string; signedAt?:string; rating?:number; note?:string; signature?:string };
+export type Incident = { id:string; orderId:string; employeeId?:string; packageId?:string; type:string; priority:string; status:string; description:string; resolution?:string; created:string };
+export type AuditEvent = { id:string; date:string; user:string; action:string; detail:string };
+export type AppData = { employees:Employee[]; products:Product[]; orders:Order[]; inventory:InventoryOrder[]; packages:PackageRecord[]; deliveries:Delivery[]; incidents:Incident[]; audit:AuditEvent[]; notifications:{id:string;text:string;read:boolean;date:string}[] };

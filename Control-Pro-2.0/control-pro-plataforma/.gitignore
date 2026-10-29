@@ -1,0 +1,9 @@
+node_modules/
+dist/
+__pycache__/
+.pytest_cache/
+.coverage
+.env
+.env.prod
+backend/uploads/*
+!backend/uploads/.gitkeep
