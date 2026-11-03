@@ -1,6 +1,6 @@
 # API REST de Control Pro
 
-Todas las respuestas son JSON. Errores: `{"error": {"codigo", "mensaje", "detalles"}}`.
+Todas las respuestas son JSON. Errores: `{"error": {"codigo", "mensaje", "detalles"}}`. hola
 
 - 401 sin sesión o token vencido · 403 sin permiso · 404 no existe **o pertenece a otra sucursal** · 409 conflicto de estado, existencias o duplicado · 422 datos inválidos · 423 cuenta bloqueada.
 - Rutas `/api/admin/*`: token de personal interno con el permiso indicado en el código (`@requiere_usuario`). Rutas `/api/cuenta/*`: token de cliente.
