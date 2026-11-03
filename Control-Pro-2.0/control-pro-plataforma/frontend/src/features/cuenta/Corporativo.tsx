@@ -5,10 +5,10 @@ import { AlertTriangle, Pencil, Plus, Trash2, UserPlus } from 'lucide-react';
 import { claveIdempotencia, get, post, put } from '../../api/cliente';
 import type { Direccion, Pagina, Pedido, ProductoResumen, ProductoDetalle, Sucursal } from '../../api/tipos';
 import { Aviso, Boton, Campo, Cargando, Entrada, ErrorCaja, Estado, Modal, Selector, Tabla, Tarjeta, Td, Texto, useAviso, Vacio } from '../../components/ui';
+import { PUESTOS } from '../../lib/catalogo';
 import { cls, dinero } from '../../lib/formato';
 
 type Empleado = { id: number; numero: string; nombre: string; puesto: string; area: string | null; activo: boolean };
-const PUESTOS = ['Administración', 'Enfermería', 'Mantenimiento', 'Seguridad', 'Intendencia', 'Almacén'];
 
 export function Empleados() {
   const qc = useQueryClient();

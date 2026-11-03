@@ -4,8 +4,8 @@ from sqlalchemy import or_, select
 
 from ..errors import AppError, Conflicto, NoEncontrado
 from ..extensions import db
-from ..models import (Categoria, PedidoDetalle, Producto, ProductoImagen, ProductoPuesto, ProductoSucursal, Promocion,
-                      Sucursal, Variante)
+from ..models import (Categoria, PedidoDetalle, Producto, ProductoGiro, ProductoImagen, ProductoPuesto, ProductoSucursal,
+                      Promocion, Sucursal, Variante)
 from ..schemas import CategoriaSchema, ProductoSchema, PromocionSchema, cargar
 from ..security.auth import g, requiere_usuario, verificar_alcance
 from ..services.comun import auditar, paginar
@@ -78,6 +78,7 @@ def _aplicar_producto(p: Producto, d: dict):
     puestos = d.pop("puestos")
     deshab = set(d.pop("sucursales_deshabilitadas"))
     imagenes = d.pop("imagenes")
+    giros = d.pop("giros")
     for k, v in d.items():
         setattr(p, k, v)
     existentes = {v.id: v for v in p.variantes}
@@ -103,6 +104,27 @@ def _aplicar_producto(p: Producto, d: dict):
     p.sucursales = [ProductoSucursal(sucursal_id=sid, habilitado=False) for sid in sorted(deshab)]
     if imagenes:
         p.imagenes = [ProductoImagen(url=u, orden=i, alt=p.nombre) for i, u in enumerate(imagenes)]
+    if giros is not None:
+        _aplicar_giros(p, giros)
+
+
+def _aplicar_giros(p: Producto, giros: list[dict]):
+    """Un giro 360° por color. Se actualizan en su lugar para no chocar con la restricción única al reemplazarlos."""
+    colores = {v.color for v in p.variantes if v.activo}
+    vistos = set()
+    for g in giros:
+        if g["color"] is not None and g["color"] not in colores:
+            raise AppError(f"El color '{g['color']}' de la vista 360° no corresponde a ninguna variante activa.")
+        if g["color"] in vistos:
+            raise AppError("Solo puede haber una vista 360° por color.")
+        vistos.add(g["color"])
+    existentes = {g.color: g for g in p.giros}
+    nuevos = []
+    for g in giros:
+        giro = existentes.get(g["color"]) or ProductoGiro(color=g["color"])
+        giro.frames = g["frames"]
+        nuevos.append(giro)
+    p.giros = nuevos
 
 
 @bp.post("/productos")

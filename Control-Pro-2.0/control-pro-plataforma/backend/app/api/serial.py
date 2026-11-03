@@ -65,7 +65,7 @@ def producto_resumen(p, precios=None, existencias=None):
             "tallas": sorted({v.talla for v in variantes}, key=_orden_talla),
             "colores": sorted({(v.color, v.color_hex) for v in variantes}),
             "disponible": sum(existencias.get(v.id, 0) for v in variantes) if existencias is not None else None,
-            "nuevo": False}
+            "nuevo": False, "giro_360": bool(p.giros)}
 
 
 ORDEN_TALLAS = ["XCH", "XS", "CH", "S", "M", "G", "L", "XG", "XL", "XXL", "UNITALLA", "UNI"]
@@ -85,6 +85,7 @@ def producto_detalle(p, precios=None, existencias=None, por_sucursal=None):
     d = producto_resumen(p, precios, existencias)
     d.update({"descripcion": p.descripcion, "material": p.material, "cuidados": p.cuidados, "activo": p.activo,
               "imagenes": [{"url": i.url, "alt": i.alt} for i in p.imagenes],
+              "giros": [{"color": g.color, "frames": g.frames} for g in p.giros],
               "puestos": sorted(pp.puesto for pp in p.puestos),
               "sucursales_deshabilitadas": sorted(ps.sucursal_id for ps in p.sucursales if not ps.habilitado),
               "variantes": [variante(v, existencias, precios.get(v.id) if precios else None)

@@ -3,14 +3,15 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ImagePlus, Plus, Search, Trash2 } from 'lucide-react';
 import { get, post, put, subirArchivo } from '../../api/cliente';
-import type { Pagina, ProductoDetalle } from '../../api/tipos';
+import type { Giro360, Pagina, ProductoDetalle } from '../../api/tipos';
 import { useAuth } from '../../app/auth';
 import { Boton, Campo, Cargando, Entrada, ErrorCaja, Modal, Paginacion, Selector, Tabla, Tarjeta, Td, Texto, useAviso } from '../../components/ui';
-import { cls, dinero, fecha } from '../../lib/formato';
+import Visor360 from '../../components/Visor360';
+import { PUESTOS } from '../../lib/catalogo';
+import { cls, dinero, fecha, mensajeError } from '../../lib/formato';
 import { Encabezado, useSucursalesAdmin } from './AdminLayout';
 
 type Cat = { id: number; nombre: string; slug: string };
-const PUESTOS = ['Administración', 'Enfermería', 'Mantenimiento', 'Seguridad', 'Intendencia', 'Almacén'];
 const slugify = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
 export function CatalogoAdmin() {
@@ -58,20 +59,22 @@ export function ProductoEditor() {
   const cats = useQuery({ queryKey: ['admin-categorias'], queryFn: () => get<Cat[]>('/admin/categorias') });
   const sucs = useSucursalesAdmin();
   const q = useQuery({ queryKey: ['admin-producto', id], queryFn: () => get<ProductoDetalle>(`/admin/productos/${id}`), enabled: !nuevo });
-  const [f, setF] = useState<any>({ sku_base: '', nombre: '', slug: '', descripcion: '', material: '', cuidados: '', categoria_id: '', destacado: false, activo: true, puestos: [], sucursales_deshabilitadas: [], imagenes: [] });
+  const [f, setF] = useState<any>({ sku_base: '', nombre: '', slug: '', descripcion: '', material: '', cuidados: '', categoria_id: '', destacado: false, activo: true, puestos: [], sucursales_deshabilitadas: [], imagenes: [], giros: [] });
   const [vars, setVars] = useState<VarForm[]>([]);
   useEffect(() => {
     if (q.data) {
       const p = q.data;
       setF({ sku_base: p.sku_base, nombre: p.nombre, slug: p.slug, descripcion: p.descripcion, material: p.material || '', cuidados: p.cuidados || '', categoria_id: p.categoria.id,
-        destacado: p.destacado, activo: p.activo, puestos: p.puestos, sucursales_deshabilitadas: p.sucursales_deshabilitadas, imagenes: p.imagenes.map((i) => i.url) });
+        destacado: p.destacado, activo: p.activo, puestos: p.puestos, sucursales_deshabilitadas: p.sucursales_deshabilitadas, imagenes: p.imagenes.map((i) => i.url), giros: p.giros });
       setVars(p.variantes.filter((v) => v.activo).map((v) => ({ id: v.id, sku: v.sku, talla: v.talla, color: v.color, color_hex: v.color_hex, precio_base: v.precio_base, activo: v.activo })));
     }
   }, [q.data]);
   const guardar = useMutation({
     mutationFn: () => {
       const cuerpo = { ...f, categoria_id: Number(f.categoria_id), material: f.material || null, cuidados: f.cuidados || null,
-        variantes: vars.map(({ id: vid, ...v }) => ({ ...(vid ? { id: vid } : {}), ...v })) };
+        variantes: vars.map(({ id: vid, ...v }) => ({ ...(vid ? { id: vid } : {}), ...v })),
+        // Solo se conservan los giros de colores que siguen en las variantes.
+        giros: (f.giros as Giro360[]).filter((g) => g.color === null || colores.some(([c]) => c === g.color)) };
       return nuevo ? post<ProductoDetalle>('/admin/productos', cuerpo) : put<ProductoDetalle>(`/admin/productos/${id}`, cuerpo);
     },
     onSuccess: (p) => { qc.invalidateQueries({ queryKey: ['admin-productos'] }); qc.invalidateQueries({ queryKey: ['admin-producto'] }); avisar('Producto guardado.'); if (nuevo) nav(`/admin/catalogo/${p.id}`, { replace: true }); },
@@ -83,6 +86,7 @@ export function ProductoEditor() {
     setVars([...vars, ...nuevas.filter((n) => !vars.some((v) => v.sku === n.sku))]);
   };
   const editable = puede('catalogo.gestionar');
+  const colores = [...new Map(vars.filter((v) => v.color.trim()).map((v) => [v.color, v.color_hex])).entries()];
 
   if (!nuevo && q.isLoading) return <Cargando />;
   return (
@@ -140,6 +144,7 @@ export function ProductoEditor() {
                 <input type="file" accept=".png,.jpg,.jpeg,.webp" className="sr-only" onChange={async (e) => { const a = e.target.files?.[0]; if (a) { try { const u = await subirArchivo(a, true); setF((x: any) => ({ ...x, imagenes: [...x.imagenes, u] })); } catch (err: any) { avisar(err.message, 'error'); } } }} /></label>
             </div>
           </Tarjeta>
+          <Giros360 colores={colores} giros={f.giros} editable={editable} onCambio={(giros) => setF((x: any) => ({ ...x, giros }))} />
           <Tarjeta titulo="Puestos autorizados" sub="Regla del canal corporativo; fuera de ella se requiere excepción aprobada">
             <div className="flex flex-wrap gap-2">
               {PUESTOS.map((p) => <button type="button" key={p} onClick={() => setF({ ...f, puestos: f.puestos.includes(p) ? f.puestos.filter((x: string) => x !== p) : [...f.puestos, p] })}
@@ -155,6 +160,71 @@ export function ProductoEditor() {
         </div>
       </fieldset>
     </>
+  );
+}
+
+function Giros360({ colores, giros, editable, onCambio }: { colores: [string, string][]; giros: Giro360[]; editable: boolean; onCambio: (g: Giro360[]) => void }) {
+  const avisar = useAviso();
+  const [subiendo, setSubiendo] = useState<{ color: string; hechos: number; total: number } | null>(null);
+  const subir = async (color: string, lista: FileList | null) => {
+    // Las fotos se ordenan por nombre (01.jpg, 02.jpg… 10.jpg) para respetar el orden del giro.
+    const archivos = [...(lista || [])].sort((a, b) => a.name.localeCompare(b.name, 'es', { numeric: true }));
+    if (!archivos.length) return;
+    if (archivos.length < 8 || archivos.length > 72) {
+      avisar('Selecciona de 8 a 72 fotos del giro (recomendado: 24 o 36).', 'error');
+      return;
+    }
+    setSubiendo({ color, hechos: 0, total: archivos.length });
+    try {
+      const frames: string[] = [];
+      for (const a of archivos) {
+        frames.push(await subirArchivo(a, true));
+        setSubiendo({ color, hechos: frames.length, total: archivos.length });
+      }
+      onCambio([...giros.filter((g) => g.color !== color), { color, frames }]);
+      avisar(`Vista 360° de ${color} lista con ${frames.length} fotos. Guarda el producto para publicarla.`);
+    } catch (err) {
+      avisar(mensajeError(err), 'error');
+    } finally {
+      setSubiendo(null);
+    }
+  };
+  return (
+    <Tarjeta titulo="Vista 360°" sub="Fotos en base giratoria con el mismo encuadre y luz: de 24 a 36 tomas, nombradas en orden (01.jpg, 02.jpg…)">
+      {!colores.length ? <p className="text-sm text-tinta-400">Agrega variantes para asignar una vista 360° a cada color.</p> : (
+        <ul className="space-y-3">
+          {colores.map(([color, hex]) => {
+            const g = giros.find((x) => x.color === color);
+            const avance = subiendo?.color === color ? subiendo : null;
+            return (
+              <li key={color} className="rounded-xl p-3 ring-1 ring-tinta-100">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-2 text-sm font-semibold"><span className="h-4 w-4 rounded-full ring-1 ring-tinta-200" style={{ background: hex }} />{color}</span>
+                  <span className="text-xs text-tinta-400">{g ? `${g.frames.length} fotos` : 'Sin vista 360°'}</span>
+                </div>
+                {g && <div className="mt-2 aspect-square overflow-hidden rounded-lg ring-1 ring-arena-200"><Visor360 compacto frames={g.frames} alt={color} /></div>}
+                {avance && (
+                  <div className="mt-2">
+                    <div className="h-1.5 overflow-hidden rounded-full bg-tinta-100"><div className="h-full bg-menta-500 transition-all" style={{ width: `${(avance.hechos / avance.total) * 100}%` }} /></div>
+                    <p className="mt-1 text-xs text-tinta-500">Subiendo foto {avance.hechos} de {avance.total}…</p>
+                  </div>
+                )}
+                {editable && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <label className={cls('inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg px-3 text-sm font-semibold ring-1 ring-tinta-200 hover:bg-tinta-50', subiendo && 'pointer-events-none opacity-50')}>
+                      <ImagePlus className="h-4 w-4" />{g ? 'Reemplazar fotos' : 'Subir fotos del giro'}
+                      <input type="file" multiple accept=".png,.jpg,.jpeg,.webp" className="sr-only" disabled={!!subiendo}
+                        onChange={(e) => { subir(color, e.target.files); e.target.value = ''; }} />
+                    </label>
+                    {g && <Boton type="button" tam="sm" variante="fantasma" onClick={() => onCambio(giros.filter((x) => x.color !== color))}>Quitar</Boton>}
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </Tarjeta>
   );
 }
 

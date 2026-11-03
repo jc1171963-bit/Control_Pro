@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { Rotate3d } from 'lucide-react';
 import type { ProductoResumen } from '../../api/tipos';
 import { cls, dinero } from '../../lib/formato';
 
@@ -20,6 +21,7 @@ export default function ProductoCard({ p }: { p: ProductoResumen }) {
         <div className="absolute left-3 top-3 flex flex-col gap-1">
           {p.en_promocion && <span className="rounded-full bg-coral-500 px-2 py-0.5 text-[11px] font-bold text-white">Promoción</span>}
           {agotado && <span className="rounded-full bg-tinta-900 px-2 py-0.5 text-[11px] font-bold text-white">Agotado</span>}
+          {p.giro_360 && <span className="flex items-center gap-1 self-start rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-bold text-tinta-800 ring-1 ring-tinta-100"><Rotate3d className="h-3 w-3 text-menta-600" />360°</span>}
         </div>
       </div>
       <div className="flex flex-1 flex-col gap-1 p-4">

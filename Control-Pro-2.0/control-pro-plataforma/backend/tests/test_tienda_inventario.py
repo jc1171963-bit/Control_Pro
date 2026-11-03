@@ -13,19 +13,19 @@ from .flujos import agregar, comprar_envio, comprar_recoger
 
 def test_catalogo_busqueda_filtros_orden(client):
     r = client.get("/api/tienda/productos?q=bata").get_json()
-    assert r["total"] >= 2 and all("bata" in p["nombre"].lower() or "mandil" in p["nombre"].lower() for p in r["items"])
+    assert r["total"] == 3 and all("bata" in p["nombre"].lower() for p in r["items"])
     r = client.get("/api/tienda/productos?categoria=calzado&orden=precio_desc").get_json()
     precios = [float(p["precio_desde"]) for p in r["items"]]
-    assert precios == sorted(precios, reverse=True) and r["total"] == 2
-    r = client.get("/api/tienda/productos?talla=27&color=Negro").get_json()
-    assert {p["sku_base"] for p in r["items"]} == {"BOT-001", "ZAP-001"}
+    assert precios == sorted(precios, reverse=True) and r["total"] == 5
+    r = client.get("/api/tienda/productos?talla=XG&color=Azul cielo").get_json()
+    assert {p["sku_base"] for p in r["items"]} == {"BLU-002", "CAM-005"}
     assert client.get("/api/tienda/productos?categoria=no-existe").status_code == 404
     inicio = client.get("/api/tienda/inicio").get_json()
     assert inicio["destacados"] and inicio["promociones"][0]["sku_base"] == "POL-001"
 
 
 def test_ficha_con_promocion_y_disponibilidad(client):
-    p = client.get("/api/tienda/productos/polo-corporativa-pique").get_json()
+    p = client.get("/api/tienda/productos/blusa-polo-azul-marino-biomedica").get_json()
     v = p["variantes"][0]
     assert v["precio_base"] == "250.00" and v["descuento"] == "37.50" and v["precio_final"] == "212.50"
     assert len(p["disponibilidad_sucursal"]) == 3 and p["imagenes"]
@@ -33,11 +33,11 @@ def test_ficha_con_promocion_y_disponibilidad(client):
 
 
 def test_carrito_valida_existencias(como, app):
-    fijar_existencia(app, "TOL", "GOR-001-G-UNITALLA", 2)
-    fijar_existencia(app, "QRO", "GOR-001-G-UNITALLA", 1)
-    fijar_existencia(app, "PUE", "GOR-001-G-UNITALLA", 0)
+    fijar_existencia(app, "TOL", "MAS-003-V-UNITALLA", 2)
+    fijar_existencia(app, "QRO", "MAS-003-V-UNITALLA", 1)
+    fijar_existencia(app, "PUE", "MAS-003-V-UNITALLA", 0)
     c = como("cliente")
-    vid = variante_id(app, "GOR-001-G-UNITALLA")
+    vid = variante_id(app, "MAS-003-V-UNITALLA")
     assert c.post("/api/cuenta/carrito/items", {"variante_id": vid, "cantidad": 3}).status_code == 201
     r = c.post("/api/cuenta/carrito/items", {"variante_id": vid, "cantidad": 1})
     assert r.status_code == 409 and r.get_json()["error"]["detalles"]["disponible"] == 3
@@ -66,7 +66,7 @@ def test_checkout_reserva_e_idempotencia(como, app):
 
 def test_pago_con_tarjeta_no_disponible(como, app):
     c = como("cliente")
-    r = comprar_envio(c, app, [("GOR-001-AM-UNITALLA", 1)], metodo="tarjeta_pasarela")
+    r = comprar_envio(c, app, [("MAS-002-N-UNITALLA", 1)], metodo="tarjeta_pasarela")
     assert r.status_code == 400 and r.get_json()["error"]["codigo"] == "metodo_no_disponible"
 
 
@@ -108,7 +108,7 @@ def test_recoger_no_se_divide(como, app):
 
 def test_concurrencia_no_sobrevende(app, client):
     """20 clientes compran a la vez la última existencia (5 unidades en total): exactamente 5 pedidos."""
-    sku = "ZAP-001-B-25"
+    sku = "ZAP-001-N-25"
     fijar_existencia(app, "TOL", sku, 3)
     fijar_existencia(app, "QRO", sku, 2)
     fijar_existencia(app, "PUE", sku, 0)
@@ -146,7 +146,7 @@ def test_concurrencia_no_sobrevende(app, client):
 
 def test_expiracion_libera_reservas(como, app):
     c = como("cliente")
-    sku = "PAN-001-C-32"
+    sku = "PAN-001-N-32"
     antes = inventario(app, "TOL", sku).reservado
     p = comprar_envio(c, app, [(sku, 2)]).get_json()
     with app.app_context():
@@ -163,7 +163,7 @@ def test_expiracion_libera_reservas(como, app):
 
 def test_cancelacion_libera_y_reembolsa(como, app):
     c, fin = como("cliente"), como("finanzas")
-    sku = "PAN-001-AM-30"
+    sku = "PAN-001-N-30"
     antes = inventario(app, "TOL", sku)
     p = comprar_envio(c, app, [(sku, 1)]).get_json()
     pago = c.post(f"/api/cuenta/pedidos/{p['id']}/pagos", {"referencia": "SPEI-1", "clave_idempotencia": clave()}).get_json()
@@ -183,7 +183,7 @@ def test_cancelacion_libera_y_reembolsa(como, app):
 def test_ajustes_respetan_reservas(como, app):
     enc = como("enc_tol")
     c = como("cliente")
-    sku = "GOR-001-AM-UNITALLA"
+    sku = "MAS-002-N-UNITALLA"
     fijar_existencia(app, "TOL", sku, 2)
     fijar_existencia(app, "QRO", sku, 0)
     fijar_existencia(app, "PUE", sku, 0)
@@ -203,7 +203,7 @@ def test_ajustes_respetan_reservas(como, app):
 
 
 def test_transferencia_completa_y_parcial(como, app):
-    sku = "CHA-001-AN-G"
+    sku = "CHA-001-AM-G"
     fijar_existencia(app, "QRO", sku, 10)
     fijar_existencia(app, "PUE", sku, 0)
     enc_qro, alm_pue, enc_pue = como("enc_qro"), como("alm_pue"), como("enc_pue")

@@ -69,12 +69,12 @@ def test_permisos_por_rol(como, app):
     auditor = como("auditor")
     assert auditor.get("/api/admin/pedidos").status_code == 200
     r = auditor.post("/api/admin/inventario/entradas", {"sucursal_id": sucursal_id(app, "TOL"),
-                     "variante_id": variante_id(app, "GOR-001-AM-UNITALLA"), "cantidad": 5, "motivo": "Compra",
+                     "variante_id": variante_id(app, "MAS-002-N-UNITALLA"), "cantidad": 5, "motivo": "Compra",
                      "clave_idempotencia": clave()})
     assert r.status_code == 403
     almacen = como("alm_tol")
     r = almacen.post("/api/admin/inventario/ajustes", {"sucursal_id": sucursal_id(app, "TOL"),
-                     "variante_id": variante_id(app, "GOR-001-AM-UNITALLA"), "cantidad": 1, "tipo": "merma",
+                     "variante_id": variante_id(app, "MAS-002-N-UNITALLA"), "cantidad": 1, "tipo": "merma",
                      "motivo": "Prenda dañada", "clave_idempotencia": clave()})
     assert r.status_code == 403  # los ajustes requieren al encargado
     assert como("finanzas").post("/api/admin/inventario/entradas", {}).status_code == 403
@@ -84,7 +84,7 @@ def test_alcance_entre_sucursales(como, app, client):
     tol = como("enc_tol")
     pue = sucursal_id(app, "PUE")
     assert tol.get(f"/api/admin/inventario?sucursal_id={pue}").status_code == 404
-    r = tol.post("/api/admin/inventario/entradas", {"sucursal_id": pue, "variante_id": variante_id(app, "GOR-001-AM-UNITALLA"),
+    r = tol.post("/api/admin/inventario/entradas", {"sucursal_id": pue, "variante_id": variante_id(app, "MAS-002-N-UNITALLA"),
                                                      "cantidad": 3, "motivo": "Intento cruzado", "clave_idempotencia": clave()})
     assert r.status_code == 404
     r = tol.post("/api/admin/transferencias", {"origen_id": sucursal_id(app, "QRO"), "destino_id": pue,
@@ -115,7 +115,7 @@ def test_alcance_entre_sucursales(como, app, client):
 
 def test_cliente_no_ve_pedidos_ajenos(como, app, client):
     cliente = como("cliente")
-    r = comprar_envio(cliente, app, [("GOR-001-AM-UNITALLA", 1)])
+    r = comprar_envio(cliente, app, [("MAS-002-N-UNITALLA", 1)])
     pid = r.get_json()["id"]
     client.post("/api/auth/cliente/registro", json={"correo": "otro@demo.mx", "password": "Segura123", "nombre": "Otro Cliente"})
     r = client.post("/api/auth/cliente/login", json={"correo": "otro@demo.mx", "password": "Segura123"})

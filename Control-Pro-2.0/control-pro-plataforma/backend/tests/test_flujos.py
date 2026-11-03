@@ -10,7 +10,7 @@ FIRMA = "data:image/png;base64," + base64.b64encode(b"\x89PNG\r\n\x1a\n" + b"0" 
 
 def test_flujo_tienda_envio_completo(como, app):
     c, fin, aten = como("cliente"), como("finanzas"), como("atencion")
-    p = comprar_envio(c, app, [("BAT-001-B-M", 2), ("POL-001-AM-G", 3)]).get_json()
+    p = comprar_envio(c, app, [("BAT-003-B-M", 2), ("POL-001-AM-G", 3)]).get_json()
     assert p["estado"] == "pendiente_pago"
     # Primer pago rechazado → vuelve a pendiente; segundo pago validado → confirmado
     pago = c.post(f"/api/cuenta/pedidos/{p['id']}/pagos", {"referencia": "SPEI-000", "clave_idempotencia": clave()}).get_json()
@@ -69,7 +69,7 @@ def test_flujo_tienda_envio_completo(como, app):
 
 def test_recoger_en_sucursal_con_efectivo_y_promocion_local(como, app):
     c = como("cliente")
-    p = comprar_recoger(c, app, [("BOT-001-N-27", 1)], "PUE").get_json()
+    p = comprar_recoger(c, app, [("BOT-003-N-27", 1)], "PUE").get_json()
     assert p["descuento"] == "100.00" and p["total"] == "690.00" and p["costo_envio"] == "0.00"
     enc_pue, alm_pue = como("enc_pue"), como("alm_pue")
     assert enc_pue.post(f"/api/admin/pedidos/{p['id']}/efectivo", {"monto": "600.00", "clave_idempotencia": clave()}).status_code == 400
@@ -79,10 +79,10 @@ def test_recoger_en_sucursal_con_efectivo_y_promocion_local(como, app):
     paq = surtir_y_empacar(alm_pue, asig["id"])
     assert alm_pue.post(f"/api/admin/paquetes/{paq}/despachar", {"paqueteria": "Local", "guia": "1234"}).status_code == 400
     assert alm_pue.post(f"/api/admin/paquetes/{paq}/listo").status_code == 200
-    antes = inventario(app, "PUE", "BOT-001-N-27")
+    antes = inventario(app, "PUE", "BOT-003-N-27")
     r = alm_pue.post(f"/api/admin/paquetes/{paq}/entregar", {"recibio": "Andrea Morales", "identificacion": "INE ****1234"})
     assert r.status_code == 200
-    despues = inventario(app, "PUE", "BOT-001-N-27")
+    despues = inventario(app, "PUE", "BOT-003-N-27")
     assert despues.fisico == antes.fisico - 1 and despues.comprometido == antes.comprometido - 1
     assert c.get(f"/api/cuenta/pedidos/{p['id']}").get_json()["estado"] == "entregado"
     assert conciliado(app)
@@ -90,7 +90,7 @@ def test_recoger_en_sucursal_con_efectivo_y_promocion_local(como, app):
 
 def test_faltante_al_surtir_genera_incidencia_y_reembolso(como, app):
     c, fin = como("cliente"), como("finanzas")
-    sku = "FIL-001-AR-M"
+    sku = "FIL-001-G-M"
     for s in ("TOL", "QRO", "PUE"):
         fijar_existencia(app, s, sku, 0)
     fijar_existencia(app, "TOL", sku, 3)
@@ -128,7 +128,7 @@ def test_faltante_al_surtir_genera_incidencia_y_reembolso(como, app):
 
 def test_cancelar_tras_despacho_no_procede(como, app):
     c, fin = como("cliente"), como("finanzas")
-    p = comprar_envio(c, app, [("GOR-001-AM-UNITALLA", 1)]).get_json()
+    p = comprar_envio(c, app, [("MAS-002-N-UNITALLA", 1)]).get_json()
     pagar_y_validar(c, fin, p["id"])
     asig = como("admin").get(f"/api/admin/pedidos/{p['id']}").get_json()["asignaciones"][0]
     alm = almacen_de(como, asig["sucursal"]["nombre"])
@@ -142,12 +142,12 @@ def test_canal_corporativo_completo(como, app):
     emp = como("empresa")
     aprob, fin = como("aprobador"), como("finanzas")
     empleados = {e["nombre"]: e["id"] for e in emp.get("/api/cuenta/empleados").get_json()}
-    prod = {p["sku_base"]: p for p in como("admin").get("/api/admin/productos?por_pagina=50").get_json()["items"]}
+    prod = {p["sku_base"]: p for p in como("admin").get("/api/admin/productos?por_pagina=100").get_json()["items"]}
     var = lambda sku_base, talla: next(v["id"] for v in prod[sku_base]["variantes"] if v["talla"] == talla)
     dir_emp = emp.get("/api/cuenta/direcciones").get_json()[0]["id"]
     partidas = [
         {"empleado_id": empleados["Rosario Ramírez"], "variante_id": var("BAT-002", "M"), "cantidad": 1},
-        {"empleado_id": empleados["Carlos Mendoza"], "variante_id": var("CAM-001", "G"), "cantidad": 2},
+        {"empleado_id": empleados["Carlos Mendoza"], "variante_id": var("CAM-003", "G"), "cantidad": 2},
         {"empleado_id": empleados["Juan Pérez"], "variante_id": var("BOT-001", "27"), "cantidad": 1},  # no autorizado
     ]
     sin_just = emp.post("/api/cuenta/pedidos-corporativos", {"modalidad": "envio", "direccion_id": dir_emp,
@@ -159,8 +159,8 @@ def test_canal_corporativo_completo(como, app):
     assert p["estado"] == "en_revision" and p["costo_envio"] == "0.00"
     # Devolver para corrección → corregir → reenviar
     assert aprob.post(f"/api/admin/pedidos/{p['id']}/decision", {"decision": "devuelto"}).status_code == 400
-    assert aprob.post(f"/api/admin/pedidos/{p['id']}/decision", {"decision": "devuelto", "motivo": "Falta el gorro de Carlos"}).status_code == 200
-    partidas.append({"empleado_id": empleados["Carlos Mendoza"], "variante_id": var("GOR-001", "Unitalla"), "cantidad": 1})
+    assert aprob.post(f"/api/admin/pedidos/{p['id']}/decision", {"decision": "devuelto", "motivo": "Falta el pin de Carlos"}).status_code == 200
+    partidas.append({"empleado_id": empleados["Carlos Mendoza"], "variante_id": var("PIN-001", "Unitalla"), "cantidad": 1})
     r = emp.put(f"/api/cuenta/pedidos-corporativos/{p['id']}", {"partidas": partidas, "notas": "Corregido"})
     assert r.status_code == 200 and r.get_json()["estado"] == "en_revision"
     assert aprob.post(f"/api/admin/pedidos/{p['id']}/decision", {"decision": "aprobado"}).status_code == 409  # excepción sin aceptar
@@ -208,7 +208,7 @@ def test_reportes_y_exportaciones(como, app):
     c, fin = como("cliente"), como("finanzas")
     p = comprar_envio(c, app, [("CAM-001-AM-M", 2)]).get_json()
     pagar_y_validar(c, fin, p["id"])
-    comprar_envio(c, app, [("GOR-001-AM-UNITALLA", 1)])  # pedido sin pagar: no es venta
+    comprar_envio(c, app, [("MAS-002-N-UNITALLA", 1)])  # pedido sin pagar: no es venta
     admin = como("admin")
     d = admin.get("/api/admin/reportes/dashboard").get_json()
     assert d["pedidos"]["recibidos"] == 2 and d["ventas_registradas"]["pedidos"] == 1
@@ -231,7 +231,7 @@ def test_reportes_y_exportaciones(como, app):
 
 def test_notificaciones_sin_duplicados(como, app):
     c = como("cliente")
-    p = comprar_envio(c, app, [("GOR-001-AM-UNITALLA", 1)]).get_json()
+    p = comprar_envio(c, app, [("MAS-002-N-UNITALLA", 1)]).get_json()
     notifs = c.get("/api/cuenta/notificaciones").get_json()
     assert notifs["no_leidas"] >= 1 and any(n["evento"] == "pedido_creado" for n in notifs["items"])
     c.post("/api/cuenta/notificaciones/leer", {})

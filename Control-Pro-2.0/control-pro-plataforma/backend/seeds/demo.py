@@ -11,12 +11,13 @@ from flask import current_app
 from sqlalchemy import select
 
 from app.extensions import db
-from app.models import (Categoria, Cliente, Direccion, EmpleadoCorporativo, Producto, ProductoImagen, ProductoPuesto,
-                        Promocion, Rol, Sucursal, SucursalZona, Usuario, Variante, ahora, Carrito)
+from app.models import (Categoria, Cliente, Direccion, EmpleadoCorporativo, Producto, ProductoGiro, ProductoImagen,
+                        ProductoPuesto, Promocion, Rol, Sucursal, SucursalZona, Usuario, Variante, ahora, Carrito)
 from app.security.auth import hash_password
 from app.security.permisos import sincronizar_roles
 from app.services import inventario_service as inv
-from .imagenes import svg_producto
+from .catalogo import CATEGORIAS, PRODUCTOS
+from .imagenes import cuadros_giro, svg_producto
 
 PASSWORD_DEMO = "ControlPro2026"
 
@@ -33,50 +34,10 @@ SUCURSALES = [
 ]
 HORARIO = {"lunes-viernes": "09:00-19:00", "sabado": "09:00-14:00", "domingo": "cerrado"}
 
-CATEGORIAS = [("Batas", "batas"), ("Camisas y polos", "camisas-polos"), ("Pantalones", "pantalones"),
-              ("Protección", "proteccion"), ("Calzado", "calzado"), ("Accesorios", "accesorios")]
-
-TALLAS = ["CH", "M", "G", "XG"]
-CALZADO = ["23", "24", "25", "26", "27", "28", "29"]
-PRODUCTOS = [
-    # sku, nombre, categoria, tipo_imagen, precio, colores, tallas, puestos, destacado, descripcion, material
-    ("BAT-001", "Bata clínica clásica", "batas", "bata", "420", [("Blanco", "#F8FAFC")], ["CH", "M", "G", "XG"],
-     ["Enfermería", "Administración"], True, "Bata de manga larga con tres bolsas y cierre de botones a presión.",
-     "65% poliéster, 35% algodón"),
-    ("BAT-002", "Bata de laboratorio antifluidos", "batas", "bata", "510", [("Blanco", "#F8FAFC"), ("Azul cielo", "#BAE6FD")],
-     TALLAS, ["Enfermería"], True, "Tela con acabado repelente a fluidos, puños elásticos y cuello mao.", "100% poliéster técnico"),
-    ("CAM-001", "Camisa de trabajo manga larga", "camisas-polos", "camisa", "280", [("Azul marino", "#1E3A5F"), ("Gris", "#64748B")],
-     ["CH", "M", "G", "XG", "XXG"], ["Mantenimiento", "Seguridad", "Almacén"], True,
-     "Camisa de gabardina con doble bolsa de parche y costuras reforzadas.", "Gabardina 100% algodón"),
-    ("POL-001", "Polo corporativa piqué", "camisas-polos", "camisa", "250", [("Azul marino", "#1E3A5F"), ("Blanco", "#F8FAFC"), ("Turquesa", "#0F9F94")],
-     TALLAS, ["Administración", "Intendencia"], True, "Polo de tejido piqué transpirable con cuello tejido y tres botones.",
-     "50% algodón, 50% poliéster"),
-    ("FIL-001", "Filipina quirúrgica", "camisas-polos", "camisa", "330", [("Azul rey", "#1D4ED8"), ("Verde quirúrgico", "#0E7C66")],
-     TALLAS, ["Enfermería"], False, "Filipina cuello V con bolsa al pecho, tela antibacterial de secado rápido.", "Microfibra antibacterial"),
-    ("PAN-001", "Pantalón de trabajo cargo", "pantalones", "pantalon", "320", [("Azul marino", "#1E3A5F"), ("Caqui", "#A68A5B")],
-     ["28", "30", "32", "34", "36", "38"], ["Mantenimiento", "Seguridad", "Almacén", "Intendencia"], True,
-     "Pantalón cargo con seis bolsas, rodillas reforzadas y pretina con elástico lateral.", "Gabardina 100% algodón"),
-    ("PAN-002", "Pantalón quirúrgico", "pantalones", "pantalon", "290", [("Azul rey", "#1D4ED8"), ("Verde quirúrgico", "#0E7C66")],
-     TALLAS, ["Enfermería"], False, "Pantalón de jareta con cintura ajustable y bolsas laterales.", "Microfibra antibacterial"),
-    ("CHA-001", "Chaleco de alta visibilidad", "proteccion", "chaleco", "390", [("Amarillo neón", "#E7F225"), ("Naranja", "#F97316")],
-     ["M", "G", "XG"], ["Seguridad", "Mantenimiento", "Almacén"], True, "Chaleco con dos franjas reflejantes y cierre frontal.",
-     "Malla de poliéster"),
-    ("BOT-001", "Botas de seguridad dieléctricas", "calzado", "calzado", "790", [("Negro", "#111827")], CALZADO,
-     ["Seguridad", "Mantenimiento", "Almacén"], True, "Casco de policarbonato, suela antiderrapante y protección dieléctrica.",
-     "Piel flor entera"),
-    ("ZAP-001", "Zapato clínico antiderrapante", "calzado", "calzado", "640", [("Blanco", "#F8FAFC"), ("Negro", "#111827")],
-     ["22", "23", "24", "25", "26", "27", "28"], ["Enfermería"], False, "Zapato ligero con plantilla acolchada y suela antiderrapante.",
-     "Sintético lavable"),
-    ("GOR-001", "Gorra de trabajo", "accesorios", "gorra", "120", [("Azul marino", "#1E3A5F"), ("Gris", "#64748B")], ["Unitalla"],
-     ["Mantenimiento", "Seguridad", "Intendencia"], False, "Gorra de gabardina con ajuste trasero de velcro.", "Gabardina"),
-    ("MAN-001", "Mandil de intendencia", "accesorios", "bata", "180", [("Gris", "#64748B"), ("Azul marino", "#1E3A5F")], ["Unitalla"],
-     ["Intendencia"], False, "Mandil con peto, dos bolsas frontales y cintas ajustables.", "Poliéster resistente a manchas"),
-]
-
 EMPLEADOS = [("1001", "Juan Pérez", "Administración"), ("1002", "Rosario Ramírez", "Enfermería"),
              ("1003", "Carlos Mendoza", "Mantenimiento"), ("1004", "Ana López", "Intendencia"),
-             ("1005", "Luis Hernández", "Seguridad"), ("1006", "María Torres", "Enfermería"),
-             ("2001", "Pedro García", "Almacén"), ("2002", "Fernanda Ruiz", "Administración")]
+             ("1005", "Luis Hernández", "Biomédica"), ("1006", "María Torres", "Enfermería"),
+             ("2001", "Pedro García", "Almacén"), ("2002", "Fernanda Ruiz", "Recepción")]
 
 
 def _sku(sku_base, color, talla):
@@ -134,6 +95,13 @@ def cargar_demo(con_existencias: bool = True):
             with open(os.path.join(carpeta, archivo), "w", encoding="utf-8") as fh:
                 fh.write(svg_producto(tipo, hexc, f"{nombre} {color}"))
             p.imagenes.append(ProductoImagen(url=f"/api/archivos/publicos/{archivo}", orden=i, alt=f"{nombre} color {color}"))
+            frames = []
+            for k, svg in enumerate(cuadros_giro(tipo, hexc, f"{nombre} {color}")):
+                cuadro = f"{slug}-{i}-giro-{k:02d}.svg"
+                with open(os.path.join(carpeta, cuadro), "w", encoding="utf-8") as fh:
+                    fh.write(svg)
+                frames.append(f"/api/archivos/publicos/{cuadro}")
+            p.giros.append(ProductoGiro(color=color, frames=frames))
             for t in tallas:
                 p.variantes.append(Variante(sku=_sku(sku, color, t), talla=t, color=color, color_hex=hexc,
                                             precio_base=Decimal(precio)))
@@ -156,12 +124,12 @@ def cargar_demo(con_existencias: bool = True):
                                               f"seed-{s.codigo}-{v.sku}")
 
     por_sku = {p.sku_base: p for p in productos}
-    db.session.add(Promocion(nombre="Semana del polo corporativo", tipo="porcentaje", valor=Decimal("15"),
+    db.session.add(Promocion(nombre="Semana de la polo biomédica", tipo="porcentaje", valor=Decimal("15"),
                              inicio=ahora() - timedelta(days=1), fin=ahora() + timedelta(days=30),
                              productos=[por_sku["POL-001"]]))
-    db.session.add(Promocion(nombre="Botas: $100 menos al recoger en Puebla", tipo="monto", valor=Decimal("100"),
-                             inicio=ahora() - timedelta(days=1), fin=ahora() + timedelta(days=30),
-                             sucursal_id=sucs["PUE"].id, productos=[por_sku["BOT-001"]]))
+    db.session.add(Promocion(nombre="Botas de mantenimiento: $100 menos al recoger en Puebla", tipo="monto",
+                             valor=Decimal("100"), inicio=ahora() - timedelta(days=1), fin=ahora() + timedelta(days=30),
+                             sucursal_id=sucs["PUE"].id, productos=[por_sku["BOT-003"]]))
 
     persona = Cliente(correo="cliente@demo.mx", nombre="Andrea Morales", telefono="722 100 2000", tipo="persona",
                       hash_password=pw)

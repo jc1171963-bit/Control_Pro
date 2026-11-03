@@ -1,5 +1,6 @@
 from .base import ahora  # noqa: F401
-from .catalogo import Categoria, Producto, ProductoImagen, ProductoPuesto, ProductoSucursal, Promocion, Variante  # noqa: F401
+from .catalogo import (Categoria, Producto, ProductoGiro, ProductoImagen, ProductoPuesto, ProductoSucursal,  # noqa: F401
+                       Promocion, Variante)
 from .clientes import Cliente, Direccion, EmpleadoCorporativo  # noqa: F401
 from .inventario import Inventario, MovimientoInventario, Transferencia, TransferenciaDetalle  # noqa: F401
 from .operacion import (Auditoria, Devolucion, DevolucionDetalle, EntregaIndividual, EntregaIndividualDetalle,  # noqa: F401

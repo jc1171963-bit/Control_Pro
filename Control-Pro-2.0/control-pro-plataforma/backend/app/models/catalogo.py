@@ -4,6 +4,7 @@ from decimal import Decimal
 
 from sqlalchemy import (BigInteger, Boolean, CheckConstraint, Column, DateTime, ForeignKey, Index, Integer, String,
                         Table, Text, UniqueConstraint, func, text)
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..extensions import db
@@ -45,6 +46,7 @@ class Producto(ConFechas, db.Model):
     imagenes = relationship("ProductoImagen", order_by="ProductoImagen.orden", lazy="selectin")
     puestos = relationship("ProductoPuesto", lazy="selectin", cascade="all, delete-orphan")
     sucursales = relationship("ProductoSucursal", lazy="selectin", cascade="all, delete-orphan")
+    giros = relationship("ProductoGiro", order_by="ProductoGiro.id", lazy="selectin", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index("ix_producto_busqueda", text("to_tsvector('spanish', nombre || ' ' || coalesce(descripcion, ''))"),
@@ -59,6 +61,20 @@ class ProductoImagen(db.Model):
     url: Mapped[str] = mapped_column(String(300))
     orden: Mapped[int] = mapped_column(Integer, default=0)
     alt: Mapped[str] = mapped_column(String(160), default="")
+
+
+class ProductoGiro(db.Model):
+    """Secuencia de fotos para la vista 360° (en orden, girando en sentido horario). Color nulo = todos los colores."""
+    __tablename__ = "producto_giro"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    producto_id: Mapped[int] = mapped_column(ForeignKey("producto.id", ondelete="CASCADE"), index=True)
+    color: Mapped[str | None] = mapped_column(String(40))
+    frames: Mapped[list] = mapped_column(JSONB, default=list)
+
+    __table_args__ = (
+        UniqueConstraint("producto_id", "color", name="uq_giro_producto_color", postgresql_nulls_not_distinct=True),
+        CheckConstraint("jsonb_array_length(frames) between 8 and 72", name="ck_giro_frames"),
+    )
 
 
 class Variante(ConFechas, db.Model):

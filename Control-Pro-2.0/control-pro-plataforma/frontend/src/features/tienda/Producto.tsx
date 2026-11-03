@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, Heart, Minus, Plus, ShoppingBag, Store, Truck } from 'lucide-react';
+import { Check, Heart, Minus, Plus, Rotate3d, ShoppingBag, Store, Truck } from 'lucide-react';
 import { del, get, post, put } from '../../api/cliente';
 import type { ProductoDetalle, ProductoResumen } from '../../api/tipos';
 import { useAuth } from '../../app/auth';
 import { Boton, Cargando, ErrorCaja, useAviso } from '../../components/ui';
+import Visor360 from '../../components/Visor360';
 import { cls, dinero, mensajeError } from '../../lib/formato';
 import ProductoCard, { ImagenProducto } from './ProductoCard';
 
@@ -23,9 +24,11 @@ export default function Producto() {
   const [color, setColor] = useState<string>('');
   const [talla, setTalla] = useState<string>('');
   const [cantidad, setCantidad] = useState(1);
-  const [img, setImg] = useState(0);
+  // Vista principal: '360' (giro del color elegido) o el índice de una foto.
+  const [vista, setVista] = useState<'360' | number>(0);
+  const giro = useMemo(() => p?.giros.find((g) => g.color === color) ?? p?.giros.find((g) => g.color === null), [p, color]);
   useEffect(() => { if (colores.length && !color) setColor(colores[0][0]); }, [colores, color]);
-  useEffect(() => { setTalla(''); setCantidad(1); setImg(Math.max(0, colores.findIndex(([c]) => c === color))); }, [color, colores]);
+  useEffect(() => { setTalla(''); setCantidad(1); setVista(giro ? '360' : Math.max(0, colores.findIndex(([c]) => c === color))); }, [color, colores, giro]);
 
   const delColor = (p?.variantes || []).filter((v) => v.color === color);
   const variante = delColor.find((v) => v.talla === talla);
@@ -52,12 +55,20 @@ export default function Producto() {
       <div className="grid gap-10 lg:grid-cols-2">
         <div>
           <div className="aspect-square overflow-hidden rounded-3xl bg-white ring-1 ring-arena-200">
-            <ImagenProducto src={p.imagenes[img]?.url || p.imagen} alt={p.imagenes[img]?.alt || p.nombre} />
+            {vista === '360' && giro ? <Visor360 key={giro.frames[0]} frames={giro.frames} alt={`${p.nombre} ${color}`} />
+              : <ImagenProducto src={p.imagenes[vista as number]?.url || p.imagen} alt={p.imagenes[vista as number]?.alt || p.nombre} />}
           </div>
-          {p.imagenes.length > 1 && (
-            <div className="mt-3 flex gap-3">
+          {(p.imagenes.length > 1 || giro) && (
+            <div className="mt-3 flex flex-wrap gap-3">
+              {giro && (
+                <button onClick={() => setVista('360')} aria-label="Vista 360°" aria-pressed={vista === '360'}
+                  className={cls('relative h-20 w-20 overflow-hidden rounded-xl bg-white ring-2', vista === '360' ? 'ring-menta-500' : 'ring-arena-200')}>
+                  <ImagenProducto src={giro.frames[0]} alt="" className="opacity-40" />
+                  <span className="absolute inset-0 grid place-items-center text-xs font-extrabold text-tinta-800"><span className="flex flex-col items-center"><Rotate3d className="h-5 w-5 text-menta-600" />360°</span></span>
+                </button>
+              )}
               {p.imagenes.map((im, i) => (
-                <button key={im.url} onClick={() => setImg(i)} className={cls('h-20 w-20 overflow-hidden rounded-xl ring-2', i === img ? 'ring-menta-500' : 'ring-transparent')} aria-label={`Imagen ${i + 1}`}>
+                <button key={im.url} onClick={() => setVista(i)} className={cls('h-20 w-20 overflow-hidden rounded-xl ring-2', i === vista ? 'ring-menta-500' : 'ring-transparent')} aria-label={`Imagen ${i + 1}`}>
                   <ImagenProducto src={im.url} alt={im.alt} />
                 </button>
               ))}

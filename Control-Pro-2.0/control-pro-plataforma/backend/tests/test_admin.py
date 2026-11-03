@@ -59,9 +59,9 @@ def test_catalogo_crear_editar_y_deshabilitar_en_sucursal(como, app, client):
 
 def test_promocion_vigencia_y_alcance(como, app, client):
     admin, enc_qro = como("admin"), como("enc_qro")
-    prods = admin.get("/api/admin/productos?q=Gorra").get_json()["items"]
+    prods = admin.get("/api/admin/productos?q=Mascada").get_json()["items"]
     ahora = datetime.now(timezone.utc)
-    base = {"nombre": "Gorras locales", "tipo": "porcentaje", "valor": "20", "inicio": (ahora - timedelta(hours=1)).isoformat(),
+    base = {"nombre": "Mascadas locales", "tipo": "porcentaje", "valor": "20", "inicio": (ahora - timedelta(hours=1)).isoformat(),
             "fin": (ahora + timedelta(days=2)).isoformat(), "productos": [prods[0]["id"]]}
     assert enc_qro.post("/api/admin/promociones", base).status_code == 400  # global requiere administración central
     assert enc_qro.post("/api/admin/promociones", {**base, "sucursal_id": sucursal_id(app, "PUE")}).status_code == 404
@@ -91,7 +91,7 @@ def test_archivos_privados_validan_contenido_y_dueno(como, client):
 
 def test_devolucion_con_merma_y_rechazo(como, app):
     c, fin, aten = como("cliente"), como("finanzas"), como("atencion")
-    p = comprar_envio(c, app, [("CAM-001-G-M", 2)]).get_json()
+    p = comprar_envio(c, app, [("CAM-003-G-M", 2)]).get_json()
     pagar_y_validar(c, fin, p["id"])
     asig = como("admin").get(f"/api/admin/pedidos/{p['id']}").get_json()["asignaciones"][0]
     alm = almacen_de(como, asig["sucursal"]["nombre"])
@@ -110,11 +110,34 @@ def test_devolucion_con_merma_y_rechazo(como, app):
     assert otro.post(f"/api/admin/devoluciones/{dev2['id']}/recibir", {}).status_code == 404  # otra sucursal
     alm.post(f"/api/admin/devoluciones/{dev2['id']}/recibir", {})
     codigo = {"Sucursal Toluca": "TOL", "Sucursal Querétaro": "QRO", "Sucursal Puebla": "PUE"}[asig["sucursal"]["nombre"]]
-    antes = inventario(app, codigo, "CAM-001-G-M").fisico
+    antes = inventario(app, codigo, "CAM-003-G-M").fisico
     det = dev2["detalles"][0]["id"]
     assert alm.post(f"/api/admin/devoluciones/{dev2['id']}/inspeccionar", {"resultados": {str(det): {"aptas": 1, "merma": 1}}}).status_code == 400
     r = alm.post(f"/api/admin/devoluciones/{dev2['id']}/inspeccionar", {"resultados": {str(det): {"aptas": 0, "merma": 1}}})
     assert r.status_code == 200 and r.get_json()["detalles"][0]["resultado"] == "merma"
-    assert inventario(app, codigo, "CAM-001-G-M").fisico == antes  # la merma no regresa al inventario
+    assert inventario(app, codigo, "CAM-003-G-M").fisico == antes  # la merma no regresa al inventario
     assert aten.post(f"/api/admin/devoluciones/{dev2['id']}/cerrar", {}).status_code == 409  # falta reembolso
     assert conciliado(app)
+
+
+def test_vista_360_por_color(como, client):
+    ficha = client.get("/api/tienda/productos/bata-dama").get_json()
+    assert ficha["giro_360"] and ficha["giros"][0]["color"] == "Blanco" and len(ficha["giros"][0]["frames"]) == 24
+    admin = como("admin")
+    p = admin.get(f"/api/admin/productos/{ficha['id']}").get_json()
+    base = {k: p[k] for k in ("sku_base", "nombre", "slug", "descripcion", "material", "cuidados", "destacado", "activo",
+                              "puestos", "sucursales_deshabilitadas")}
+    base["categoria_id"] = p["categoria"]["id"]
+    base["variantes"] = [{k: v[k] for k in ("id", "sku", "talla", "color", "color_hex", "precio_base", "activo")}
+                         for v in p["variantes"]]
+    frames = ficha["giros"][0]["frames"]
+    assert admin.put(f"/api/admin/productos/{p['id']}", {**base, "giros": [{"color": "Morado", "frames": frames}]}).status_code == 400
+    assert admin.put(f"/api/admin/productos/{p['id']}", {**base, "giros": [{"color": "Blanco", "frames": frames[:5]}]}).status_code == 422
+    externo = ["https://otro-sitio.com/x.png"] * 8
+    assert admin.put(f"/api/admin/productos/{p['id']}", {**base, "giros": [{"color": None, "frames": externo}]}).status_code == 422
+    # Reemplazar el giro del mismo color (36 cuadros) y conservarlo cuando no se envía `giros`
+    r = admin.put(f"/api/admin/productos/{p['id']}", {**base, "giros": [{"color": "Blanco", "frames": (frames * 2)[:36]}]})
+    assert r.status_code == 200 and len(r.get_json()["giros"][0]["frames"]) == 36
+    assert admin.put(f"/api/admin/productos/{p['id']}", base).get_json()["giros"][0]["color"] == "Blanco"
+    r = admin.put(f"/api/admin/productos/{p['id']}", {**base, "giros": []})
+    assert r.status_code == 200 and r.get_json()["giros"] == [] and r.get_json()["giro_360"] is False

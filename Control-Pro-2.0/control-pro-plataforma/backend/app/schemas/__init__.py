@@ -204,6 +204,13 @@ class VarianteSchema(Base):
     activo = fields.Bool(load_default=True)
 
 
+class GiroSchema(Base):
+    color = fields.Str(load_default=None, allow_none=True, validate=L(min=2, max=40))
+    frames = fields.List(fields.Str(validate=validate.Regexp(r"^/api/archivos/publicos/[\w.-]+$",
+                                                             error="Cada cuadro debe ser una imagen subida al catálogo.")),
+                         required=True, validate=L(min=8, max=72, error="La vista 360° requiere de 8 a 72 fotos."))
+
+
 class ProductoSchema(Base):
     sku_base = fields.Str(required=True, validate=L(min=3, max=30))
     nombre = fields.Str(required=True, validate=L(min=3, max=160))
@@ -218,6 +225,7 @@ class ProductoSchema(Base):
     variantes = fields.List(fields.Nested(VarianteSchema), required=True, validate=L(min=1))
     sucursales_deshabilitadas = fields.List(fields.Int(), load_default=list)
     imagenes = fields.List(fields.Str(validate=L(max=300)), load_default=list)
+    giros = fields.List(fields.Nested(GiroSchema), load_default=None, allow_none=True)  # None = sin cambios
 
 
 class PromocionSchema(Base):
