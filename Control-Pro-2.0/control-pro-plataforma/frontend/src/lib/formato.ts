@@ -9,8 +9,8 @@ export const fechaHora = (v: string | null | undefined) => (v ? fmtFechaHora.for
 type Tono = 'gris' | 'azul' | 'menta' | 'ambar' | 'coral' | 'violeta' | 'verde';
 
 export const ESTADOS: Record<string, [string, Tono]> = {
-  // pedido
-  en_revision: ['En revisión', 'ambar'], devuelto: ['Devuelto para corrección', 'coral'], rechazado: ['Rechazado', 'coral'],
+  // pedido / solicitud
+  borrador: ['Borrador', 'gris'], en_revision: ['En revisión', 'ambar'], devuelto: ['Devuelto para corrección', 'coral'], rechazado: ['Rechazado', 'coral'],
   pendiente_pago: ['Pendiente de pago', 'ambar'], pago_en_revision: ['Pago en revisión', 'violeta'], confirmado: ['Confirmado', 'azul'],
   en_preparacion: ['En preparación', 'azul'], parcialmente_enviado: ['Parcialmente enviado', 'violeta'], enviado: ['Enviado', 'violeta'],
   parcialmente_entregado: ['Parcialmente entregado', 'menta'], entregado: ['Entregado', 'verde'], cerrado: ['Cerrado', 'gris'],
@@ -27,6 +27,7 @@ export const ESTADOS: Record<string, [string, Tono]> = {
   recibida: ['Recibida', 'menta'], recibida_parcial: ['Recibida con faltantes', 'coral'], inspeccionada: ['Inspeccionada', 'azul'],
   reembolsada: ['Reembolsada', 'verde'], enviada: ['Enviada', 'violeta'], abierta: ['Abierta', 'coral'], en_atencion: ['En atención', 'ambar'],
   resuelta: ['Resuelta', 'verde'], parcial: ['Parcial', 'ambar'], con_incidencia: ['Con incidencia', 'coral'], completa: ['Completa', 'verde'],
+  confirmada: ['Conformidad confirmada', 'verde'], cerrada: ['Cerrada', 'gris'],
   // prioridad
   baja: ['Baja', 'gris'], media: ['Media', 'ambar'], alta: ['Alta', 'coral'], critica: ['Crítica', 'coral'],
 };
@@ -42,6 +43,19 @@ export const MOTIVOS_DEVOLUCION: Record<string, string> = {
   talla_incorrecta: 'Talla incorrecta', producto_danado: 'Producto dañado', producto_incorrecto: 'Producto incorrecto',
   no_corresponde: 'No corresponde a lo pedido', arrepentimiento: 'Ya no lo quiero', otro: 'Otro motivo',
 };
+export const PROBLEMAS_RECEPCION: Record<string, string> = { faltante: 'Faltante', danado: 'Dañado', diferencia: 'Diferente a lo enviado' };
+export const PROBLEMAS_CONFORMIDAD: Record<string, string> = {
+  talla: 'Problema de talla', faltante: 'Artículo faltante', incorrecto: 'Artículo incorrecto', danado: 'Artículo dañado',
+};
+export const TIPOS_INCIDENCIA: Record<string, string> = {
+  articulo_faltante: 'Artículo faltante', articulo_danado: 'Artículo dañado', talla_incorrecta: 'Talla incorrecta',
+  articulo_incorrecto: 'Artículo incorrecto', paquete_no_recibido: 'Paquete no recibido', otro: 'Otro',
+  diferencia_recepcion: 'Diferencia en recepción', entrega_incompleta: 'Entrega incompleta', faltante_surtido: 'Faltante al surtir',
+  incidencia_envio: 'Incidencia de envío', conformidad_talla: 'Conformidad: talla', conformidad_faltante: 'Conformidad: faltante',
+  conformidad_incorrecto: 'Conformidad: artículo incorrecto', conformidad_danado: 'Conformidad: dañado', faltante_transferencia: 'Faltante en transferencia',
+};
+export const tipoIncidencia = (t: string) => TIPOS_INCIDENCIA[t] ?? t.replace(/_/g, ' ');
+
 export const TIPOS_MOVIMIENTO: Record<string, string> = {
   entrada: 'Entrada', salida_venta: 'Salida por venta', ajuste_positivo: 'Ajuste (+)', ajuste_negativo: 'Ajuste (−)', merma: 'Merma',
   transferencia_salida: 'Transferencia (salida)', transferencia_entrada: 'Transferencia (entrada)', devolucion_reingreso: 'Reingreso por devolución',

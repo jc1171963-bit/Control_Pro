@@ -18,6 +18,7 @@ bp = Blueprint("admin_pedidos", __name__, url_prefix="/api/admin")
 
 
 def _filtro_pedidos(q):
+    q = q.where(Pedido.estado != "borrador")  # el borrador aún no se envía: solo lo ve la sucursal
     permitidas = sucursales_permitidas()
     if permitidas is None:
         return q
@@ -27,7 +28,7 @@ def _filtro_pedidos(q):
 
 def _pedido(pedido_id, bloquear=False) -> Pedido:
     p = ped.bloquear_pedido(pedido_id) if bloquear else db.session.get(Pedido, pedido_id)
-    if not p:
+    if not p or p.estado == "borrador":
         raise NoEncontrado("Pedido no encontrado.")
     if not es_global():
         verificar_alcance(ped.sucursales_de(p) or None)

@@ -19,6 +19,7 @@ from .comun import (actor_ids, asignar_folio, auditar, cambiar_estado, dinero, n
 from .precios import precio_con_descuento, promociones_vigentes, totales
 
 TRANSICIONES_PEDIDO = {
+    "borrador": {"en_revision", "cancelado"},
     "en_revision": {"devuelto", "rechazado", "confirmado", "cancelado"},
     "devuelto": {"en_revision", "cancelado"},
     "pendiente_pago": {"pago_en_revision", "confirmado", "cancelado", "expirado"},
@@ -32,11 +33,11 @@ TRANSICIONES_PEDIDO = {
 }
 RANGO_LOGISTICO = {"confirmado": 0, "en_preparacion": 1, "parcialmente_enviado": 2, "enviado": 3,
                    "parcialmente_entregado": 4, "entregado": 5}
-CANCELABLE_CLIENTE = {"en_revision", "devuelto", "pendiente_pago", "pago_en_revision", "confirmado"}
+CANCELABLE_CLIENTE = {"borrador", "en_revision", "devuelto", "pendiente_pago", "pago_en_revision", "confirmado"}
 CANCELABLE_PERSONAL = CANCELABLE_CLIENTE | {"en_preparacion"}
 
 ETIQUETAS = {
-    "en_revision": "en revisión", "devuelto": "devuelto para corrección", "rechazado": "rechazado",
+    "borrador": "en borrador", "en_revision": "en revisión", "devuelto": "devuelto para corrección", "rechazado": "rechazado",
     "pendiente_pago": "pendiente de pago", "pago_en_revision": "con pago en revisión", "confirmado": "confirmado",
     "en_preparacion": "en preparación", "parcialmente_enviado": "parcialmente enviado", "enviado": "enviado",
     "parcialmente_entregado": "parcialmente entregado", "entregado": "entregado", "cerrado": "cerrado",
@@ -411,8 +412,10 @@ def cerrar(pedido: Pedido, comentario: str | None = None):
 
 # ---------------------------------------------------------------- canal corporativo
 
-def _partidas_corporativas(cliente: Cliente, partidas: list[dict], pedido: Pedido, promos):
-    if not partidas:
+def _partidas_corporativas(cliente: Cliente, partidas: list[dict], pedido: Pedido, promos, estricto: bool = True):
+    """Valida y agrega las partidas. En borrador (`estricto=False`) se permite guardar sin partidas y sin la
+    justificación de las excepciones por puesto; ambas se exigen al enviar a revisión."""
+    if not partidas and estricto:
         raise AppError("Agrega al menos una partida.")
     subtotal = descuento = Decimal("0.00")
     errores = []
@@ -427,7 +430,7 @@ def _partidas_corporativas(cliente: Cliente, partidas: list[dict], pedido: Pedid
             continue
         autorizado = emp.puesto in {pp.puesto for pp in v.producto.puestos}
         excepcion = (p.get("excepcion") or "").strip() or None
-        if not autorizado and (not excepcion or len(excepcion) < 10):
+        if estricto and not autorizado and (not excepcion or len(excepcion) < 10):
             errores.append({"partida": i, "error": f"{v.producto.nombre} no está autorizado para el puesto "
                                                    f"{emp.puesto}; justifica la excepción (mínimo 10 caracteres)."})
             continue
@@ -445,23 +448,29 @@ def _partidas_corporativas(cliente: Cliente, partidas: list[dict], pedido: Pedid
 
 
 def crear_corporativo(cliente: Cliente, modalidad: str, partidas: list[dict], clave: str,
-                      direccion_id: int | None = None, sucursal_id: int | None = None, notas: str | None = None):
+                      direccion_id: int | None = None, sucursal_id: int | None = None, notas: str | None = None,
+                      borrador: bool = False):
     existente = db.session.scalars(select(Pedido).where(Pedido.clave_idempotencia == clave)).first()
     if existente:
         if existente.cliente_id != cliente.id:
             raise Conflicto("Clave de operación ya utilizada.")
         return existente, False
     pedido = Pedido(canal="corporativo", cliente_id=cliente.id, modalidad=modalidad, metodo_pago="credito_corporativo",
-                    estado="en_revision", notas=notas, clave_idempotencia=clave)
+                    estado="borrador" if borrador else "en_revision", notas=notas, clave_idempotencia=clave)
     if modalidad == "envio":
         pedido.direccion_envio = _snapshot_direccion(cliente, direccion_id)
     elif modalidad == "recoger":
         pedido.sucursal_recoger_id = _sucursal_recoger(sucursal_id).id
     else:
         raise AppError("Modalidad de entrega inválida.")
-    _partidas_corporativas(cliente, partidas, pedido, promociones_vigentes())
+    _partidas_corporativas(cliente, partidas, pedido, promociones_vigentes(), estricto=not borrador)
     db.session.add(pedido)
     asignar_folio(pedido, "PED")
+    if borrador:
+        registrar_historial("pedido", pedido.id, None, "borrador", "Solicitud guardada como borrador")
+        auditar("pedido.borrador", "pedido", pedido.id, despues={"folio": pedido.folio, "partidas": len(partidas)})
+        db.session.commit()
+        return pedido, True
     registrar_historial("pedido", pedido.id, None, "en_revision", "Pedido corporativo enviado a revisión")
     auditar("pedido.crear_corporativo", "pedido", pedido.id, despues={"folio": pedido.folio, "partidas": len(partidas)})
     notificar_personal("pedido.aprobar", "pedido_por_aprobar", "pedido", pedido.id,
@@ -476,15 +485,52 @@ def corregir_corporativo(cliente: Cliente, pedido: Pedido, partidas: list[dict],
         raise NoEncontrado("Pedido no encontrado.")
     if pedido.estado != "devuelto":
         raise TransicionInvalida("Solo se corrigen pedidos devueltos para corrección.")
-    for d in list(pedido.detalles):
-        pedido.detalles.remove(d)
-    db.session.flush()
-    _partidas_corporativas(cliente, partidas, pedido, promociones_vigentes())
+    _reemplazar_partidas(cliente, pedido, partidas, estricto=True)
     pedido.notas = notas
     transicionar(pedido, "en_revision", "Corregido y reenviado por el cliente")
     auditar("pedido.corregir", "pedido", pedido.id, despues={"partidas": len(partidas)})
     notificar_personal("pedido.aprobar", "pedido_reenviado", "pedido", pedido.id,
                        f"Pedido {pedido.folio} corregido y reenviado.", enlace=f"/admin/pedidos/{pedido.id}")
+    db.session.commit()
+    return pedido
+
+
+def _reemplazar_partidas(cliente: Cliente, pedido: Pedido, partidas: list[dict], estricto: bool):
+    for d in list(pedido.detalles):
+        pedido.detalles.remove(d)
+    db.session.flush()
+    _partidas_corporativas(cliente, partidas, pedido, promociones_vigentes(), estricto=estricto)
+
+
+def _partidas_actuales(pedido: Pedido) -> list[dict]:
+    return [{"empleado_id": d.empleado_id, "variante_id": d.variante_id, "cantidad": d.cantidad, "excepcion": d.excepcion}
+            for d in pedido.detalles]
+
+
+def actualizar_borrador(cliente: Cliente, pedido: Pedido, partidas: list[dict], notas: str | None):
+    if pedido.cliente_id != cliente.id:
+        raise NoEncontrado("Pedido no encontrado.")
+    if pedido.estado != "borrador":
+        raise TransicionInvalida("Solo se editan solicitudes en borrador.")
+    _reemplazar_partidas(cliente, pedido, partidas, estricto=False)
+    pedido.notas = notas
+    auditar("pedido.borrador_editar", "pedido", pedido.id, despues={"partidas": len(partidas)})
+    db.session.commit()
+    return pedido
+
+
+def enviar_borrador(cliente: Cliente, pedido: Pedido):
+    """Envía el borrador a revisión aplicando todas las validaciones (incluidas las excepciones por puesto)."""
+    if pedido.cliente_id != cliente.id:
+        raise NoEncontrado("Pedido no encontrado.")
+    if pedido.estado != "borrador":
+        raise TransicionInvalida("La solicitud ya fue enviada.")
+    _reemplazar_partidas(cliente, pedido, _partidas_actuales(pedido), estricto=True)
+    transicionar(pedido, "en_revision", "Solicitud enviada a revisión")
+    auditar("pedido.enviar", "pedido", pedido.id, despues={"partidas": len(pedido.detalles)})
+    notificar_personal("pedido.aprobar", "pedido_por_aprobar", "pedido", pedido.id,
+                       f"Pedido corporativo {pedido.folio} de {cliente.razon_social or cliente.nombre} por aprobar.",
+                       enlace=f"/admin/pedidos/{pedido.id}")
     db.session.commit()
     return pedido
 

@@ -4,7 +4,9 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { SlidersHorizontal, X } from 'lucide-react';
 import { get } from '../../api/cliente';
 import type { Pagina, ProductoResumen } from '../../api/tipos';
-import { Boton, Cargando, ErrorCaja, Paginacion, Vacio } from '../../components/ui';
+import { useConfig } from '../../app/config';
+import { Boton, ErrorCaja, Paginacion, Vacio } from '../../components/ui';
+import { Esqueleto } from '../../components/movimiento';
 import { cls } from '../../lib/formato';
 import ProductoCard from './ProductoCard';
 
@@ -14,6 +16,7 @@ type Cat = { id: number; nombre: string; slug: string; productos: number };
 export default function Catalogo() {
   const [params, setParams] = useSearchParams();
   const [panel, setPanel] = useState(false);
+  const { canalTienda } = useConfig();
   const consulta = params.toString();
   const datos = useQuery({ queryKey: ['catalogo', consulta], queryFn: () => get<Resp>(`/tienda/productos?por_pagina=12&${consulta}`), placeholderData: keepPreviousData });
   const cats = useQuery({ queryKey: ['categorias'], queryFn: () => get<Cat[]>('/tienda/categorias'), staleTime: 300_000 });
@@ -57,7 +60,7 @@ export default function Catalogo() {
           ))}
         </div>
       </div>
-      <div>
+      {canalTienda && <div>
         <p className="mb-2 font-display font-bold">Precio (MXN)</p>
         <form className="flex items-center gap-2" onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); const p = new URLSearchParams(params);
           ['precio_min', 'precio_max'].forEach((k) => { const v = String(f.get(k) || ''); v ? p.set(k, v) : p.delete(k); }); p.delete('pagina'); setParams(p); }}>
@@ -65,7 +68,7 @@ export default function Catalogo() {
           <input name="precio_max" type="number" min={0} defaultValue={params.get('precio_max') || ''} placeholder="Máx" className="h-9 w-full rounded-lg border-0 px-2 ring-1 ring-arena-300" />
           <Boton tam="sm" type="submit">OK</Boton>
         </form>
-      </div>
+      </div>}
       <label className="flex items-center gap-2 font-semibold">
         <input type="checkbox" checked={params.get('disponible') === '1'} onChange={(e) => fijar('disponible', e.target.checked ? '1' : null)} className="h-4 w-4 rounded accent-menta-500" />
         Solo con existencias
@@ -85,8 +88,9 @@ export default function Catalogo() {
           <Boton variante="secundario" className="lg:hidden" onClick={() => setPanel(true)} icono={<SlidersHorizontal className="h-4 w-4" />}>Filtros</Boton>
           <select value={params.get('orden') || 'relevancia'} onChange={(e) => fijar('orden', e.target.value === 'relevancia' ? null : e.target.value)} aria-label="Ordenar"
             className="h-10 rounded-lg border-0 bg-white pr-8 text-sm ring-1 ring-arena-300">
-            <option value="relevancia">Más relevantes</option><option value="precio_asc">Menor precio</option>
-            <option value="precio_desc">Mayor precio</option><option value="nuevos">Más recientes</option><option value="nombre">Nombre A–Z</option>
+            <option value="relevancia">Más relevantes</option>
+            {canalTienda && <><option value="precio_asc">Menor precio</option><option value="precio_desc">Mayor precio</option></>}
+            <option value="nuevos">Más recientes</option><option value="nombre">Nombre A–Z</option>
           </select>
         </div>
       </div>
@@ -104,11 +108,11 @@ export default function Catalogo() {
         <aside className="hidden lg:block">{filtros}</aside>
         <div>
           <ErrorCaja error={datos.error} />
-          {datos.isLoading ? <Cargando /> : datos.data && datos.data.items.length === 0 ? (
+          {datos.isLoading ? <div className="grid grid-cols-2 gap-3 sm:gap-5 xl:grid-cols-3">{Array.from({ length: 6 }, (_, i) => <Esqueleto key={i} className="aspect-[3/4]" />)}</div> : datos.data && datos.data.items.length === 0 ? (
             <Vacio titulo="No encontramos productos" texto="Prueba con otros filtros o una búsqueda diferente." />
           ) : (
             <div className={cls('grid grid-cols-2 gap-3 sm:gap-5 xl:grid-cols-3', datos.isFetching && 'opacity-60')}>
-              {datos.data?.items.map((p) => <ProductoCard key={p.id} p={p} />)}
+              {datos.data?.items.map((p, i) => <ProductoCard key={p.id} p={p} orden={i} />)}
             </div>
           )}
           {datos.data && <Paginacion pagina={datos.data.pagina} paginas={datos.data.paginas} total={datos.data.total} onCambio={(p) => fijar('pagina', String(p))} />}

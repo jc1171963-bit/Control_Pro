@@ -5,9 +5,10 @@ from sqlalchemy import func, select, update
 
 from ..errors import AppError, Conflicto, NoEncontrado
 from ..extensions import db
-from ..models import (Carrito, CarritoItem, Devolucion, Direccion, EmpleadoCorporativo, EntregaIndividual, Favorito,
-                      Notificacion, Paquete, Pedido, Producto, Variante)
-from ..schemas import (CantidadSchema, CarritoItemSchema, CheckoutSchema, CorreccionCorporativaSchema,
+from ..models import (AsignacionSurtido, Carrito, CarritoItem, Devolucion, Direccion, EmpleadoCorporativo,
+                      EntregaIndividual, Favorito, Incidencia, Notificacion, Paquete, Pedido, Producto, Recepcion,
+                      Variante)
+from ..schemas import (CantidadSchema, CarritoItemSchema, CheckoutSchema, ConformidadSchema, CorreccionCorporativaSchema,
                        DevolucionSolicitudSchema, DireccionSchema, EmpleadoSchema, EntregaIndividualSchema,
                        GuiaRetornoSchema, IncidenciaSchema, MotivoSchema, PagoTransferenciaSchema,
                        PedidoCorporativoSchema, PerfilSchema, RecepcionSchema, cargar)
@@ -144,6 +145,12 @@ def _respuesta_carrito(c: Carrito):
             "reserva_horas": current_app.config["RESERVA_HORAS"]}
 
 
+def _requiere_tienda():
+    if not current_app.config["CANAL_TIENDA"]:
+        raise Conflicto("La tienda en línea no está disponible; las sucursales trabajan con solicitudes.",
+                        codigo="canal_no_disponible")
+
+
 def _validar_existencia(variante_id: int, cantidad: int):
     v = db.session.get(Variante, variante_id)
     if not v or not v.activo or not v.producto.activo:
@@ -165,6 +172,7 @@ def ver_carrito():
 @bp.post("/carrito/items")
 @requiere_cliente()
 def agregar_item():
+    _requiere_tienda()
     d = cargar(CarritoItemSchema, cuerpo())
     c = _carrito()
     existente = next((i for i in c.items if i.variante_id == d["variante_id"]), None)
@@ -242,6 +250,7 @@ def quitar_favorito(producto_id):
 @bp.post("/checkout")
 @requiere_cliente()
 def checkout():
+    _requiere_tienda()
     d = cargar(CheckoutSchema, cuerpo())
     pedido, nuevo = ped_srv.checkout(g.cliente, d["modalidad"], d["metodo_pago"], d["clave_idempotencia"],
                                      d.get("direccion_id"), d.get("sucursal_id"), d.get("notas"))
@@ -322,7 +331,9 @@ def devolucion_en_camino(dev_id):
 def reportar_incidencia(pedido_id):
     d = cargar(IncidenciaSchema, cuerpo())
     _mi_pedido(pedido_id)
-    inc = dev_srv.crear_incidencia(d["tipo"], d["descripcion"], d["prioridad"], pedido_id=pedido_id)
+    inc = dev_srv.crear_incidencia(d["tipo"], d["descripcion"], d["prioridad"], pedido_id=pedido_id,
+                                   paquete_id=d.get("paquete_id"), empleado_id=d.get("empleado_id"),
+                                   pedido_detalle_id=d.get("pedido_detalle_id"))
     return jsonify(serial.incidencia(inc)), 201
 
 
@@ -406,16 +417,63 @@ def puestos_autorizados():
 def crear_pedido_corporativo():
     d = cargar(PedidoCorporativoSchema, cuerpo())
     pedido, nuevo = ped_srv.crear_corporativo(g.cliente, d["modalidad"], d["partidas"], d["clave_idempotencia"],
-                                              d.get("direccion_id"), d.get("sucursal_id"), d.get("notas"))
+                                              d.get("direccion_id"), d.get("sucursal_id"), d.get("notas"),
+                                              borrador=d["borrador"])
     return jsonify(serial.pedido(pedido)), (201 if nuevo else 200)
 
 
 @bp.put("/pedidos-corporativos/<int:pedido_id>")
 @requiere_cliente(empresa=True)
 def corregir_pedido_corporativo(pedido_id):
+    """Borrador: guarda los cambios (y lo envía si `enviar`). Devuelto: corrige y reenvía a revisión."""
     d = cargar(CorreccionCorporativaSchema, cuerpo())
     pedido = ped_srv.bloquear_pedido(_mi_pedido(pedido_id).id)
+    if pedido.estado == "borrador":
+        ped_srv.actualizar_borrador(g.cliente, pedido, d["partidas"], d.get("notas"))
+        if d["enviar"]:
+            ped_srv.enviar_borrador(g.cliente, ped_srv.bloquear_pedido(pedido.id))
+        return jsonify(serial.pedido(pedido))
+    if not d["partidas"]:
+        raise AppError("Agrega al menos un artículo.")
     return jsonify(serial.pedido(ped_srv.corregir_corporativo(g.cliente, pedido, d["partidas"], d.get("notas"))))
+
+
+@bp.post("/pedidos-corporativos/<int:pedido_id>/enviar")
+@requiere_cliente(empresa=True)
+def enviar_pedido_corporativo(pedido_id):
+    pedido = ped_srv.bloquear_pedido(_mi_pedido(pedido_id).id)
+    return jsonify(serial.pedido(ped_srv.enviar_borrador(g.cliente, pedido)))
+
+
+@bp.get("/resumen")
+@requiere_cliente(empresa=True)
+def resumen():
+    """Indicadores de la sucursal para su inicio: solicitudes por etapa, recepciones, entregas e incidencias."""
+    mis = select(Pedido.id).where(Pedido.cliente_id == g.cliente.id, Pedido.canal == "corporativo")
+    por_estado = dict(db.session.execute(select(Pedido.estado, func.count()).where(Pedido.id.in_(mis))
+                                         .group_by(Pedido.estado)).all())
+    mis_paquetes = select(Paquete.id).join(AsignacionSurtido).where(AsignacionSurtido.pedido_id.in_(mis))
+    filas_entrega = db.session.execute(select(EntregaIndividual.estado, EntregaIndividual.conformidad_en)
+                                       .where(EntregaIndividual.paquete_id.in_(mis_paquetes))).all()
+    en_proceso = ("confirmado", "en_preparacion", "parcialmente_enviado", "enviado", "parcialmente_entregado")
+    return jsonify({
+        "solicitudes": {
+            "borradores": por_estado.get("borrador", 0), "en_revision": por_estado.get("en_revision", 0),
+            "por_corregir": por_estado.get("devuelto", 0), "en_proceso": sum(por_estado.get(e, 0) for e in en_proceso),
+            "entregadas": por_estado.get("entregado", 0) + por_estado.get("cerrado", 0),
+            "rechazadas": por_estado.get("rechazado", 0),
+        },
+        "paquetes_en_camino": db.session.scalar(select(func.count()).select_from(Paquete).where(
+            Paquete.id.in_(mis_paquetes), Paquete.estado.in_(["preparado", "despachado", "en_transito"]))),
+        "paquetes_por_recibir": db.session.scalar(select(func.count()).select_from(Paquete).where(
+            Paquete.id.in_(mis_paquetes), Paquete.estado == "entregado", Paquete.id.notin_(select(Recepcion.paquete_id)))),
+        "entregas_pendientes": sum(1 for e, _ in filas_entrega if e == "pendiente"),
+        "conformidades_pendientes": sum(1 for e, c in filas_entrega if e == "entregada" and c is None),
+        "incidencias_abiertas": db.session.scalar(select(func.count()).select_from(Incidencia).where(
+            Incidencia.pedido_id.in_(mis), Incidencia.estado.in_(["abierta", "en_atencion"]))),
+        "empleados_activos": db.session.scalar(select(func.count()).select_from(EmpleadoCorporativo).where(
+            EmpleadoCorporativo.cliente_id == g.cliente.id, EmpleadoCorporativo.activo.is_(True))),
+    })
 
 
 @bp.post("/paquetes/<int:paquete_id>/recepcion")
@@ -423,7 +481,7 @@ def corregir_pedido_corporativo(pedido_id):
 def recepcion(paquete_id):
     d = cargar(RecepcionSchema, cuerpo())
     paq = log_srv.bloquear_paquete(paquete_id)
-    log_srv.registrar_recepcion(paq, g.cliente.id, d["completa"], d.get("diferencias"))
+    log_srv.registrar_recepcion(paq, g.cliente.id, d["completa"], d.get("diferencias"), d.get("partidas"))
     return jsonify(serial.pedido(paq.asignacion.pedido)), 201
 
 
@@ -444,5 +502,18 @@ def registrar_entrega(entrega_id):
     if not e:
         raise NoEncontrado("Entrega no encontrada.")
     log_srv.registrar_entrega_individual(e, g.cliente.id, int_keys(d["cantidades"]), d["firma"], d.get("valoracion"),
-                                         d.get("observaciones"))
+                                         d.get("observaciones"), d["registrado_por"])
+    return jsonify(serial.entrega_individual(e))
+
+
+@bp.post("/entregas/<int:entrega_id>/conformidad")
+@requiere_cliente(empresa=True)
+def registrar_conformidad(entrega_id):
+    d = cargar(ConformidadSchema, cuerpo())
+    e = db.session.scalars(select(EntregaIndividual).where(EntregaIndividual.id == entrega_id)
+                           .with_for_update(of=EntregaIndividual)).first()
+    if not e:
+        raise NoEncontrado("Entrega no encontrada.")
+    log_srv.registrar_conformidad(e, g.cliente.id, d["valoracion"], d.get("comentario"), d.get("problema"),
+                                  d.get("pedido_detalle_id"))
     return jsonify(serial.entrega_individual(e))

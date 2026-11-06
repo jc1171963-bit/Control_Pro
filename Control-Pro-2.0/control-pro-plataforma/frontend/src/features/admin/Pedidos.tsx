@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Ban, Check, CheckCheck, FileDown, Search, Undo2, X } from 'lucide-react';
+import { AlertTriangle, Ban, Check, CheckCheck, ChevronRight, FileDown, Search, Undo2, X } from 'lucide-react';
 import { claveIdempotencia, descargar, get, post } from '../../api/cliente';
 import type { Pagina, Pedido, PedidoResumen } from '../../api/tipos';
 import { useAuth } from '../../app/auth';
 import { Aviso, Boton, Campo, Cargando, Entrada, ErrorCaja, Estado, Modal, Paginacion, Selector, Tabla, Tarjeta, Td, Texto, useAviso } from '../../components/ui';
-import { cls, dinero, etiqueta, fechaHora, METODOS, mensajeError } from '../../lib/formato';
+import { cls, dinero, etiqueta, fechaHora, METODOS, mensajeError, PROBLEMAS_RECEPCION } from '../../lib/formato';
+import { Aparecer, EsqueletoLista, Palomita } from '../../components/movimiento';
 import { Encabezado, FiltroSucursal } from './AdminLayout';
 
 const ESTADOS_FILTRO = [['', 'Todos'], ['en_revision', 'Por aprobar'], ['pendiente_pago,pago_en_revision', 'Por pagar'], ['confirmado,en_preparacion', 'Por surtir'],
@@ -53,6 +54,78 @@ export function Pedidos() {
   );
 }
 
+// ---------------------------------------------------------------- bandeja de solicitudes de sucursales
+
+const BANDEJA = [['en_revision', 'Por revisar'], ['devuelto', 'En corrección'], ['confirmado,en_preparacion', 'En surtido'],
+  ['parcialmente_enviado,enviado', 'En camino'], ['parcialmente_entregado,entregado', 'En recepción y entrega'], ['cerrado', 'Cerradas'],
+  ['rechazado,cancelado', 'Rechazadas o canceladas'], ['', 'Todas']];
+
+export function Solicitudes() {
+  const [params, setParams] = useSearchParams();
+  const estado = params.get('estado') ?? 'en_revision';
+  const pagina = Number(params.get('pagina') || 1);
+  const set = (k: string, v: string) => { const p = new URLSearchParams(params); p.set(k, v); if (k !== 'pagina') p.delete('pagina'); setParams(p); };
+  const q = useQuery({ queryKey: ['admin-solicitudes', estado, pagina], placeholderData: keepPreviousData,
+    queryFn: () => get<Pagina<PedidoResumen>>(`/admin/pedidos?canal=corporativo&por_pagina=15&pagina=${pagina}${estado ? `&estado=${estado}` : ''}`) });
+  return (
+    <>
+      <Encabezado titulo="Solicitudes de sucursales" sub="Revisión, surtido, envío y entrega de las solicitudes por empleado" />
+      <Tarjeta>
+        <div className="mb-4 flex flex-wrap gap-1.5">
+          {BANDEJA.map(([v, n]) => <button key={v} onClick={() => set('estado', v)} className={cls('rounded-full px-3 py-1 text-xs font-semibold ring-1 transition', estado === v ? 'bg-tinta-900 text-white ring-tinta-900' : 'ring-tinta-200 hover:bg-tinta-50')}>{n}</button>)}
+        </div>
+        <ErrorCaja error={q.error} />
+        {q.isLoading ? <EsqueletoLista /> : !q.data?.items.length ? (
+          <div className="flex flex-col items-center gap-2 py-12 text-center"><Palomita className="text-menta-500" /><p className="font-semibold">Nada pendiente en esta bandeja</p></div>
+        ) : (
+          <ul className="divide-y divide-tinta-100">
+            {q.data.items.map((p, i) => (
+              <Aparecer como="li" orden={i} key={p.id}>
+                <Link to={`/admin/pedidos/${p.id}`} className="flex flex-wrap items-center gap-4 rounded-lg px-2 py-4 transition hover:bg-tinta-50/60">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2"><span className="font-display font-bold">{p.folio}</span><Estado valor={p.estado} /></div>
+                    <p className="text-sm font-semibold text-tinta-700">{p.cliente.nombre}</p>
+                    <p className="text-xs text-tinta-400">{fechaHora(p.creado)} · {p.articulos} artículo(s){p.sucursales.length ? ` · surte ${p.sucursales.join(', ')}` : ''}</p>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-tinta-300" />
+                </Link>
+              </Aparecer>
+            ))}
+          </ul>
+        )}
+        {q.data && <Paginacion pagina={q.data.pagina} paginas={q.data.paginas} total={q.data.total} onCambio={(p) => set('pagina', String(p))} />}
+      </Tarjeta>
+    </>
+  );
+}
+
+/** Rastreo de cada artículo: solicitud → surtido → paquete y guía → recepción → entrega con firma → conformidad. */
+function TrazabilidadArticulos({ p }: { p: Pedido }) {
+  const filas = p.detalles.map((d) => {
+    const asig = (p.asignaciones || []).flatMap((a) => a.detalles.filter((x) => x.pedido_detalle_id === d.id).map((x) => ({ ...x, sucursal: a.sucursal.nombre })));
+    const paquetes = p.paquetes.filter((pq) => pq.contenido.some((c) => c.pedido_detalle_id === d.id));
+    const recepciones = paquetes.flatMap((pq) => (pq.recepcion?.detalles || []).filter((x) => x.pedido_detalle_id === d.id));
+    const entregas = (p.entregas_individuales || []).flatMap((e) => e.detalles.filter((x) => x.pedido_detalle_id === d.id).map((x) => ({ ...x, e })));
+    return { d, asig, paquetes, recepciones, entregas };
+  });
+  return (
+    <Tabla columnas={['Empleado / artículo', 'Surtido', 'Paquete y guía', 'Recepción', 'Entrega', 'Conformidad']}>
+      {filas.map(({ d, asig, paquetes, recepciones, entregas }) => (
+        <tr key={d.id} className="align-top">
+          <Td><p className="font-semibold">{d.empleado?.nombre || '—'}</p><p className="text-xs text-tinta-500">{d.cantidad}× {d.nombre} · {d.talla}</p>
+            {d.excepcion && <p className="mt-1 text-[11px] text-amber-700">Excepción por puesto</p>}</Td>
+          <Td className="text-xs">{asig.length ? asig.map((a) => <p key={a.id}>{a.sucursal}: {a.surtida}/{a.cantidad}{a.faltante ? <span className="text-coral-600"> · {a.faltante} faltante</span> : ''}</p>) : <span className="text-tinta-300">Pendiente</span>}</Td>
+          <Td className="text-xs">{paquetes.length ? paquetes.map((pq) => <p key={pq.id}>{pq.folio} <Estado valor={pq.estado} className="ml-1" />{pq.envio && <span className="block text-tinta-400">{pq.envio.paqueteria} · {pq.envio.guia}</span>}</p>) : <span className="text-tinta-300">—</span>}</Td>
+          <Td className="text-xs">{paquetes.some((pq) => pq.recepcion) ? (recepciones.length ? recepciones.map((r, i) => <p key={i} className={r.problema ? 'text-coral-600' : 'text-menta-700'}>{r.recibida}/{r.esperada}{r.problema ? ` · ${PROBLEMAS_RECEPCION[r.problema]}` : ' recibidas'}</p>)
+            : <p className="text-menta-700">Recibido</p>) : <span className="text-tinta-300">—</span>}</Td>
+          <Td className="text-xs">{entregas.length ? entregas.map(({ e, entregada, esperada }) => <p key={e.id}>{e.estado === 'pendiente' ? <span className="text-tinta-400">Pendiente</span> : <>{entregada}/{esperada} · {fechaHora(e.entregado_en)}<span className="block text-tinta-400">Entregó {e.registrado_por || '—'}{e.tiene_firma ? ' · firmado' : ''}</span></>}</p>) : <span className="text-tinta-300">—</span>}</Td>
+          <Td className="text-xs">{entregas.map(({ e }) => <p key={e.id}>{e.conformidad_en ? <><span className="text-amber-500">{'★'.repeat(e.valoracion || 0)}</span> <Estado valor={e.estado} className="ml-1" /></> : e.estado !== 'pendiente' ? <span className="text-tinta-400">Pendiente</span> : ''}</p>)}</Td>
+        </tr>
+      ))}
+    </Tabla>
+  );
+}
+
 export function PedidoAdmin() {
   const { id } = useParams();
   const { puede } = useAuth();
@@ -90,7 +163,7 @@ export function PedidoAdmin() {
 
   return (
     <>
-      <Encabezado titulo={`Pedido ${p.folio}`} sub={`${p.canal === 'corporativo' ? 'Canal corporativo' : 'Tienda en línea'} · ${fechaHora(p.creado)}`}>
+      <Encabezado titulo={`${p.canal === 'corporativo' ? 'Solicitud' : 'Pedido'} ${p.folio}`} sub={`${p.canal === 'corporativo' ? `Sucursal ${p.cliente.razon_social || p.cliente.nombre}` : 'Tienda en línea'} · ${fechaHora(p.creado)}`}>
         <Boton variante="secundario" icono={<FileDown className="h-4 w-4" />} onClick={() => descargar(`/admin/pedidos/${p.id}/pdf`, `${p.folio}.pdf`)}>PDF</Boton>
         {p.estado === 'en_revision' && puede('pedido.aprobar') && <>
           <Boton variante="menta" icono={<Check className="h-4 w-4" />} onClick={() => setModal('aprobar')}>Aprobar</Boton>
@@ -127,6 +200,13 @@ export function PedidoAdmin() {
               <div className="flex justify-between text-xs text-tinta-400"><dt>Saldo por cobrar</dt><dd>{dinero(p.saldo)}</dd></div>
             </dl>
           </Tarjeta>
+
+          {p.canal === 'corporativo' && (
+            <Tarjeta titulo="Trazabilidad por artículo" sub="Cada artículo, de la solicitud a la firma del empleado">
+              {p.incidencias?.some((i) => ['abierta', 'en_atencion'].includes(i.estado)) && <div className="mb-3"><Aviso tipo="alerta"><span className="flex items-center gap-1"><AlertTriangle className="h-4 w-4" />Hay incidencias abiertas en esta solicitud.</span></Aviso></div>}
+              <TrazabilidadArticulos p={p} />
+            </Tarjeta>
+          )}
 
           <Tarjeta titulo="Surtido por sucursal">
             {!p.asignaciones?.length ? <p className="text-sm text-tinta-400">Aún sin asignar: el inventario se aparta al confirmar (pago o aprobación).</p> : (
@@ -167,9 +247,11 @@ export function PedidoAdmin() {
           )}
           {!!p.entregas_individuales?.length && (
             <Tarjeta titulo="Entregas individuales (corporativo)">
-              <Tabla columnas={['Empleado', 'Artículos', 'Valoración', 'Fecha', 'Estado']}>
+              <Tabla columnas={['Empleado', 'Artículos', 'Entregó', 'Conformidad', 'Fecha', 'Estado']}>
                 {p.entregas_individuales.map((e) => <tr key={e.id}><Td>{e.empleado.nombre}<p className="text-xs text-tinta-400">{e.empleado.puesto}</p></Td>
-                  <Td className="text-xs">{e.detalles.map((d) => `${d.entregada}/${d.esperada} ${d.sku}`).join(', ')}</Td><Td>{e.valoracion ?? '—'}</Td><Td className="text-xs">{fechaHora(e.entregado_en)}</Td><Td><Estado valor={e.estado} /></Td></tr>)}
+                  <Td className="text-xs">{e.detalles.map((d) => `${d.entregada}/${d.esperada} ${d.sku}`).join(', ')}</Td><Td className="text-xs">{e.registrado_por || '—'}</Td>
+                  <Td className="text-xs">{e.conformidad_en ? <>{'★'.repeat(e.valoracion || 0)}<span className="block text-tinta-400">{e.conformidad_comentario}</span></> : '—'}</Td>
+                  <Td className="text-xs">{fechaHora(e.entregado_en)}</Td><Td><Estado valor={e.estado} /></Td></tr>)}
               </Tabla>
             </Tarjeta>
           )}
@@ -185,7 +267,9 @@ export function PedidoAdmin() {
           </Tarjeta>
           {!!p.incidencias?.length && (
             <Tarjeta titulo="Incidencias">
-              {p.incidencias.map((i) => <div key={i.id} className="mb-2 rounded-lg p-3 text-sm ring-1 ring-tinta-100"><div className="flex justify-between"><b>{i.folio}</b><Estado valor={i.estado} /></div><p className="text-xs">{i.descripcion}</p></div>)}
+              {p.incidencias.map((i) => <div key={i.id} className="mb-2 rounded-lg p-3 text-sm ring-1 ring-tinta-100"><div className="flex justify-between"><b>{i.folio}</b><Estado valor={i.estado} /></div>
+                {(i.empleado || i.articulo) && <p className="text-xs font-semibold text-tinta-600">{[i.empleado?.nombre, i.articulo && `${i.articulo.nombre} (${i.articulo.talla})`].filter(Boolean).join(' · ')}</p>}
+                <p className="text-xs">{i.descripcion}</p></div>)}
               <Link to="/admin/incidencias" className="text-xs font-semibold text-menta-700">Gestionar →</Link>
             </Tarjeta>
           )}

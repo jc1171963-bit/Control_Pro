@@ -6,9 +6,11 @@ from sqlalchemy import select
 
 from ..errors import AppError, Conflicto, NoEncontrado, TransicionInvalida
 from ..extensions import db
-from ..models import Cliente, Devolucion, DevolucionDetalle, Incidencia, Pedido, PedidoDetalle, Sucursal
+from ..models import (Cliente, Devolucion, DevolucionDetalle, Incidencia, IncidenciaSeguimiento, Pedido,
+                      PedidoDetalle, Sucursal)
 from . import inventario_service as inv_srv
-from .comun import (actor_ids, asignar_folio, auditar, cambiar_estado, notificar_cliente, notificar_personal)
+from .comun import (actor_ids, asignar_folio, auditar, cambiar_estado, notificar_cliente, notificar_personal,
+                    registrar_incidencia)
 
 TRANSICIONES_DEVOLUCION = {
     "solicitada": {"autorizada", "rechazada"},
@@ -167,17 +169,30 @@ def cerrar(dev: Devolucion, nota: str | None):
 # ---------------------------------------------------------------- incidencias
 
 def crear_incidencia(tipo: str, descripcion: str, prioridad: str = "media", pedido_id=None, paquete_id=None,
-                     devolucion_id=None, transferencia_id=None, sucursal_id=None) -> Incidencia:
+                     devolucion_id=None, transferencia_id=None, sucursal_id=None, empleado_id=None,
+                     pedido_detalle_id=None) -> Incidencia:
     if not descripcion or len(descripcion.strip()) < 10:
         raise AppError("Describe la incidencia (mínimo 10 caracteres).")
-    usuario_id, cliente_id = actor_ids()
-    inc = Incidencia(tipo=tipo, prioridad=prioridad, descripcion=descripcion.strip(), pedido_id=pedido_id,
-                     paquete_id=paquete_id, devolucion_id=devolucion_id, transferencia_id=transferencia_id,
-                     sucursal_id=sucursal_id, creado_por_usuario=usuario_id, creado_por_cliente=cliente_id)
     if not any([pedido_id, paquete_id, devolucion_id, transferencia_id]):
         raise AppError("La incidencia debe relacionarse con un pedido, paquete, devolución o transferencia.")
-    db.session.add(inc)
-    asignar_folio(inc, "INC")
+    if paquete_id is not None and pedido_id is not None:
+        from ..models import Paquete
+        paq = db.session.get(Paquete, paquete_id)
+        if not paq or paq.asignacion.pedido_id != pedido_id:
+            raise NoEncontrado("El paquete no pertenece a la solicitud.")
+    if pedido_detalle_id is not None:
+        pdet = db.session.get(PedidoDetalle, pedido_detalle_id)
+        if not pdet or pdet.pedido_id != pedido_id:
+            raise NoEncontrado("El artículo no pertenece a la solicitud.")
+        empleado_id = empleado_id or pdet.empleado_id
+    if empleado_id is not None and pedido_id is not None:
+        en_pedido = db.session.scalar(select(PedidoDetalle.id).where(PedidoDetalle.pedido_id == pedido_id,
+                                                                     PedidoDetalle.empleado_id == empleado_id).limit(1))
+        if not en_pedido:
+            raise NoEncontrado("El empleado no está incluido en la solicitud.")
+    inc = registrar_incidencia(tipo=tipo, prioridad=prioridad, descripcion=descripcion.strip(), pedido_id=pedido_id,
+                               paquete_id=paquete_id, devolucion_id=devolucion_id, transferencia_id=transferencia_id,
+                               sucursal_id=sucursal_id, empleado_id=empleado_id, pedido_detalle_id=pedido_detalle_id)
     auditar("incidencia.crear", "incidencia", inc.id, despues={"tipo": tipo, "prioridad": prioridad},
             sucursal_id=sucursal_id)
     notificar_personal("incidencia.gestionar", "incidencia_nueva", "incidencia", inc.id,
@@ -187,17 +202,26 @@ def crear_incidencia(tipo: str, descripcion: str, prioridad: str = "media", pedi
 
 
 def actualizar_incidencia(inc: Incidencia, estado: str | None, comentario: str | None, responsable_id: int | None):
+    """Cada actualización agrega una entrada al historial (`incidencia_seguimiento`); nada se reemplaza ni se borra."""
     antes = {"estado": inc.estado, "responsable": inc.responsable_id}
+    comentario = (comentario or "").strip() or None
+    usuario_id, cliente_id = actor_ids()
     if comentario:
-        # La resolución se agrega: nunca se reemplaza el historial previo.
-        usuario_id, _ = actor_ids()
-        inc.resolucion = ((inc.resolucion + "\n") if inc.resolucion else "") + f"[usuario {usuario_id}] {comentario.strip()}"
-    if responsable_id is not None:
+        # La resolución acumulada se conserva para compatibilidad; el historial detallado vive en el seguimiento.
+        inc.resolucion = ((inc.resolucion + "\n") if inc.resolucion else "") + f"[usuario {usuario_id}] {comentario}"
+    cambio_responsable = responsable_id is not None and responsable_id != inc.responsable_id
+    if cambio_responsable:
         inc.responsable_id = responsable_id
+    anterior = inc.estado
     if estado and estado != inc.estado:
         if estado in {"resuelta", "cerrada"} and not inc.resolucion:
             raise AppError("Registra la resolución antes de marcarla como resuelta.")
         cambiar_estado(inc, "incidencia", estado, TRANSICIONES_INCIDENCIA, comentario)
+    if comentario or cambio_responsable or inc.estado != anterior:
+        db.session.add(IncidenciaSeguimiento(incidencia_id=inc.id, estado_anterior=anterior, estado_nuevo=inc.estado,
+                                             comentario=comentario,
+                                             responsable_id=responsable_id if cambio_responsable else None,
+                                             usuario_id=usuario_id, cliente_id=cliente_id))
     auditar("incidencia.actualizar", "incidencia", inc.id, antes, {"estado": inc.estado, "responsable": inc.responsable_id},
             sucursal_id=inc.sucursal_id)
     db.session.commit()

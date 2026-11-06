@@ -156,7 +156,8 @@ def clientes():
 @requiere_usuario("cliente.ver")
 def cliente(cliente_id):
     c = obtener(Cliente, cliente_id, "Cliente no encontrado.")
-    pedidos = db.session.scalars(select(Pedido).where(Pedido.cliente_id == c.id).order_by(Pedido.id.desc()).limit(50)).unique()
+    pedidos = db.session.scalars(select(Pedido).where(Pedido.cliente_id == c.id, Pedido.estado != "borrador")
+                                 .order_by(Pedido.id.desc()).limit(50)).unique()
     pagos = db.session.scalars(select(Pago).join(Pedido).where(Pedido.cliente_id == c.id).order_by(Pago.id.desc()).limit(50)).unique()
     d = serial.cliente(c)
     d["direcciones"] = [serial.direccion(x) for x in c.direcciones if x.activo]
@@ -272,7 +273,7 @@ def exportar(reporte):
     ini, fin = rep.rango(request.args.get("desde"), request.args.get("hasta"))
     permitidas = sucursales_permitidas()
     if reporte == "pedidos":
-        q = select(Pedido).where(Pedido.creado.between(ini, fin)).order_by(Pedido.id)
+        q = select(Pedido).where(Pedido.creado.between(ini, fin), Pedido.estado != "borrador").order_by(Pedido.id)
         alcance = rep._pedidos_en_alcance(arg_int("sucursal_id"))
         if alcance is not None:
             q = q.where(Pedido.id.in_(alcance))

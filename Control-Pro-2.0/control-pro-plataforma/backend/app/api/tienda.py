@@ -1,7 +1,7 @@
 """Tienda pública: inicio, catálogo con búsqueda/filtros/orden, ficha de producto y sucursales."""
 from collections import defaultdict
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
 from sqlalchemy import and_, func, or_, select, text
 
 from ..errors import NoEncontrado
@@ -58,6 +58,12 @@ def _resumenes(productos):
 def _visibles():
     return select(Producto).join(Categoria).where(Producto.activo.is_(True), Categoria.activo.is_(True),
                                                   Producto.variantes.any(Variante.activo.is_(True)))
+
+
+@bp.get("/configuracion")
+def configuracion():
+    """Opciones públicas del portal: con la tienda apagada no se muestran precios, carrito ni checkout."""
+    return jsonify({"canal_tienda": current_app.config["CANAL_TIENDA"]})
 
 
 @bp.get("/categorias")

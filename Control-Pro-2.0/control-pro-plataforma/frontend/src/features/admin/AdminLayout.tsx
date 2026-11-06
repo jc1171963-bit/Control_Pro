@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, ArrowLeftRight, Bell, Boxes, Building2, ClipboardCheck, ClipboardList, CreditCard, FileBarChart, History,
-  LayoutDashboard, LogOut, Menu, PackageOpen, Shirt, Tag, Undo2, Users, UserSquare2, X } from 'lucide-react';
+  Inbox, LayoutDashboard, LogOut, Menu, PackageOpen, Shirt, Tag, Undo2, Users, UserSquare2, X } from 'lucide-react';
 import { get } from '../../api/cliente';
 import type { Sucursal } from '../../api/tipos';
 import { useAuth } from '../../app/auth';
@@ -15,7 +15,7 @@ export function useSucursalesAdmin() {
 
 const GRUPOS: { titulo: string; items: [string, string, any, string][] }[] = [
   { titulo: 'General', items: [['', 'Panel', LayoutDashboard, 'reporte.ver'], ['notificaciones', 'Notificaciones', Bell, '']] },
-  { titulo: 'Ventas', items: [['pedidos', 'Pedidos', ClipboardList, 'pedido.ver'], ['pagos', 'Pagos y reembolsos', CreditCard, 'pago.ver'], ['clientes', 'Clientes', UserSquare2, 'cliente.ver']] },
+  { titulo: 'Solicitudes', items: [['solicitudes', 'Solicitudes de sucursales', Inbox, 'pedido.ver'], ['pedidos', 'Todos los pedidos', ClipboardList, 'pedido.ver'], ['pagos', 'Pagos y reembolsos', CreditCard, 'pago.ver'], ['clientes', 'Clientes', UserSquare2, 'cliente.ver']] },
   { titulo: 'Operación', items: [['surtido', 'Surtido y envíos', PackageOpen, 'surtido.operar'], ['inventario', 'Inventario', Boxes, 'inventario.ver'],
     ['transferencias', 'Transferencias', ArrowLeftRight, 'inventario.ver']] },
   { titulo: 'Posventa', items: [['devoluciones', 'Devoluciones', Undo2, 'pedido.ver'], ['incidencias', 'Incidencias', AlertTriangle, 'incidencia.gestionar']] },
@@ -73,7 +73,7 @@ export default function AdminLayout() {
             <Bell className="h-5 w-5" />{!!notif.data?.no_leidas && <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-coral-500" />}
           </Link>
         </header>
-        <main className="mx-auto max-w-[1400px] p-4 sm:p-6" key={loc.pathname.split('/')[2] || 'inicio'}><Outlet /></main>
+        <main className="mx-auto max-w-[1400px] animate-aparecer p-4 sm:p-6" key={loc.pathname.split('/')[2] || 'inicio'}><Outlet /></main>
       </div>
     </div>
   );

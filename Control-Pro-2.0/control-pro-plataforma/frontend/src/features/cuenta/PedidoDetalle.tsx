@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, Clock, FileUp, Package, PenLine, Truck, Undo2 } from 'lucide-react';
+import { CheckCircle2, Clock, FileUp, Package, Truck, Undo2 } from 'lucide-react';
 import { abrirPrivado, claveIdempotencia, get, post, subirArchivo } from '../../api/cliente';
-import type { EntregaIndividual, Paquete, Pedido } from '../../api/tipos';
-import { Aviso, Boton, Campo, Cargando, Entrada, ErrorCaja, Estado, Firma, Modal, Selector, Tarjeta, Texto, useAviso } from '../../components/ui';
+import type { Paquete, Pedido } from '../../api/tipos';
+import { Aviso, Boton, Campo, Cargando, Entrada, ErrorCaja, Estado, Modal, Selector, Tarjeta, Texto, useAviso } from '../../components/ui';
 import { dinero, etiqueta, fechaHora, METODOS, mensajeError, MOTIVOS_DEVOLUCION } from '../../lib/formato';
+import DetalleSolicitud from './DetalleSolicitud';
 
 const DATOS_BANCARIOS = import.meta.env.VITE_DATOS_BANCARIOS as string | undefined;
 
@@ -100,54 +101,14 @@ function SolicitarDevolucion({ p, onCerrar }: { p: Pedido; onCerrar: () => void 
   );
 }
 
-function EntregaEmpleado({ e, onCerrar, pedidoId }: { e: EntregaIndividual; onCerrar: () => void; pedidoId: number }) {
-  const qc = useQueryClient();
-  const avisar = useAviso();
-  const [firma, setFirma] = useState<string | null>(null);
-  const [cant, setCant] = useState<Record<number, number>>(Object.fromEntries(e.detalles.map((d) => [d.pedido_detalle_id, d.esperada])));
-  const [val, setVal] = useState(5);
-  const [obs, setObs] = useState('');
-  const m = useMutation({
-    mutationFn: () => post(`/cuenta/entregas/${e.id}`, { firma, valoracion: val, observaciones: obs || null, cantidades: cant }),
-    onSuccess: (r: any) => { qc.invalidateQueries({ queryKey: ['pedido', String(pedidoId)] }); avisar(r.estado === 'entregada' ? 'Entrega registrada con conformidad.' : 'Entrega registrada con incidencia.'); onCerrar(); },
-  });
-  return (
-    <div className="space-y-4">
-      <p className="text-sm text-tinta-500">{e.empleado.nombre} · {e.empleado.puesto} · No. {e.empleado.numero}</p>
-      {e.detalles.map((d) => (
-        <div key={d.pedido_detalle_id} className="flex items-center justify-between gap-3 rounded-xl p-3 text-sm ring-1 ring-arena-200">
-          <span>{d.nombre} · {d.talla}</span>
-          <label className="flex items-center gap-2">Entregadas
-            <Selector className="w-20" value={cant[d.pedido_detalle_id]} onChange={(ev) => setCant({ ...cant, [d.pedido_detalle_id]: Number(ev.target.value) })}>
-              {Array.from({ length: d.esperada + 1 }, (_, i) => <option key={i} value={i}>{i}</option>)}
-            </Selector> de {d.esperada}</label>
-        </div>
-      ))}
-      <Campo etiqueta="Valoración de conformidad"><Selector value={val} onChange={(ev) => setVal(Number(ev.target.value))}>{[5, 4, 3, 2, 1].map((n) => <option key={n} value={n}>{n} de 5</option>)}</Selector></Campo>
-      <Campo etiqueta="Observaciones"><Texto value={obs} onChange={(ev) => setObs(ev.target.value)} /></Campo>
-      <Firma onCambio={setFirma} />
-      <ErrorCaja error={m.error} />
-      <div className="flex justify-end gap-2"><Boton variante="secundario" onClick={onCerrar}>Cancelar</Boton><Boton disabled={!firma} cargando={m.isPending} onClick={() => m.mutate()}>Confirmar entrega</Boton></div>
-    </div>
-  );
-}
-
-function PaqueteCard({ pq, corporativo, pedidoId }: { pq: Paquete; corporativo: boolean; pedidoId: number }) {
-  const qc = useQueryClient();
-  const avisar = useAviso();
-  const [dif, setDif] = useState('');
-  const [modo, setModo] = useState<'completa' | 'parcial' | null>(null);
-  const rec = useMutation({
-    mutationFn: () => post(`/cuenta/paquetes/${pq.id}/recepcion`, { completa: modo === 'completa', diferencias: modo === 'parcial' ? dif : null }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['pedido', String(pedidoId)] }); avisar('Recepción registrada.'); setModo(null); },
-  });
+function PaqueteCard({ pq }: { pq: Paquete }) {
   return (
     <div className="rounded-xl p-4 ring-1 ring-arena-200">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="flex items-center gap-2 font-semibold"><Package className="h-4 w-4 text-menta-600" />{pq.folio} <span className="text-xs font-normal text-tinta-400">desde {pq.sucursal}</span></p>
         <Estado valor={pq.estado} />
       </div>
-      <p className="mt-1 text-xs text-tinta-500">{pq.contenido.map((c) => `${c.cantidad}× ${c.nombre} (${c.talla})${c.empleado ? ` – ${c.empleado}` : ''}`).join(' · ')}</p>
+      <p className="mt-1 text-xs text-tinta-500">{pq.contenido.map((c) => `${c.cantidad}× ${c.nombre} (${c.talla})`).join(' · ')}</p>
       {pq.envio && (
         <div className="mt-3 rounded-lg bg-arena-50 p-3 text-xs">
           <p className="flex items-center gap-1 font-semibold"><Truck className="h-3.5 w-3.5" />{pq.envio.paqueteria} · Guía {pq.envio.guia}</p>
@@ -155,20 +116,6 @@ function PaqueteCard({ pq, corporativo, pedidoId }: { pq: Paquete; corporativo: 
           <ul className="mt-2 space-y-1">{pq.envio.eventos.map((ev, i) => <li key={i}>{fechaHora(ev.fecha)} · <b>{etiqueta(ev.estado)}</b> — {ev.descripcion}</li>)}</ul>
         </div>
       )}
-      {corporativo && pq.estado === 'entregado' && (pq.recepcion ? (
-        <p className="mt-3 text-xs font-semibold text-menta-700">Recepción {pq.recepcion.estado} registrada el {fechaHora(pq.recepcion.fecha)}{pq.recepcion.diferencias ? ` · ${pq.recepcion.diferencias}` : ''}</p>
-      ) : (
-        <div className="mt-3 space-y-2">
-          <p className="text-xs font-semibold">Registra la recepción física del paquete (no equivale a la entrega a cada empleado):</p>
-          <div className="flex gap-2">
-            <Boton tam="sm" variante="menta" onClick={() => setModo('completa')}>Llegó completo</Boton>
-            <Boton tam="sm" variante="secundario" onClick={() => setModo('parcial')}>Con diferencias</Boton>
-          </div>
-          {modo === 'parcial' && <Texto placeholder="¿Qué faltó o llegó dañado?" value={dif} onChange={(e) => setDif(e.target.value)} />}
-          {modo && <Boton tam="sm" cargando={rec.isPending} disabled={modo === 'parcial' && dif.trim().length < 5} onClick={() => rec.mutate()}>Confirmar recepción</Boton>}
-          <ErrorCaja error={rec.error} />
-        </div>
-      ))}
     </div>
   );
 }
@@ -182,7 +129,6 @@ export default function PedidoDetalle() {
   const [cancelar, setCancelar] = useState(false);
   const [motivo, setMotivo] = useState('');
   const [devolver, setDevolver] = useState(false);
-  const [entrega, setEntrega] = useState<EntregaIndividual | null>(null);
   const cancelarM = useMutation({
     mutationFn: () => post(`/cuenta/pedidos/${id}/cancelar`, { motivo }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['pedido', id] }); setCancelar(false); avisar('Pedido cancelado. Si ya habías pagado, generamos el reembolso.'); },
@@ -195,6 +141,7 @@ export default function PedidoDetalle() {
   if (q.isLoading) return <Cargando />;
   if (!q.data) return <ErrorCaja error={q.error} />;
   const p = q.data;
+  if (p.canal === 'corporativo') return <DetalleSolicitud p={p} />;
   const cancelable = ['en_revision', 'devuelto', 'pendiente_pago', 'pago_en_revision', 'confirmado'].includes(p.estado);
   const devolvible = ['parcialmente_entregado', 'entregado'].includes(p.estado) && p.detalles.some((d) => d.cantidad_entregada > d.cantidad_devuelta);
 
@@ -204,40 +151,31 @@ export default function PedidoDetalle() {
         <div className="flex items-start gap-3 rounded-2xl bg-menta-500 p-5 text-white">
           <CheckCircle2 className="mt-0.5 h-6 w-6 shrink-0" />
           <div><p className="font-display text-lg font-bold">¡Pedido {p.folio} recibido!</p>
-            <p className="text-sm text-menta-50">{p.metodo_pago === 'efectivo' ? `Pasa a pagar a ${p.sucursal_recoger?.nombre}. Lo preparamos en cuanto se registre el cobro.` : p.canal === 'corporativo' ? 'Tu pedido está en revisión por el área de ventas.' : 'Registra tu transferencia abajo para que lo preparemos.'}</p></div>
+            <p className="text-sm text-menta-50">{p.metodo_pago === 'efectivo' ? `Pasa a pagar a ${p.sucursal_recoger?.nombre}. Lo preparamos en cuanto se registre el cobro.` : 'Registra tu transferencia abajo para que lo preparemos.'}</p></div>
         </div>
       )}
       <Tarjeta titulo={<span className="flex flex-wrap items-center gap-2">Pedido {p.folio} <Estado valor={p.estado} /></span>}
         sub={`${fechaHora(p.creado)} · ${METODOS[p.metodo_pago]} · ${p.modalidad === 'recoger' ? `Recoger en ${p.sucursal_recoger?.nombre}` : 'Envío a domicilio'}`}
         accion={<div className="flex gap-2">
-          {p.canal === 'corporativo' && p.estado === 'devuelto' && <Link to={`/cuenta/corporativo/${p.id}/corregir`} className="inline-flex h-8 items-center rounded-lg bg-tinta-900 px-3 text-xs font-semibold text-white">Corregir y reenviar</Link>}
           {devolvible && <Boton tam="sm" variante="secundario" icono={<Undo2 className="h-3.5 w-3.5" />} onClick={() => setDevolver(true)}>Solicitar devolución</Boton>}
           {cancelable && <Boton tam="sm" variante="fantasma" onClick={() => setCancelar(true)}>Cancelar pedido</Boton>}
         </div>}>
         {p.estado === 'pendiente_pago' && p.metodo_pago === 'transferencia' && <RegistrarPago p={p} />}
         {p.estado === 'pendiente_pago' && p.metodo_pago === 'efectivo' && <Aviso>Paga {dinero(p.saldo)} en caja de {p.sucursal_recoger?.nombre} ({p.sucursal_recoger?.direccion}). La reserva vence el {fechaHora(p.reserva_expira)}.</Aviso>}
         {p.estado === 'pago_en_revision' && <Aviso><span className="flex items-center gap-2"><Clock className="h-4 w-4" />Tu pago está en validación. Te avisaremos cuando se confirme.</span></Aviso>}
-        {p.aprobaciones?.filter((a) => a.decision !== 'aprobado').slice(-1).map((a) => <Aviso key={a.fecha} tipo="alerta">{etiqueta(a.decision)}: {a.motivo}</Aviso>)}
 
         <div className="mt-4 -mx-5 overflow-x-auto">
           <table className="w-full min-w-[560px] text-sm">
             <thead><tr className="border-y border-arena-200 bg-arena-50 text-left text-[11px] uppercase text-tinta-400">
-              <th className="px-5 py-2">Artículo</th>{p.canal === 'corporativo' && <th className="px-3 py-2">Empleado</th>}<th className="px-3 py-2">Cant.</th><th className="px-3 py-2">Seguimiento</th><th className="px-5 py-2 text-right">Importe</th></tr></thead>
-            <tbody className="divide-y divide-arena-200">
-              {p.detalles.map((d) => (
-                <tr key={d.id}>
-                  <td className="px-5 py-3"><p className="font-semibold">{d.nombre}</p><p className="text-xs text-tinta-400">{d.sku} · {d.color} · {d.talla}{d.excepcion ? ' · excepción por puesto' : ''}</p></td>
-                  {p.canal === 'corporativo' && <td className="px-3 py-3 text-xs">{d.empleado?.nombre}<br /><span className="text-tinta-400">{d.empleado?.puesto}</span></td>}
-                  <td className="px-3 py-3">{d.cantidad}</td>
-                  <td className="px-3 py-3 text-xs">
-                    {d.cantidad_entregada > 0 && <span className="mr-2 text-menta-700">{d.cantidad_entregada} entregada(s)</span>}
-                    {d.cantidad_cancelada > 0 && <span className="mr-2 text-coral-600">{d.cantidad_cancelada} cancelada(s)</span>}
-                    {d.cantidad_devuelta > 0 && <span className="text-tinta-500">{d.cantidad_devuelta} devuelta(s)</span>}
-                  </td>
-                  <td className="px-5 py-3 text-right font-semibold">{dinero(d.importe)}{Number(d.descuento_unitario) > 0 && <p className="text-xs font-normal text-coral-600">−{dinero(d.descuento_unitario)} c/u</p>}</td>
-                </tr>
-              ))}
-            </tbody>
+              <th className="px-5 py-2">Artículo</th><th className="px-3 py-2">Cant.</th><th className="px-3 py-2">Seguimiento</th><th className="px-5 py-2 text-right">Importe</th></tr></thead>
+            <tbody className="divide-y divide-arena-200">{p.detalles.map((d) => (
+              <tr key={d.id}>
+                <td className="px-5 py-3"><p className="font-semibold">{d.nombre}</p><p className="text-xs text-tinta-400">{d.sku} · {d.color} · {d.talla}</p></td>
+                <td className="px-3 py-3">{d.cantidad}</td>
+                <td className="px-3 py-3 text-xs">{d.cantidad_entregada > 0 && <span className="mr-2 text-menta-700">{d.cantidad_entregada} entregada(s)</span>}{d.cantidad_cancelada > 0 && <span className="mr-2 text-coral-600">{d.cantidad_cancelada} cancelada(s)</span>}{d.cantidad_devuelta > 0 && <span className="text-tinta-500">{d.cantidad_devuelta} devuelta(s)</span>}</td>
+                <td className="px-5 py-3 text-right font-semibold">{dinero(d.importe)}{Number(d.descuento_unitario) > 0 && <p className="text-xs font-normal text-coral-600">−{dinero(d.descuento_unitario)} c/u</p>}</td>
+              </tr>
+            ))}</tbody>
           </table>
         </div>
         <dl className="ml-auto mt-4 max-w-xs space-y-1 text-sm">
@@ -253,21 +191,7 @@ export default function PedidoDetalle() {
         <div className="space-y-5">
           {p.paquetes.length > 0 && (
             <Tarjeta titulo="Paquetes y envíos">
-              <div className="space-y-3">{p.paquetes.map((pq) => <PaqueteCard key={pq.id} pq={pq} corporativo={p.canal === 'corporativo'} pedidoId={p.id} />)}</div>
-            </Tarjeta>
-          )}
-          {p.canal === 'corporativo' && !!p.entregas_individuales?.length && (
-            <Tarjeta titulo="Entregas por empleado" sub="Cada persona confirma lo que recibió con su firma">
-              <ul className="divide-y divide-arena-200">
-                {p.entregas_individuales.map((e) => (
-                  <li key={e.id} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm">
-                    <div><p className="font-semibold">{e.empleado.nombre} <span className="text-xs font-normal text-tinta-400">{e.empleado.puesto}</span></p>
-                      <p className="text-xs text-tinta-500">{e.detalles.map((d) => `${d.entregada || d.esperada}/${d.esperada} ${d.nombre}`).join(' · ')}</p></div>
-                    {e.estado === 'pendiente' ? <Boton tam="sm" icono={<PenLine className="h-3.5 w-3.5" />} onClick={() => setEntrega(e)}>Registrar entrega</Boton>
-                      : <span className="flex items-center gap-2"><Estado valor={e.estado} />{e.valoracion && <span className="text-xs">{e.valoracion}/5</span>}</span>}
-                  </li>
-                ))}
-              </ul>
+              <div className="space-y-3">{p.paquetes.map((pq) => <PaqueteCard key={pq.id} pq={pq} />)}</div>
             </Tarjeta>
           )}
           {p.devoluciones.length > 0 && (
@@ -315,9 +239,6 @@ export default function PedidoDetalle() {
       </Modal>
       <Modal abierto={devolver} titulo="Solicitar devolución" onCerrar={() => setDevolver(false)} ancho="max-w-xl">
         <SolicitarDevolucion p={p} onCerrar={() => setDevolver(false)} />
-      </Modal>
-      <Modal abierto={!!entrega} titulo="Entrega individual" onCerrar={() => setEntrega(null)} ancho="max-w-xl">
-        {entrega && <EntregaEmpleado e={entrega} pedidoId={p.id} onCerrar={() => setEntrega(null)} />}
       </Modal>
     </div>
   );

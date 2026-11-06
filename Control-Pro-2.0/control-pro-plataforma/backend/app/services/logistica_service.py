@@ -11,10 +11,12 @@ from sqlalchemy import select
 from ..errors import AppError, Conflicto, NoEncontrado, TransicionInvalida
 from ..extensions import db
 from ..models import (AsignacionDetalle, AsignacionSurtido, EntregaIndividual, EntregaIndividualDetalle, Envio,
-                      EventoEnvio, Incidencia, Paquete, PaqueteDetalle, Pedido, Recepcion, ReservaInventario, ahora)
+                      EventoEnvio, Paquete, PaqueteDetalle, Pedido, PedidoDetalle, Recepcion, RecepcionDetalle,
+                      ReservaInventario, ahora)
 from . import inventario_service as inv_srv
 from . import pedido_service as ped
-from .comun import actor_ids, asignar_folio, auditar, dinero, notificar_cliente, registrar_historial
+from .comun import (actor_ids, asignar_folio, auditar, dinero, notificar_cliente, registrar_historial,
+                    registrar_incidencia)
 
 ACTIVOS = {"confirmado", "en_preparacion", "parcialmente_enviado", "enviado", "parcialmente_entregado"}
 
@@ -97,11 +99,8 @@ def registrar_surtido(a: AsignacionSurtido, partidas: list[dict]):
             faltas.append(f"{d.pedido_detalle.sku} x{nuevo_faltante}: {p['motivo_faltante']}")
         d.surtida, d.faltante = surtida, faltante
     if faltas:
-        usuario_id, _ = actor_ids()
-        inc = Incidencia(tipo="faltante_surtido", prioridad="alta", pedido_id=pedido.id, sucursal_id=a.sucursal_id,
-                         descripcion="Faltantes al surtir: " + "; ".join(faltas), creado_por_usuario=usuario_id)
-        db.session.add(inc)
-        asignar_folio(inc, "INC")
+        registrar_incidencia(tipo="faltante_surtido", prioridad="alta", pedido_id=pedido.id, sucursal_id=a.sucursal_id,
+                             descripcion="Faltantes al surtir: " + "; ".join(faltas))
         if reembolsar > 0:
             from .pago_service import crear_reembolso
             crear_reembolso(pedido, reembolsar, f"Artículos faltantes en {pedido.folio}")
@@ -231,10 +230,8 @@ def registrar_evento(paq: Paquete, estado: str, descripcion: str):
         paq.estado = "en_transito"
     elif estado == "incidencia":
         paq.estado = "incidencia"
-        inc = Incidencia(tipo="incidencia_envio", prioridad="alta", pedido_id=pedido.id, paquete_id=paq.id,
-                         sucursal_id=a.sucursal_id, descripcion=descripcion, creado_por_usuario=actor_ids()[0])
-        db.session.add(inc)
-        asignar_folio(inc, "INC")
+        registrar_incidencia(tipo="incidencia_envio", prioridad="alta", pedido_id=pedido.id, paquete_id=paq.id,
+                             sucursal_id=a.sucursal_id, descripcion=descripcion)
     else:
         _marcar_entregado(paq, a, pedido)
     auditar(f"envio.{estado}", "paquete", paq.id, despues={"descripcion": descripcion}, sucursal_id=a.sucursal_id)
@@ -277,7 +274,26 @@ def entregar_en_sucursal(paq: Paquete, recibio: str, identificacion: str):
 
 # ---------------------------------------------------------------- canal corporativo: recepción y entregas
 
-def registrar_recepcion(paq: Paquete, cliente_id: int, completa: bool, diferencias: str | None):
+PROBLEMAS_RECEPCION = {"faltante": "faltante", "danado": "dañado", "diferencia": "diferencia"}
+PROBLEMAS_CONFORMIDAD = {"talla": "problema de talla", "faltante": "artículo faltante", "incorrecto": "artículo incorrecto",
+                         "danado": "artículo dañado"}
+
+
+def contenido_por_partida(paq: Paquete) -> dict[int, int]:
+    """Unidades del paquete por partida del pedido (una partida = un artículo para un empleado)."""
+    total: dict[int, int] = {}
+    for pd in paq.detalles:
+        pid = pd.asignacion_detalle.pedido_detalle_id
+        total[pid] = total.get(pid, 0) + pd.cantidad
+    return total
+
+
+def registrar_recepcion(paq: Paquete, cliente_id: int, completa: bool, diferencias: str | None,
+                        partidas: list[dict] | None = None):
+    """Recepción física del paquete por la sucursal. No equivale a la entrega a cada empleado.
+
+    `partidas` (opcional): [{pedido_detalle_id, recibida, problema, nota}] para registrar diferencias por artículo.
+    """
     a = paq.asignacion
     pedido = a.pedido
     if pedido.cliente_id != cliente_id or pedido.canal != "corporativo":
@@ -286,23 +302,52 @@ def registrar_recepcion(paq: Paquete, cliente_id: int, completa: bool, diferenci
         raise TransicionInvalida("El paquete aún no se entrega a tu empresa.")
     if db.session.scalars(select(Recepcion).where(Recepcion.paquete_id == paq.id)).first():
         raise Conflicto("La recepción de este paquete ya fue registrada.")
+    esperado = contenido_por_partida(paq)
+    detalles, lineas = [], []
+    for p in partidas or []:
+        pid = p["pedido_detalle_id"]
+        if pid not in esperado:
+            raise NoEncontrado("El artículo no viene en este paquete.")
+        recibida, problema = p["recibida"], p.get("problema") or None
+        if recibida < 0 or recibida > esperado[pid]:
+            raise AppError(f"La cantidad recibida debe estar entre 0 y {esperado[pid]}.")
+        if recibida < esperado[pid] and not problema:
+            problema = "faltante"
+        if problema and problema not in PROBLEMAS_RECEPCION:
+            raise AppError("Tipo de problema inválido.")
+        nota = (p.get("nota") or "").strip() or None
+        detalles.append(RecepcionDetalle(pedido_detalle_id=pid, esperada=esperado[pid], recibida=recibida,
+                                         problema=problema, nota=nota))
+        if problema:
+            pdet = db.session.get(PedidoDetalle, pid)
+            destinatario = pdet.empleado.nombre if pdet.empleado else "sin empleado"
+            lineas.append((pdet, f"{pdet.nombre} ({pdet.talla}) para {destinatario}: {PROBLEMAS_RECEPCION[problema]}, "
+                                 f"recibidas {recibida} de {esperado[pid]}" + (f" — {nota}" if nota else "")))
+    if detalles:
+        completa = not lineas
+        if lineas:
+            extra = (diferencias or "").strip()
+            diferencias = "; ".join(t for _, t in lineas) + (f". {extra}" if extra else "")
     if not completa and not (diferencias or "").strip():
         raise AppError("Describe las diferencias encontradas.")
     rec = Recepcion(paquete_id=paq.id, estado="completa" if completa else "parcial",
                     diferencias=None if completa else diferencias.strip(), cliente_id=cliente_id)
+    rec.detalles = detalles
     db.session.add(rec)
     if not completa:
-        inc = Incidencia(tipo="diferencia_recepcion", prioridad="alta", pedido_id=pedido.id, paquete_id=paq.id,
-                         sucursal_id=a.sucursal_id, descripcion=diferencias.strip(), creado_por_cliente=cliente_id)
-        db.session.add(inc)
-        asignar_folio(inc, "INC")
-    auditar("recepcion.registrar", "paquete", paq.id, despues={"completa": completa, "diferencias": diferencias})
+        unico = lineas[0][0] if len(lineas) == 1 else None
+        registrar_incidencia(tipo="diferencia_recepcion", prioridad="alta", pedido_id=pedido.id, paquete_id=paq.id,
+                             sucursal_id=a.sucursal_id, descripcion=diferencias.strip(),
+                             pedido_detalle_id=unico.id if unico else None,
+                             empleado_id=unico.empleado_id if unico else None)
+    auditar("recepcion.registrar", "paquete", paq.id, despues={"completa": completa, "diferencias": diferencias,
+                                                               "partidas": partidas or []})
     db.session.commit()
     return rec
 
 
 def registrar_entrega_individual(ent: EntregaIndividual, cliente_id: int, cantidades: dict[int, int], firma: str,
-                                 valoracion: int | None, observaciones: str | None):
+                                 valoracion: int | None, observaciones: str | None, registrado_por: str):
     paq = db.session.get(Paquete, ent.paquete_id)
     pedido = paq.asignacion.pedido
     if pedido.cliente_id != cliente_id:
@@ -311,6 +356,8 @@ def registrar_entrega_individual(ent: EntregaIndividual, cliente_id: int, cantid
         raise TransicionInvalida("Registra primero la recepción física del paquete.")
     if ent.estado != "pendiente":
         raise TransicionInvalida("Esta entrega ya fue registrada.")
+    if len((registrado_por or "").strip()) < 3:
+        raise AppError("Indica el nombre de la persona que entrega los artículos.")
     if not firma or not firma.startswith("data:image/png;base64,") or len(firma) < 200:
         raise AppError("Captura la firma del empleado.")
     if len(firma) > 400_000:
@@ -322,15 +369,52 @@ def registrar_entrega_individual(ent: EntregaIndividual, cliente_id: int, cantid
             raise AppError(f"{det.pedido_detalle.sku}: la cantidad entregada debe estar entre 0 y {det.esperada}.")
         det.entregada = cant
         completas &= cant == det.esperada
-    ent.firma, ent.valoracion, ent.observaciones, ent.entregado_en = firma, valoracion, observaciones, ahora()
+    ent.firma, ent.observaciones, ent.entregado_en = firma, observaciones, ahora()
+    ent.registrado_por = registrado_por.strip()
+    if valoracion is not None:  # compatibilidad: la conformidad ahora se registra aparte
+        ent.valoracion = valoracion
     ent.estado = "entregada" if completas else "con_incidencia"
     if not completas:
-        inc = Incidencia(tipo="entrega_incompleta", prioridad="media", pedido_id=pedido.id, paquete_id=paq.id,
-                         descripcion=f"Entrega incompleta a {ent.empleado.nombre}. {observaciones or ''}".strip(),
-                         creado_por_cliente=cliente_id)
-        db.session.add(inc)
-        asignar_folio(inc, "INC")
+        faltan = [d for d in ent.detalles if d.entregada < d.esperada]
+        registrar_incidencia(tipo="entrega_incompleta", prioridad="media", pedido_id=pedido.id, paquete_id=paq.id,
+                             empleado_id=ent.empleado_id,
+                             pedido_detalle_id=faltan[0].pedido_detalle_id if len(faltan) == 1 else None,
+                             descripcion=f"Entrega incompleta a {ent.empleado.nombre}. {observaciones or ''}".strip())
     auditar("entrega_individual.registrar", "entrega_individual", ent.id,
-            despues={"empleado": ent.empleado.nombre, "estado": ent.estado, "valoracion": valoracion})
+            despues={"empleado": ent.empleado.nombre, "estado": ent.estado, "registrado_por": ent.registrado_por})
+    db.session.commit()
+    return ent
+
+
+def registrar_conformidad(ent: EntregaIndividual, cliente_id: int, valoracion: int, comentario: str | None,
+                          problema: str | None, pedido_detalle_id: int | None):
+    """Conformidad del empleado con lo que recibió. Si reporta un problema se abre una incidencia ligada a él."""
+    paq = db.session.get(Paquete, ent.paquete_id)
+    pedido = paq.asignacion.pedido
+    if pedido.cliente_id != cliente_id:
+        raise NoEncontrado("Entrega no encontrada.")
+    if ent.estado not in {"entregada", "con_incidencia"}:
+        raise TransicionInvalida("Primero registra la entrega con la firma del empleado.")
+    if ent.conformidad_en:
+        raise Conflicto("La conformidad de esta entrega ya fue registrada.")
+    if problema and problema not in PROBLEMAS_CONFORMIDAD:
+        raise AppError("Tipo de problema inválido.")
+    if pedido_detalle_id is not None and pedido_detalle_id not in {d.pedido_detalle_id for d in ent.detalles}:
+        raise NoEncontrado("El artículo no pertenece a esta entrega.")
+    comentario = (comentario or "").strip() or None
+    if problema and not comentario:
+        raise AppError("Describe el problema para darle seguimiento.")
+    anterior = ent.estado
+    ent.valoracion, ent.conformidad_comentario, ent.conformidad_en = valoracion, comentario, ahora()
+    if problema:
+        ent.estado = "con_incidencia"
+        registrar_incidencia(tipo=f"conformidad_{problema}", prioridad="media", pedido_id=pedido.id, paquete_id=paq.id,
+                             empleado_id=ent.empleado_id, pedido_detalle_id=pedido_detalle_id,
+                             descripcion=f"{ent.empleado.nombre} reporta {PROBLEMAS_CONFORMIDAD[problema]}: {comentario}")
+    elif anterior == "entregada":
+        ent.estado = "confirmada"
+    registrar_historial("entrega_individual", ent.id, anterior, ent.estado, comentario)
+    auditar("entrega_individual.conformidad", "entrega_individual", ent.id,
+            despues={"valoracion": valoracion, "problema": problema, "estado": ent.estado})
     db.session.commit()
     return ent

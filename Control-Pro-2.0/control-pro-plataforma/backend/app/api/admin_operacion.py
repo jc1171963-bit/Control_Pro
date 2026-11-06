@@ -200,7 +200,8 @@ def crear_incidencia():
         sucs = ped.sucursales_de(p)
         sucursal_id = next(iter(sucs)) if len(sucs) == 1 else None
     inc = dev.crear_incidencia(d["tipo"], d["descripcion"], d["prioridad"], d.get("pedido_id"), d.get("paquete_id"),
-                               d.get("devolucion_id"), d.get("transferencia_id"), sucursal_id)
+                               d.get("devolucion_id"), d.get("transferencia_id"), sucursal_id, d.get("empleado_id"),
+                               d.get("pedido_detalle_id"))
     return jsonify(serial.incidencia(inc)), 201
 
 
@@ -208,7 +209,7 @@ def crear_incidencia():
 @requiere_usuario("incidencia.gestionar")
 def actualizar_incidencia(iid):
     d = cargar(IncidenciaCambioSchema, cuerpo())
-    inc = db.session.scalars(select(Incidencia).where(Incidencia.id == iid).with_for_update()).first()
+    inc = db.session.scalars(select(Incidencia).where(Incidencia.id == iid).with_for_update(of=Incidencia)).first()
     if not inc:
         raise NoEncontrado("Incidencia no encontrada.")
     if inc.sucursal_id:

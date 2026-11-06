@@ -1,8 +1,9 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { z } from 'zod';
 import { post } from '../../api/cliente';
 import { useAuth } from '../../app/auth';
+import { useConfig } from '../../app/config';
 import { Aviso, Boton, Campo, Entrada, ErrorCaja } from '../../components/ui';
 import { cls } from '../../lib/formato';
 
@@ -32,7 +33,7 @@ export function Entrar() {
     setCargando(true); setError(null);
     try {
       await entrarCliente(String(f.get('correo')), String(f.get('password')));
-      nav(destinoSeguro(params.get('siguiente'), '/cuenta/pedidos'), { replace: true });
+      nav(destinoSeguro(params.get('siguiente'), '/cuenta'), { replace: true });
     } catch (err) { setError(err); } finally { setCargando(false); }
   };
   return (
@@ -67,7 +68,9 @@ export function Registro() {
   const { registrar } = useAuth();
   const nav = useNavigate();
   const [params] = useSearchParams();
-  const [tipo, setTipo] = useState<'persona' | 'empresa'>(params.get('tipo') === 'empresa' ? 'empresa' : 'persona');
+  const { canalTienda } = useConfig();
+  const [tipo, setTipo] = useState<'persona' | 'empresa'>(params.get('tipo') === 'empresa' || !canalTienda ? 'empresa' : 'persona');
+  useEffect(() => { if (!canalTienda) setTipo('empresa'); }, [canalTienda]);
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [error, setError] = useState<unknown>(null);
   const [cargando, setCargando] = useState(false);
@@ -80,20 +83,20 @@ export function Registro() {
     try {
       const { confirmar: _c, ...resto } = r.data;
       await registrar({ ...resto, telefono: resto.telefono || null, rfc: resto.rfc || null, razon_social: tipo === 'empresa' ? resto.razon_social : null });
-      nav(destinoSeguro(params.get('siguiente'), tipo === 'empresa' ? '/cuenta/empleados' : '/catalogo'), { replace: true });
+      nav(destinoSeguro(params.get('siguiente'), tipo === 'empresa' ? '/cuenta' : '/catalogo'), { replace: true });
     } catch (err) { setError(err); } finally { setCargando(false); }
   };
   return (
-    <Marco titulo="Crea tu cuenta" sub="Compra en línea y sigue cada pedido.">
-      <div className="mb-5 grid grid-cols-2 gap-2 rounded-xl bg-arena-100 p-1 text-sm font-semibold">
+    <Marco titulo={canalTienda ? 'Crea tu cuenta' : 'Registra tu sucursal'} sub={canalTienda ? 'Compra en línea y sigue cada pedido.' : 'Solicita uniformes por empleado y sigue cada entrega.'}>
+      {canalTienda && <div className="mb-5 grid grid-cols-2 gap-2 rounded-xl bg-arena-100 p-1 text-sm font-semibold">
         {(['persona', 'empresa'] as const).map((t) => (
           <button key={t} type="button" onClick={() => setTipo(t)} className={cls('rounded-lg py-2', tipo === t ? 'bg-white shadow-sm' : 'text-tinta-500')}>{t === 'persona' ? 'Persona' : 'Empresa'}</button>
         ))}
-      </div>
+      </div>}
       <form onSubmit={enviar} className="space-y-4" noValidate>
         {tipo === 'empresa' && (
           <>
-            <Campo etiqueta="Razón social" error={errores.razon_social}><Entrada name="razon_social" /></Campo>
+            <Campo etiqueta={canalTienda ? 'Razón social' : 'Nombre de la sucursal o razón social'} error={errores.razon_social}><Entrada name="razon_social" /></Campo>
             <Campo etiqueta="RFC (opcional)" error={errores.rfc}><Entrada name="rfc" className="uppercase" maxLength={13} /></Campo>
           </>
         )}

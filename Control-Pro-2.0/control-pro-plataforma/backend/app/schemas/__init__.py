@@ -106,13 +106,21 @@ class PedidoCorporativoSchema(Base):
     direccion_id = fields.Int(load_default=None, allow_none=True)
     sucursal_id = fields.Int(load_default=None, allow_none=True)
     notas = fields.Str(load_default=None, allow_none=True, validate=L(max=500))
-    partidas = fields.List(fields.Nested(PartidaCorporativaSchema), required=True, validate=L(min=1, max=200))
+    partidas = fields.List(fields.Nested(PartidaCorporativaSchema), required=True, validate=L(max=200))
     clave_idempotencia = CLAVE
+    borrador = fields.Bool(load_default=False)
+
+    @validates_schema
+    def _partidas(self, d, **_):
+        if not d["borrador"] and not d["partidas"]:
+            raise ValidationError({"partidas": ["Agrega al menos un artículo."]})
 
 
 class CorreccionCorporativaSchema(Base):
-    partidas = fields.List(fields.Nested(PartidaCorporativaSchema), required=True, validate=L(min=1, max=200))
+    """Edición de un borrador (se envía solo si `enviar` es verdadero) o corrección de una solicitud devuelta."""
+    partidas = fields.List(fields.Nested(PartidaCorporativaSchema), required=True, validate=L(max=200))
     notas = fields.Str(load_default=None, allow_none=True, validate=L(max=500))
+    enviar = fields.Bool(load_default=False)
 
 
 class EmpleadoSchema(Base):
@@ -301,16 +309,32 @@ class EntregaSucursalSchema(Base):
     identificacion = fields.Str(required=True, validate=L(min=3, max=60))
 
 
+class PartidaRecepcionSchema(Base):
+    pedido_detalle_id = fields.Int(required=True)
+    recibida = fields.Int(required=True, validate=Range(min=0))
+    problema = fields.Str(load_default=None, allow_none=True, validate=OneOf(["faltante", "danado", "diferencia"]))
+    nota = fields.Str(load_default=None, allow_none=True, validate=L(max=300))
+
+
 class RecepcionSchema(Base):
     completa = fields.Bool(required=True)
     diferencias = fields.Str(load_default=None, allow_none=True, validate=L(max=1000))
+    partidas = fields.List(fields.Nested(PartidaRecepcionSchema), load_default=None, allow_none=True)
 
 
 class EntregaIndividualSchema(Base):
     cantidades = fields.Dict(keys=fields.Str(), values=fields.Int(validate=Range(min=0)), load_default=dict)
     firma = fields.Str(required=True)
+    registrado_por = fields.Str(required=True, validate=L(min=3, max=120))
     valoracion = fields.Int(load_default=None, allow_none=True, validate=Range(min=1, max=5))
     observaciones = fields.Str(load_default=None, allow_none=True, validate=L(max=500))
+
+
+class ConformidadSchema(Base):
+    valoracion = fields.Int(required=True, validate=Range(min=1, max=5))
+    comentario = fields.Str(load_default=None, allow_none=True, validate=L(max=500))
+    problema = fields.Str(load_default=None, allow_none=True, validate=OneOf(["talla", "faltante", "incorrecto", "danado"]))
+    pedido_detalle_id = fields.Int(load_default=None, allow_none=True)
 
 
 class AutorizarDevolucionSchema(Base):
@@ -335,6 +359,8 @@ class IncidenciaSchema(Base):
     paquete_id = fields.Int(load_default=None, allow_none=True)
     devolucion_id = fields.Int(load_default=None, allow_none=True)
     transferencia_id = fields.Int(load_default=None, allow_none=True)
+    empleado_id = fields.Int(load_default=None, allow_none=True)
+    pedido_detalle_id = fields.Int(load_default=None, allow_none=True)
 
 
 class IncidenciaCambioSchema(Base):

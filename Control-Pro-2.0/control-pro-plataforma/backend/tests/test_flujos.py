@@ -180,16 +180,16 @@ def test_canal_corporativo_completo(como, app):
     assert det["estado"] == "entregado" and len(det["entregas_individuales"]) >= 3
     entrega = det["entregas_individuales"][0]
     # Sin recepción física no hay entrega individual
-    assert emp.post(f"/api/cuenta/entregas/{entrega['id']}", {"firma": FIRMA}).status_code == 409
+    assert emp.post(f"/api/cuenta/entregas/{entrega['id']}", {"firma": FIRMA, "registrado_por": "Laura Compras"}).status_code == 409
     for pq in det["paquetes"]:
         assert emp.post(f"/api/cuenta/paquetes/{pq['id']}/recepcion", {"completa": True}).status_code == 201
     assert emp.post(f"/api/cuenta/paquetes/{det['paquetes'][0]['id']}/recepcion", {"completa": True}).status_code == 409
-    assert emp.post(f"/api/cuenta/entregas/{entrega['id']}", {"firma": "data:image/png;base64,xx"}).status_code == 400
+    assert emp.post(f"/api/cuenta/entregas/{entrega['id']}", {"firma": "data:image/png;base64,xx", "registrado_por": "Laura Compras"}).status_code == 400
     for i, e in enumerate(det["entregas_individuales"]):
         cantidades = {}
         if i == 1:  # al segundo empleado le falta una prenda
             cantidades = {str(e["detalles"][0]["pedido_detalle_id"]): e["detalles"][0]["esperada"] - 1}
-        r = emp.post(f"/api/cuenta/entregas/{e['id']}", {"firma": FIRMA, "valoracion": 5, "cantidades": cantidades,
+        r = emp.post(f"/api/cuenta/entregas/{e['id']}", {"firma": FIRMA, "registrado_por": "Laura Compras", "valoracion": 5, "cantidades": cantidades,
                                                          "observaciones": "Falta una pieza" if i == 1 else None})
         assert r.status_code == 200
         assert r.get_json()["estado"] == ("con_incidencia" if i == 1 else "entregada")

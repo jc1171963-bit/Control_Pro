@@ -49,10 +49,11 @@ export type Reembolso = {
 };
 export type Paquete = {
   id: number; folio: string; estado: string; peso_kg: string | null; creado: string; sucursal: string;
-  contenido: { sku: string; nombre: string; talla: string; cantidad: number; empleado: string | null }[];
+  contenido: { pedido_detalle_id: number; sku: string; nombre: string; talla: string; cantidad: number; empleado: string | null }[];
   envio: null | { paqueteria: string; guia: string; estado: string; proveedor: string; rastreo_externo: boolean;
     eventos: { estado: string; descripcion: string; origen: string; fecha: string }[] };
-  recepcion?: { estado: string; diferencias: string | null; fecha: string } | null;
+  recepcion?: { estado: string; diferencias: string | null; fecha: string;
+    detalles: { pedido_detalle_id: number; esperada: number; recibida: number; problema: string | null; nota: string | null }[] } | null;
 };
 export type DetallePedido = {
   id: number; variante_id: number; sku: string; nombre: string; talla: string; color: string; cantidad: number;
@@ -70,6 +71,7 @@ export type Devolucion = {
 export type EntregaIndividual = {
   id: number; paquete_id: number; estado: string; empleado: { id: number; nombre: string; puesto: string; numero: string };
   valoracion: number | null; observaciones: string | null; entregado_en: string | null; tiene_firma: boolean; firma?: string;
+  registrado_por: string | null; conformidad_en: string | null; conformidad_comentario: string | null;
   detalles: { pedido_detalle_id: number; sku: string; nombre: string; talla: string; esperada: number; entregada: number }[];
 };
 export type Asignacion = {
@@ -84,6 +86,14 @@ export type Incidencia = {
   id: number; folio: string; tipo: string; prioridad: string; estado: string; pedido_id: number | null; paquete_id: number | null;
   devolucion_id: number | null; transferencia_id: number | null; sucursal_id: number | null; descripcion: string;
   resolucion: string | null; responsable_id: number | null; creado: string; actualizado: string;
+  empleado: { id: number; nombre: string; puesto: string } | null;
+  articulo: { pedido_detalle_id: number; nombre: string; talla: string; sku: string } | null;
+  seguimiento: { fecha: string; anterior: string | null; nuevo: string; comentario: string | null; actor: string; responsable: string | null }[];
+};
+export type ResumenSucursal = {
+  solicitudes: { borradores: number; en_revision: number; por_corregir: number; en_proceso: number; entregadas: number; rechazadas: number };
+  paquetes_en_camino: number; paquetes_por_recibir: number; entregas_pendientes: number; conformidades_pendientes: number;
+  incidencias_abiertas: number; empleados_activos: number;
 };
 export type PedidoResumen = {
   id: number; folio: string; canal: 'tienda' | 'corporativo'; estado: string; modalidad: 'envio' | 'recoger';

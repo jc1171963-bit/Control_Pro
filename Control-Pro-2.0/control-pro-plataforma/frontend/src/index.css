@@ -7,6 +7,11 @@
   body { @apply bg-arena-100 font-sans text-tinta-900; }
   :focus-visible { outline: 2px solid theme('colors.menta.500'); outline-offset: 2px; }
 }
+/* Quien pide reducir movimiento ve los cambios al instante, sin animaciones. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+
 @layer utilities {
   .contenedor { @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8; }
   .texto-equilibrado { text-wrap: balance; }

@@ -25,3 +25,12 @@ SQL_DESINSTALAR = [
     "DROP TRIGGER IF EXISTS tr_auditoria_inmutable ON auditoria;",
     "DROP FUNCTION IF EXISTS cp_solo_insercion();",
 ]
+
+# El historial de incidencias tampoco se edita ni se borra (se instala en la migración 9b4f2c6d1e83).
+SQL_SEGUIMIENTO = [
+    "DROP TRIGGER IF EXISTS tr_seguimiento_inmutable ON incidencia_seguimiento;",
+    """
+    CREATE TRIGGER tr_seguimiento_inmutable BEFORE UPDATE OR DELETE ON incidencia_seguimiento
+    FOR EACH ROW EXECUTE FUNCTION cp_solo_insercion();
+    """,
+]

@@ -6,7 +6,8 @@ import { abrirPrivado, get, patch, post } from '../../api/cliente';
 import type { Devolucion, Incidencia, Pagina } from '../../api/tipos';
 import { useAuth } from '../../app/auth';
 import { Aviso, Boton, Campo, Cargando, Entrada, ErrorCaja, Estado, Modal, Paginacion, Selector, Tabla, Tarjeta, Td, Texto, useAviso } from '../../components/ui';
-import { cls, dinero, etiqueta, fechaHora, MOTIVOS_DEVOLUCION } from '../../lib/formato';
+import { cls, dinero, etiqueta, fechaHora, MOTIVOS_DEVOLUCION, tipoIncidencia } from '../../lib/formato';
+import { HistorialIncidencia } from '../cuenta/DetalleSolicitud';
 import { Encabezado, useSucursalesAdmin } from './AdminLayout';
 
 const FILTROS_DEV = [['solicitada', 'Por autorizar'], ['autorizada,en_camino', 'Por recibir'], ['recibida', 'Por inspeccionar'], ['inspeccionada,reembolsada', 'Por cerrar'], ['', 'Todas']];
@@ -120,10 +121,11 @@ export function Incidencias() {
         <div className="mb-4 flex flex-wrap gap-1.5">{[['abierta,en_atencion', 'Abiertas'], ['resuelta', 'Resueltas'], ['cerrada', 'Cerradas'], ['', 'Todas']].map(([v, n]) =>
           <button key={v} onClick={() => { setEstado(v); setPagina(1); }} className={cls('rounded-full px-3 py-1 text-xs font-semibold ring-1', estado === v ? 'bg-tinta-900 text-white ring-tinta-900' : 'ring-tinta-200')}>{n}</button>)}</div>
         {q.isLoading ? <Cargando /> : (
-          <Tabla columnas={['Folio', 'Tipo', 'Referencia', 'Descripción', 'Prioridad', 'Estado', '']} vacia={!q.data?.items.length}>
+          <Tabla columnas={['Folio', 'Tipo', 'Referencia', 'Empleado / artículo', 'Descripción', 'Prioridad', 'Estado', '']} vacia={!q.data?.items.length}>
             {q.data?.items.map((i) => (
-              <tr key={i.id}><Td><p className="font-semibold">{i.folio}</p><p className="text-xs text-tinta-400">{fechaHora(i.creado)}</p></Td><Td className="text-xs">{i.tipo.replace(/_/g, ' ')}</Td>
+              <tr key={i.id}><Td><p className="font-semibold">{i.folio}</p><p className="text-xs text-tinta-400">{fechaHora(i.creado)}</p></Td><Td className="text-xs">{tipoIncidencia(i.tipo)}</Td>
                 <Td className="text-xs">{i.pedido_id ? <Link to={`/admin/pedidos/${i.pedido_id}`} className="text-menta-700">Pedido #{i.pedido_id}</Link> : i.transferencia_id ? `Transferencia #${i.transferencia_id}` : i.devolucion_id ? `Devolución #${i.devolucion_id}` : '—'}</Td>
+                <Td className="text-xs">{i.empleado?.nombre || '—'}{i.articulo && <span className="block text-tinta-400">{i.articulo.nombre} ({i.articulo.talla})</span>}</Td>
                 <Td className="max-w-sm text-xs">{i.descripcion}</Td><Td><Estado valor={i.prioridad} /></Td><Td><Estado valor={i.estado} /></Td>
                 <Td><Boton tam="sm" variante="secundario" onClick={() => { setSel(i); setNuevoEstado(''); }}>Gestionar</Boton></Td></tr>
             ))}
@@ -136,7 +138,8 @@ export function Incidencias() {
           <div className="space-y-4 text-sm">
             <div className="flex items-center gap-2"><Estado valor={sel.estado} /><Estado valor={sel.prioridad} /></div>
             <p className="rounded-lg bg-tinta-50 p-3"><b>Descripción original:</b> {sel.descripcion}</p>
-            {sel.resolucion && <div><p className="text-xs font-semibold uppercase text-tinta-400">Seguimiento</p><pre className="whitespace-pre-wrap font-sans text-xs">{sel.resolucion}</pre></div>}
+            {(sel.empleado || sel.articulo) && <p className="text-xs"><b>Relacionada con:</b> {[sel.empleado && `${sel.empleado.nombre} (${sel.empleado.puesto})`, sel.articulo && `${sel.articulo.nombre} talla ${sel.articulo.talla}`].filter(Boolean).join(' · ')}</p>}
+            <div><p className="text-xs font-semibold uppercase text-tinta-400">Historial</p><HistorialIncidencia i={sel} /></div>
             <Campo etiqueta="Agregar comentario o resolución" ayuda="Se agrega al historial; no reemplaza lo anterior."><Texto value={comentario} onChange={(e) => setComentario(e.target.value)} /></Campo>
             <Campo etiqueta="Cambiar estado"><Selector value={nuevoEstado} onChange={(e) => setNuevoEstado(e.target.value)}><option value="">Sin cambio</option>
               {['abierta', 'en_atencion', 'resuelta', 'cerrada'].filter((x) => x !== sel.estado).map((x) => <option key={x} value={x}>{etiqueta(x)}</option>)}</Selector></Campo>

@@ -1,4 +1,5 @@
 // Prueba E2E en navegador real contra la API real (Flask + PostgreSQL).
+// La primera parte (carrito y checkout) requiere el backend con CANAL_TIENDA=true.
 const { chromium } = require('playwright');
 const BASE = process.env.E2E_BASE || 'http://localhost:4173';
 const SHOTS = process.argv[2] || '/tmp';
@@ -158,19 +159,22 @@ const paso = (t) => console.log('▶', t);
   const sucursalesVistas = new Set(await e.locator('tbody tr td:first-child').allTextContents());
   if ([...sucursalesVistas].some((s) => s !== 'Sucursal Toluca')) errores.push('El encargado ve inventario de otras sucursales: ' + [...sucursalesVistas]);
 
-  // ---------------- Cuenta corporativa: arma un pedido por empleado
-  paso('empresa arma un pedido corporativo con excepción');
+  // ---------------- Sucursal: arma una solicitud por empleado (constructor en 3 pasos)
+  paso('sucursal arma una solicitud por empleado con excepción por puesto');
   const emp = await nuevaPagina(browser);
   await emp.goto(BASE + '/entrar');
   await emp.fill('input[name=correo]', 'empresa@demo.mx');
   await emp.fill('input[name=password]', PW);
   await emp.getByRole('button', { name: 'Entrar' }).click();
   await emp.waitForURL(/\/cuenta/);
-  await emp.goto(BASE + '/cuenta/corporativo/nuevo');
-  await emp.getByLabel('Empleado partida 1').selectOption({ label: 'Juan Pérez · Administración' });
-  await emp.getByLabel('Producto partida 1').selectOption({ label: 'Botas mantenimiento' });
-  await emp.getByLabel('Talla partida 1').locator('option').nth(3).waitFor({ state: 'attached' });
-  await emp.getByLabel('Talla partida 1').selectOption({ index: 3 });
+  await emp.goto(BASE + '/cuenta/solicitudes/nueva');
+  await emp.getByRole('button', { name: /Juan Pérez/ }).click();
+  await emp.getByRole('button', { name: 'Elegir artículos' }).click();
+  await emp.getByLabel('Solo autorizados para su puesto').uncheck();
+  await emp.getByRole('button', { name: /Botas mantenimiento/ }).click();
+  await emp.getByRole('dialog').getByRole('button', { name: '27', exact: true }).click();
+  await emp.getByRole('button', { name: /Agregar 1 para Juan/ }).click();
+  await emp.getByRole('button', { name: /Revisar solicitud/ }).click();
   await emp.getByPlaceholder('Justificación (mínimo 10 caracteres)').fill('Recorre el área de mantenimiento a diario');
   await emp.screenshot({ path: `${SHOTS}/11-corporativo.png`, fullPage: true });
   await emp.getByRole('button', { name: 'Enviar a revisión' }).click();

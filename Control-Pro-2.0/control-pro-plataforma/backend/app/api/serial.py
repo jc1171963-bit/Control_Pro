@@ -144,7 +144,8 @@ def reembolso(r):
 def paquete(pq, interno=True):
     d = {"id": pq.id, "folio": pq.folio, "estado": pq.estado, "peso_kg": m(pq.peso_kg), "creado": f(pq.creado),
          "sucursal": pq.asignacion.sucursal.nombre,
-         "contenido": [{"sku": x.asignacion_detalle.pedido_detalle.sku, "nombre": x.asignacion_detalle.pedido_detalle.nombre,
+         "contenido": [{"pedido_detalle_id": x.asignacion_detalle.pedido_detalle_id,
+                        "sku": x.asignacion_detalle.pedido_detalle.sku, "nombre": x.asignacion_detalle.pedido_detalle.nombre,
                         "talla": x.asignacion_detalle.pedido_detalle.talla, "cantidad": x.cantidad,
                         "empleado": x.asignacion_detalle.pedido_detalle.empleado.nombre
                         if x.asignacion_detalle.pedido_detalle.empleado else None} for x in pq.detalles],
@@ -213,14 +214,18 @@ def pedido(p, interno=False):
         recs = {r.paquete_id: r for r in db.session.scalars(select(Recepcion).where(Recepcion.paquete_id.in_(paq_ids or [-1])))}
         for pq in d["paquetes"]:
             r = recs.get(pq["id"])
-            pq["recepcion"] = {"estado": r.estado, "diferencias": r.diferencias, "fecha": f(r.creado)} if r else None
+            pq["recepcion"] = {"estado": r.estado, "diferencias": r.diferencias, "fecha": f(r.creado),
+                               "detalles": [{"pedido_detalle_id": x.pedido_detalle_id, "esperada": x.esperada,
+                                             "recibida": x.recibida, "problema": x.problema, "nota": x.nota}
+                                            for x in r.detalles]} if r else None
         d["entregas_individuales"] = [entrega_individual(e) for e in db.session.scalars(
             select(EntregaIndividual).where(EntregaIndividual.paquete_id.in_(paq_ids or [-1])).order_by(EntregaIndividual.id)).unique()]
+    if interno or p.canal == "corporativo":
+        d["incidencias"] = [incidencia(i, interno) for i in db.session.scalars(
+            select(Incidencia).where(Incidencia.pedido_id == p.id).order_by(Incidencia.id)).unique()]
     if interno:
         d["asignaciones"] = [asignacion(a) for a in p.asignaciones]
         d["cliente"] = cliente(p.cliente)
-        d["incidencias"] = [incidencia(i) for i in db.session.scalars(
-            select(Incidencia).where(Incidencia.pedido_id == p.id).order_by(Incidencia.id))]
     return d
 
 
@@ -228,7 +233,8 @@ def entrega_individual(e, con_firma=False):
     d = {"id": e.id, "paquete_id": e.paquete_id, "estado": e.estado,
          "empleado": {"id": e.empleado.id, "nombre": e.empleado.nombre, "puesto": e.empleado.puesto, "numero": e.empleado.numero},
          "valoracion": e.valoracion, "observaciones": e.observaciones, "entregado_en": f(e.entregado_en),
-         "tiene_firma": bool(e.firma),
+         "registrado_por": e.registrado_por, "conformidad_en": f(e.conformidad_en),
+         "conformidad_comentario": e.conformidad_comentario, "tiene_firma": bool(e.firma),
          "detalles": [{"pedido_detalle_id": x.pedido_detalle_id, "sku": x.pedido_detalle.sku, "nombre": x.pedido_detalle.nombre,
                        "talla": x.pedido_detalle.talla, "esperada": x.esperada, "entregada": x.entregada} for x in e.detalles]}
     if con_firma:
@@ -247,12 +253,25 @@ def devolucion(dv):
             "historial": historial("devolucion", dv.id)}
 
 
-def incidencia(i):
+def incidencia(i, interno=True):
+    """`interno=False` (vista de la sucursal) muestra al personal como "Control Pro" en lugar de su nombre."""
+    def actor(s):
+        if s.usuario_id:
+            return s.usuario.nombre if interno and s.usuario else "Control Pro"
+        return "Sucursal" if s.cliente_id else "Sistema"
+
     return {"id": i.id, "folio": i.folio, "tipo": i.tipo, "prioridad": i.prioridad, "estado": i.estado,
             "pedido_id": i.pedido_id, "paquete_id": i.paquete_id, "devolucion_id": i.devolucion_id,
             "transferencia_id": i.transferencia_id, "sucursal_id": i.sucursal_id, "descripcion": i.descripcion,
             "resolucion": i.resolucion, "responsable_id": i.responsable_id, "creado": f(i.creado),
-            "actualizado": f(i.actualizado)}
+            "actualizado": f(i.actualizado),
+            "empleado": {"id": i.empleado.id, "nombre": i.empleado.nombre, "puesto": i.empleado.puesto} if i.empleado else None,
+            "articulo": {"pedido_detalle_id": i.pedido_detalle_id, "nombre": i.pedido_detalle.nombre,
+                         "talla": i.pedido_detalle.talla, "sku": i.pedido_detalle.sku} if i.pedido_detalle else None,
+            "seguimiento": [{"fecha": f(s.creado), "anterior": s.estado_anterior, "nuevo": s.estado_nuevo,
+                             "comentario": s.comentario, "actor": actor(s),
+                             "responsable": (s.responsable.nombre if interno and s.responsable else None)}
+                            for s in i.seguimiento]}
 
 
 def notificacion(n):

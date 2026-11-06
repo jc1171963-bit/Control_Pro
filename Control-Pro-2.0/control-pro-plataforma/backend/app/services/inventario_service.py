@@ -8,9 +8,9 @@ from sqlalchemy.dialects.postgresql import insert
 
 from ..errors import AppError, Conflicto, NoEncontrado
 from ..extensions import db
-from ..models import (Incidencia, Inventario, MovimientoInventario, Sucursal, Transferencia, TransferenciaDetalle,
+from ..models import (Inventario, MovimientoInventario, Sucursal, Transferencia, TransferenciaDetalle,
                       Variante)
-from .comun import actor_ids, asignar_folio, auditar, cambiar_estado, notificar_personal
+from .comun import actor_ids, asignar_folio, auditar, cambiar_estado, notificar_personal, registrar_incidencia
 
 TRANSICIONES_TRANSFERENCIA = {
     "solicitada": {"autorizada", "cancelada"},
@@ -227,12 +227,8 @@ def recibir_transferencia(t: Transferencia, recibidas: dict[int, int], observaci
     t.recibida_por = actor_ids()[0]
     t.observaciones = observaciones
     if faltantes:
-        usuario_id, _ = actor_ids()
-        inc = Incidencia(tipo="faltante_transferencia", prioridad="alta", transferencia_id=t.id,
-                         sucursal_id=t.destino_id, descripcion="Diferencias al recibir: " + "; ".join(faltantes),
-                         creado_por_usuario=usuario_id)
-        db.session.add(inc)
-        asignar_folio(inc, "INC")
+        registrar_incidencia(tipo="faltante_transferencia", prioridad="alta", transferencia_id=t.id,
+                             sucursal_id=t.destino_id, descripcion="Diferencias al recibir: " + "; ".join(faltantes))
     auditar("transferencia.recibir", "transferencia", t.id, despues={"estado": nuevo, "faltantes": faltantes},
             sucursal_id=t.destino_id)
     db.session.commit()

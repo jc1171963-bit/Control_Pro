@@ -43,7 +43,7 @@ def _pedidos_en_alcance(sucursal_id: int | None):
 def dashboard(desde=None, hasta=None, sucursal_id=None) -> dict:
     ini, fin = rango(desde, hasta)
     alcance = _pedidos_en_alcance(sucursal_id)
-    base = [Pedido.creado.between(ini, fin)]
+    base = [Pedido.creado.between(ini, fin), Pedido.estado != "borrador"]
     if alcance is not None:
         base.append(Pedido.id.in_(alcance))
 

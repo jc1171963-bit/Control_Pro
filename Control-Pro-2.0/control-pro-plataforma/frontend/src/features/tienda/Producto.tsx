@@ -1,24 +1,89 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, Heart, Minus, Plus, Rotate3d, ShoppingBag, Store, Truck } from 'lucide-react';
+import { Check, ClipboardPlus, Heart, Minus, Plus, Rotate3d, ShoppingBag, Store, Truck } from 'lucide-react';
 import { del, get, post, put } from '../../api/cliente';
-import type { ProductoDetalle, ProductoResumen } from '../../api/tipos';
+import type { ProductoDetalle, ProductoResumen, VarianteT } from '../../api/tipos';
 import { useAuth } from '../../app/auth';
-import { Boton, Cargando, ErrorCaja, useAviso } from '../../components/ui';
+import { useConfig } from '../../app/config';
+import { volarHacia } from '../../components/movimiento';
+import { agregarAlBorrador, elegible, PuestosAutorizados } from '../../lib/solicitud';
+import type { EmpleadoCorporativo } from '../cuenta/Corporativo';
+import { Aviso, Boton, Cargando, ErrorCaja, Selector, Texto, useAviso } from '../../components/ui';
 import Visor360 from '../../components/Visor360';
 import { cls, dinero, mensajeError } from '../../lib/formato';
 import ProductoCard, { ImagenProducto } from './ProductoCard';
 
+/** Portal de sucursal: el artículo se agrega al borrador de solicitud, asignado a un empleado. */
+function AgregarASolicitud({ p, variante, color }: { p: ProductoDetalle; variante: VarianteT | undefined; color: string }) {
+  const { tipo, cliente } = useAuth();
+  const nav = useNavigate();
+  const loc = useLocation();
+  const qc = useQueryClient();
+  const avisar = useAviso();
+  const empresa = tipo === 'cliente' && cliente?.tipo === 'empresa';
+  const empleados = useQuery({ queryKey: ['empleados'], queryFn: () => get<EmpleadoCorporativo[]>('/cuenta/empleados'), enabled: empresa });
+  const puestos = useQuery({ queryKey: ['puestos-autorizados'], queryFn: () => get<PuestosAutorizados>('/cuenta/puestos-autorizados'), enabled: empresa });
+  const [empleado, setEmpleado] = useState<number | ''>('');
+  const [cantidad, setCantidad] = useState(1);
+  const [excepcion, setExcepcion] = useState('');
+  const boton = useRef<HTMLSpanElement>(null);
+  const emp = empleados.data?.find((e) => e.id === empleado);
+  const ok = !emp || elegible(puestos.data, emp.puesto, p.id);
+  const m = useMutation({
+    mutationFn: () => agregarAlBorrador({ empleado_id: Number(empleado), variante_id: variante!.id, cantidad, excepcion: ok ? null : excepcion.trim() || null }),
+    onSuccess: (borrador) => {
+      volarHacia(boton.current, document.querySelector('[data-destino-solicitud]'), p.imagen);
+      qc.invalidateQueries({ queryKey: ['mis-borradores'] });
+      avisar(`Agregado al borrador ${borrador.folio} para ${emp?.nombre}.`);
+    },
+    onError: (e) => avisar(mensajeError(e), 'error'),
+  });
+  if (!empresa) {
+    return (
+      <div className="mt-6 rounded-2xl bg-white p-5 ring-1 ring-arena-200">
+        <p className="font-display font-bold">¿Necesitas este artículo para tu equipo?</p>
+        <p className="mt-1 text-sm text-tinta-500">Las sucursales solicitan uniformes por empleado desde su portal.</p>
+        <Boton className="mt-3" onClick={() => nav(`/entrar?siguiente=${encodeURIComponent(loc.pathname)}`)}>Entrar con la cuenta de mi sucursal</Boton>
+      </div>
+    );
+  }
+  return (
+    <div className="mt-6 space-y-3 rounded-2xl bg-white p-5 ring-1 ring-arena-200">
+      <p className="flex items-center gap-2 font-display font-bold"><ClipboardPlus className="h-5 w-5 text-menta-600" />Agregar a mi solicitud</p>
+      <Selector value={empleado} onChange={(e) => setEmpleado(e.target.value ? Number(e.target.value) : '')} aria-label="Empleado">
+        <option value="">¿Para qué empleado?</option>
+        {empleados.data?.filter((e) => e.activo).map((e) => (
+          <option key={e.id} value={e.id}>{e.nombre} · {e.puesto}{elegible(puestos.data, e.puesto, p.id) ? '' : ' (requiere excepción)'}</option>
+        ))}
+      </Selector>
+      {!ok && <><Aviso tipo="alerta">No está autorizado para el puesto {emp?.puesto}; se enviará como excepción y el distribuidor decide.</Aviso>
+        <Texto rows={2} placeholder="Justificación (mínimo 10 caracteres; puedes completarla al revisar)" value={excepcion} onChange={(e) => setExcepcion(e.target.value)} /></>}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex h-12 items-center rounded-xl bg-white ring-1 ring-arena-300">
+          <button className="px-3" onClick={() => setCantidad(Math.max(1, cantidad - 1))} aria-label="Menos"><Minus className="h-4 w-4" /></button>
+          <span className="w-8 text-center font-bold" aria-live="polite">{cantidad}</span>
+          <button className="px-3" onClick={() => setCantidad(Math.min(50, cantidad + 1))} aria-label="Más"><Plus className="h-4 w-4" /></button>
+        </div>
+        <span ref={boton} className="flex flex-1"><Boton tam="lg" className="flex-1 rounded-xl" disabled={!variante || !empleado} cargando={m.isPending} icono={<ClipboardPlus className="h-5 w-5" />} onClick={() => m.mutate()}>
+          {!variante ? 'Elige una talla' : !empleado ? 'Elige al empleado' : `Agregar (${color}, ${variante.talla})`}
+        </Boton></span>
+      </div>
+      <p className="text-xs text-tinta-400">Se guarda en tu borrador de solicitud; lo revisas y envías desde <Link to="/cuenta" data-destino-solicitud className="font-semibold text-menta-700">tu portal</Link>.</p>
+    </div>
+  );
+}
+
 export default function Producto() {
   const { slug } = useParams();
   const { tipo } = useAuth();
+  const { canalTienda } = useConfig();
   const nav = useNavigate();
   const loc = useLocation();
   const qc = useQueryClient();
   const avisar = useAviso();
   const q = useQuery({ queryKey: ['producto', slug], queryFn: () => get<ProductoDetalle>(`/tienda/productos/${slug}`) });
-  const favs = useQuery({ queryKey: ['favoritos'], queryFn: () => get<ProductoResumen[]>('/cuenta/favoritos'), enabled: tipo === 'cliente' });
+  const favs = useQuery({ queryKey: ['favoritos'], queryFn: () => get<ProductoResumen[]>('/cuenta/favoritos'), enabled: tipo === 'cliente' && canalTienda });
   const p = q.data;
   const colores = useMemo(() => [...new Map((p?.variantes || []).map((v) => [v.color, v.color_hex])).entries()], [p]);
   const [color, setColor] = useState<string>('');
@@ -79,12 +144,12 @@ export default function Producto() {
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-menta-700">{p.categoria.nombre} · {p.sku_base}</p>
           <h1 className="mt-1 font-display text-3xl font-extrabold tracking-tight sm:text-4xl">{p.nombre}</h1>
-          <div className="mt-4 flex items-baseline gap-3">
+          {canalTienda && <><div className="mt-4 flex items-baseline gap-3">
             <span className="font-display text-3xl font-extrabold">{dinero(variante?.precio_final ?? delColor[0]?.precio_final ?? p.precio_desde)}</span>
             {(variante ?? delColor[0])?.descuento !== '0.00' && <span className="text-tinta-400 line-through">{dinero((variante ?? delColor[0])?.precio_base)}</span>}
             {(variante ?? delColor[0])?.promocion && <span className="rounded-full bg-coral-100 px-2 py-0.5 text-xs font-bold text-coral-700">{(variante ?? delColor[0])?.promocion}</span>}
           </div>
-          <p className="text-xs text-tinta-400">IVA incluido</p>
+          <p className="text-xs text-tinta-400">IVA incluido</p></>}
           <p className="mt-5 text-tinta-600">{p.descripcion}</p>
 
           <div className="mt-6">
@@ -106,7 +171,7 @@ export default function Producto() {
               ))}
             </div>
           </div>
-          <div className="mt-6 flex flex-wrap items-center gap-3">
+          {canalTienda ? <div className="mt-6 flex flex-wrap items-center gap-3">
             <div className="flex h-12 items-center rounded-xl bg-white ring-1 ring-arena-300">
               <button className="px-3" onClick={() => setCantidad(Math.max(1, cantidad - 1))} aria-label="Menos"><Minus className="h-4 w-4" /></button>
               <span className="w-8 text-center font-bold" aria-live="polite">{cantidad}</span>
@@ -118,10 +183,10 @@ export default function Producto() {
             </Boton>
             <Boton tam="lg" variante="secundario" className="rounded-xl" aria-label="Favorito" onClick={() => (tipo === 'cliente' ? fav.mutate() : requiereSesion())}
               icono={<Heart className={cls('h-5 w-5', esFav && 'fill-coral-500 text-coral-500')} />} />
-          </div>
+          </div> : <AgregarASolicitud p={p} variante={variante} color={color} />}
 
           <div className="mt-8 rounded-2xl bg-white p-5 ring-1 ring-arena-200">
-            <p className="mb-3 flex items-center gap-2 font-display font-bold"><Store className="h-4 w-4 text-menta-600" />Disponibilidad por sucursal {variante ? `· talla ${variante.talla}` : ''}</p>
+            <p className="mb-3 flex items-center gap-2 font-display font-bold"><Store className="h-4 w-4 text-menta-600" />{canalTienda ? 'Disponibilidad por sucursal' : 'Disponibilidad en almacenes'} {variante ? `· talla ${variante.talla}` : ''}</p>
             <ul className="divide-y divide-arena-200 text-sm">
               {p.disponibilidad_sucursal?.map((s) => {
                 const n = variante ? s.variantes[String(variante.id)] || 0 : delColor.reduce((a, v) => a + (s.variantes[String(v.id)] || 0), 0);
@@ -135,19 +200,19 @@ export default function Producto() {
                 );
               })}
             </ul>
-            <p className="mt-3 flex items-start gap-2 text-xs text-tinta-400"><Truck className="mt-0.5 h-3.5 w-3.5" />Envío a domicilio desde la sucursal de tu zona, o recoge sin costo.</p>
+            <p className="mt-3 flex items-start gap-2 text-xs text-tinta-400"><Truck className="mt-0.5 h-3.5 w-3.5" />{canalTienda ? 'Envío a domicilio desde la sucursal de tu zona, o recoge sin costo.' : 'Se surte desde el almacén más cercano a tu sucursal; cada paquete lleva su propia guía.'}</p>
           </div>
           <dl className="mt-6 grid grid-cols-2 gap-4 text-sm">
             {p.material && <div><dt className="text-tinta-400">Material</dt><dd className="font-semibold">{p.material}</dd></div>}
             {p.cuidados && <div><dt className="text-tinta-400">Cuidados</dt><dd className="font-semibold">{p.cuidados}</dd></div>}
-            {p.puestos.length > 0 && <div className="col-span-2"><dt className="text-tinta-400">Recomendado para</dt><dd className="mt-1 flex flex-wrap gap-1">{p.puestos.map((x) => <span key={x} className="flex items-center gap-1 rounded-full bg-menta-50 px-2 py-0.5 text-xs font-semibold text-menta-800"><Check className="h-3 w-3" />{x}</span>)}</dd></div>}
+            {p.puestos.length > 0 && <div className="col-span-2"><dt className="text-tinta-400">{canalTienda ? 'Recomendado para' : 'Autorizado para los puestos'}</dt><dd className="mt-1 flex flex-wrap gap-1">{p.puestos.map((x) => <span key={x} className="flex items-center gap-1 rounded-full bg-menta-50 px-2 py-0.5 text-xs font-semibold text-menta-800"><Check className="h-3 w-3" />{x}</span>)}</dd></div>}
           </dl>
         </div>
       </div>
       {!!p.relacionados?.length && (
         <section className="mt-16">
           <h2 className="mb-5 font-display text-2xl font-extrabold">También te puede servir</h2>
-          <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">{p.relacionados.map((r) => <ProductoCard key={r.id} p={r} />)}</div>
+          <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">{p.relacionados.map((r, i) => <ProductoCard key={r.id} p={r} orden={i} />)}</div>
         </section>
       )}
     </div>

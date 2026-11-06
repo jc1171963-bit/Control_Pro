@@ -57,6 +57,8 @@ def login(tipo: str, correo: str, password: str):
 
 
 def registrar_cliente(datos: dict) -> Cliente:
+    if not current_app.config["CANAL_TIENDA"] and datos.get("tipo", "persona") != "empresa":
+        raise AppError("El registro está disponible solo para cuentas de sucursal (empresa).", codigo="canal_no_disponible")
     validar_fortaleza(datos["password"])
     if _buscar("cliente", datos["correo"]):
         raise Conflicto("Ya existe una cuenta con ese correo.", codigo="correo_duplicado")

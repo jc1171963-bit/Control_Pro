@@ -38,6 +38,10 @@ class Config:
     UPLOAD_DIR = os.getenv("UPLOAD_DIR", os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads"))
     MAX_CONTENT_LENGTH = 5 * 1024 * 1024  # 5 MB por solicitud
 
+    # Canal de tienda en línea (carrito, checkout y pagos de personas). Apagado, el portal solo opera solicitudes
+    # de sucursales (canal corporativo); el código de la tienda se conserva.
+    CANAL_TIENDA = _bool("CANAL_TIENDA", False)
+
     # Reglas de negocio configurables
     RESERVA_HORAS = int(os.getenv("RESERVA_HORAS", "24"))
     PERMITIR_DIVISION = _bool("PERMITIR_DIVISION", True)
@@ -64,6 +68,7 @@ class DevConfig(Config):
 
 class TestConfig(Config):
     TESTING = True
+    CANAL_TIENDA = True
     SECRET_KEY = "test"
     JWT_SECRET_KEY = "test-jwt-clave-suficientemente-larga-para-hs256"
     SQLALCHEMY_DATABASE_URI = os.getenv(

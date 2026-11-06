@@ -71,6 +71,20 @@ def asignar_folio(obj, prefijo: str):
     obj.folio = f"{prefijo}-{datetime.now().year}-{obj.id:06d}"
 
 
+def registrar_incidencia(**campos):
+    """Crea la incidencia con su folio y abre su historial. Todas las incidencias del sistema nacen aquí."""
+    from ..models import Incidencia, IncidenciaSeguimiento
+    usuario_id, cliente_id = actor_ids()
+    campos.setdefault("creado_por_usuario", usuario_id)
+    campos.setdefault("creado_por_cliente", cliente_id)
+    inc = Incidencia(**campos)
+    db.session.add(inc)
+    asignar_folio(inc, "INC")
+    db.session.add(IncidenciaSeguimiento(incidencia_id=inc.id, estado_anterior=None, estado_nuevo=inc.estado or "abierta",
+                                         comentario="Incidencia registrada", usuario_id=usuario_id, cliente_id=cliente_id))
+    return inc
+
+
 def notificar_cliente(cliente_id: int, evento: str, entidad: str, entidad_id: int, mensaje: str, enlace: str | None = None):
     db.session.execute(insert(Notificacion).values(
         cliente_id=cliente_id, evento=evento, entidad=entidad, entidad_id=entidad_id, mensaje=mensaje[:300],

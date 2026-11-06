@@ -133,8 +133,27 @@ class Recepcion(db.Model):
     diferencias: Mapped[str | None] = mapped_column(Text)
     cliente_id: Mapped[int] = mapped_column(ForeignKey("cliente.id"))
     creado: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    detalles = relationship("RecepcionDetalle", order_by="RecepcionDetalle.id", lazy="selectin", cascade="all, delete-orphan")
     __table_args__ = (CheckConstraint("estado in ('completa','parcial')", name="ck_recepcion_estado"),
                       CheckConstraint("estado = 'completa' or diferencias is not null", name="ck_recepcion_dif"))
+
+
+class RecepcionDetalle(db.Model):
+    """Lo recibido de cada artículo del paquete y el problema encontrado, si lo hubo."""
+    __tablename__ = "recepcion_detalle"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    recepcion_id: Mapped[int] = mapped_column(ForeignKey("recepcion.id", ondelete="CASCADE"), index=True)
+    pedido_detalle_id: Mapped[int] = mapped_column(ForeignKey("pedido_detalle.id"))
+    esperada: Mapped[int] = mapped_column(Integer)
+    recibida: Mapped[int] = mapped_column(Integer)
+    problema: Mapped[str | None] = mapped_column(String(12))
+    nota: Mapped[str | None] = mapped_column(String(300))
+    pedido_detalle = relationship("PedidoDetalle", lazy="joined")
+    __table_args__ = (
+        UniqueConstraint("recepcion_id", "pedido_detalle_id", name="uq_recdet_partida"),
+        CheckConstraint("recibida >= 0 and recibida <= esperada", name="ck_recdet_cantidad"),
+        CheckConstraint("problema is null or problema in ('faltante','danado','diferencia')", name="ck_recdet_problema"),
+    )
 
 
 class EntregaIndividual(ConFechas, db.Model):
@@ -147,11 +166,16 @@ class EntregaIndividual(ConFechas, db.Model):
     valoracion: Mapped[int | None] = mapped_column(Integer)
     observaciones: Mapped[str | None] = mapped_column(String(500))
     entregado_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Persona de la sucursal que hace la entrega (la cuenta de la sucursal es compartida).
+    registrado_por: Mapped[str | None] = mapped_column(String(120))
+    # Conformidad del empleado: evento posterior e independiente de la entrega.
+    conformidad_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    conformidad_comentario: Mapped[str | None] = mapped_column(String(500))
     detalles = relationship("EntregaIndividualDetalle", lazy="selectin", cascade="all, delete-orphan")
     empleado = relationship("EmpleadoCorporativo", lazy="joined")
     __table_args__ = (
         UniqueConstraint("paquete_id", "empleado_id", name="uq_entrega_paquete_empleado"),
-        CheckConstraint("estado in ('pendiente','parcial','entregada','con_incidencia')", name="ck_entrega_estado"),
+        CheckConstraint("estado in ('pendiente','parcial','entregada','confirmada','con_incidencia')", name="ck_entrega_estado"),
         CheckConstraint("valoracion is null or valoracion between 1 and 5", name="ck_entrega_valoracion"),
     )
 
@@ -222,11 +246,16 @@ class Incidencia(ConFechas, db.Model):
     devolucion_id: Mapped[int | None] = mapped_column(ForeignKey("devolucion.id"))
     transferencia_id: Mapped[int | None] = mapped_column(ForeignKey("transferencia.id"))
     sucursal_id: Mapped[int | None] = mapped_column(ForeignKey("sucursal.id"))
+    empleado_id: Mapped[int | None] = mapped_column(ForeignKey("empleado_corporativo.id"))
+    pedido_detalle_id: Mapped[int | None] = mapped_column(ForeignKey("pedido_detalle.id"))
     descripcion: Mapped[str] = mapped_column(Text)
     resolucion: Mapped[str | None] = mapped_column(Text)
     responsable_id: Mapped[int | None] = mapped_column(ForeignKey("usuario.id"))
     creado_por_usuario: Mapped[int | None] = mapped_column(ForeignKey("usuario.id"))
     creado_por_cliente: Mapped[int | None] = mapped_column(ForeignKey("cliente.id"))
+    empleado = relationship("EmpleadoCorporativo", lazy="joined")
+    pedido_detalle = relationship("PedidoDetalle", lazy="joined")
+    seguimiento = relationship("IncidenciaSeguimiento", order_by="IncidenciaSeguimiento.id", lazy="selectin")
     __table_args__ = (
         CheckConstraint("estado in ('abierta','en_atencion','resuelta','cerrada')", name="ck_inc_estado"),
         CheckConstraint("prioridad in ('baja','media','alta','critica')", name="ck_inc_prioridad"),
@@ -234,6 +263,22 @@ class Incidencia(ConFechas, db.Model):
                         name="ck_inc_referencia"),
         CheckConstraint("estado not in ('resuelta','cerrada') or resolucion is not null", name="ck_inc_resolucion"),
     )
+
+
+class IncidenciaSeguimiento(db.Model):
+    """Historial de una incidencia: cada cambio de estado, comentario o responsable queda como una entrada nueva."""
+    __tablename__ = "incidencia_seguimiento"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    incidencia_id: Mapped[int] = mapped_column(ForeignKey("incidencia.id"), index=True)
+    estado_anterior: Mapped[str | None] = mapped_column(String(15))
+    estado_nuevo: Mapped[str] = mapped_column(String(15))
+    comentario: Mapped[str | None] = mapped_column(Text)
+    responsable_id: Mapped[int | None] = mapped_column(ForeignKey("usuario.id"))
+    usuario_id: Mapped[int | None] = mapped_column(ForeignKey("usuario.id"))
+    cliente_id: Mapped[int | None] = mapped_column(ForeignKey("cliente.id"))
+    creado: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    usuario = relationship("Usuario", foreign_keys=[usuario_id], lazy="joined")
+    responsable = relationship("Usuario", foreign_keys=[responsable_id], lazy="joined")
 
 
 class Notificacion(db.Model):

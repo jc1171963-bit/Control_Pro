@@ -40,7 +40,7 @@ class Favorito(db.Model):
     creado: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
-ESTADOS_PEDIDO = ("en_revision", "devuelto", "rechazado", "pendiente_pago", "pago_en_revision", "confirmado",
+ESTADOS_PEDIDO = ("borrador", "en_revision", "devuelto", "rechazado", "pendiente_pago", "pago_en_revision", "confirmado",
                   "en_preparacion", "parcialmente_enviado", "enviado", "parcialmente_entregado", "entregado",
                   "cerrado", "cancelado", "expirado")
 
