@@ -26,6 +26,11 @@ TRANSICIONES_INCIDENCIA = {
     "resuelta": {"cerrada", "en_atencion"},
 }
 ACTIVAS = {"solicitada", "autorizada", "en_camino", "recibida"}
+_ETIQUETAS_INCIDENCIA = {"abierta": "abierta", "en_atencion": "en atención", "resuelta": "resuelta", "cerrada": "cerrada"}
+
+
+def etiqueta_incidencia(estado: str) -> str:
+    return _ETIQUETAS_INCIDENCIA.get(estado, estado)
 
 
 def bloquear_devolucion(dev_id: int) -> Devolucion:
@@ -217,6 +222,12 @@ def actualizar_incidencia(inc: Incidencia, estado: str | None, comentario: str |
         if estado in {"resuelta", "cerrada"} and not inc.resolucion:
             raise AppError("Registra la resolución antes de marcarla como resuelta.")
         cambiar_estado(inc, "incidencia", estado, TRANSICIONES_INCIDENCIA, comentario)
+    if inc.pedido_id and (comentario or inc.estado != anterior):
+        pedido = db.session.get(Pedido, inc.pedido_id)
+        n = len(inc.seguimiento) + 1
+        notificar_cliente(pedido.cliente_id, f"incidencia_{inc.id}_{n}", "incidencia", inc.id,
+                          f"Actualización de la incidencia {inc.folio}: {etiqueta_incidencia(inc.estado)}"
+                          + (f". {comentario}" if comentario else ""), f"/cuenta/pedidos/{pedido.id}")
     if comentario or cambio_responsable or inc.estado != anterior:
         db.session.add(IncidenciaSeguimiento(incidencia_id=inc.id, estado_anterior=anterior, estado_nuevo=inc.estado,
                                              comentario=comentario,

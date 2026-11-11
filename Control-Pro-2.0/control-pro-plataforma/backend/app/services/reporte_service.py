@@ -11,8 +11,8 @@ from decimal import Decimal
 from sqlalchemy import and_, case, func, select
 
 from ..extensions import db
-from ..models import (AsignacionDetalle, AsignacionSurtido, Devolucion, Incidencia, Inventario, MovimientoInventario,
-                      Pago, Pedido, PedidoDetalle, Producto, Reembolso, Sucursal, Variante)
+from ..models import (AsignacionDetalle, AsignacionSurtido, Cliente, Devolucion, EntregaIndividual, Incidencia, Inventario,
+                      MovimientoInventario, Pago, Paquete, Pedido, PedidoDetalle, Producto, Reembolso, Sucursal, Variante)
 from ..security.auth import sucursales_permitidas
 
 CONFIRMADOS = ("confirmado", "en_preparacion", "parcialmente_enviado", "enviado", "parcialmente_entregado",
@@ -170,3 +170,74 @@ def comparativa_sucursales(desde=None, hasta=None) -> list[dict]:
                        "unidades_despachadas": int(fila[2]), "faltantes": int(fila[3]), "importe_surtido": str(fila[4]),
                        "existencia_unidades": int(inv[0]), "existencia_valor": str(inv[1]), "existencias_bajas": bajas})
     return salida
+
+
+ETAPAS_SOLICITUD = {
+    "por_revisar": ("en_revision",), "en_correccion": ("devuelto",), "en_surtido": ("confirmado", "en_preparacion"),
+    "en_camino": ("parcialmente_enviado", "enviado"), "en_entrega": ("parcialmente_entregado", "entregado"),
+    "cerradas": ("cerrado",), "rechazadas_canceladas": ("rechazado", "cancelado", "expirado"),
+}
+
+
+def panel_solicitudes(dias: int = 30) -> dict:
+    """Indicadores del flujo de solicitudes de sucursal (canal corporativo), sin montos."""
+    alcance = _pedidos_en_alcance(None)
+    cond = [Pedido.canal == "corporativo", Pedido.estado != "borrador"]
+    if alcance is not None:
+        cond.append(Pedido.id.in_(alcance))
+    ids = select(Pedido.id).where(*cond)
+    por_estado = dict(db.session.execute(select(Pedido.estado, func.count()).where(*cond).group_by(Pedido.estado)).all())
+    hoy = datetime.now(timezone.utc)
+    inicio_mes = hoy.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    desde = datetime.combine(hoy.date() - timedelta(days=dias - 1), time.min, tzinfo=timezone.utc)
+
+    unidades = db.session.execute(select(
+        func.coalesce(func.sum(PedidoDetalle.cantidad - PedidoDetalle.cantidad_cancelada), 0),
+        func.coalesce(func.sum(PedidoDetalle.cantidad_entregada), 0))
+        .where(PedidoDetalle.pedido_id.in_(ids), Pedido.id == PedidoDetalle.pedido_id,
+               Pedido.estado.notin_(["rechazado", "cancelado", "expirado"]))).one()
+    paquetes = select(Paquete.id).join(AsignacionSurtido).where(AsignacionSurtido.pedido_id.in_(ids))
+    entregas = db.session.execute(select(EntregaIndividual.estado, EntregaIndividual.conformidad_en, EntregaIndividual.valoracion)
+                                  .where(EntregaIndividual.paquete_id.in_(paquetes))).all()
+    valoraciones = [v for _, c, v in entregas if c and v]
+
+    sucursales = dict(db.session.execute(select(Cliente.activo, func.count()).where(Cliente.tipo == "empresa")
+                                         .group_by(Cliente.activo)).all())
+    con_curso = db.session.scalar(select(func.count(func.distinct(Pedido.cliente_id))).where(
+        *cond, Pedido.estado.in_(ETAPAS_SOLICITUD["por_revisar"] + ETAPAS_SOLICITUD["en_correccion"] + ETAPAS_SOLICITUD["en_surtido"]
+                                 + ETAPAS_SOLICITUD["en_camino"] + ETAPAS_SOLICITUD["en_entrega"])))
+
+    top_sucursales = db.session.execute(
+        select(func.coalesce(Cliente.razon_social, Cliente.nombre).label("nombre"), func.count(func.distinct(Pedido.id)).label("solicitudes"),
+               func.coalesce(func.sum(PedidoDetalle.cantidad - PedidoDetalle.cantidad_cancelada), 0).label("unidades"))
+        .select_from(Pedido).join(Cliente, Cliente.id == Pedido.cliente_id).join(PedidoDetalle, PedidoDetalle.pedido_id == Pedido.id)
+        .where(*cond).group_by(Cliente.id, Cliente.razon_social, Cliente.nombre).order_by(func.count(func.distinct(Pedido.id)).desc())
+        .limit(6)).all()
+    top_productos = db.session.execute(
+        select(PedidoDetalle.nombre, func.sum(PedidoDetalle.cantidad - PedidoDetalle.cantidad_cancelada).label("unidades"))
+        .where(PedidoDetalle.pedido_id.in_(ids)).group_by(PedidoDetalle.nombre)
+        .order_by(func.sum(PedidoDetalle.cantidad - PedidoDetalle.cantidad_cancelada).desc()).limit(6)).all()
+    serie = dict(db.session.execute(select(func.date_trunc("day", Pedido.creado).label("dia"), func.count())
+                                    .where(*cond, Pedido.creado >= desde).group_by("dia")).all())
+
+    return {
+        "sucursales": {"activas": sucursales.get(True, 0), "inactivas": sucursales.get(False, 0),
+                       "con_solicitudes_en_curso": con_curso},
+        "solicitudes": {"total": sum(por_estado.values()),
+                        "este_mes": db.session.scalar(select(func.count()).select_from(Pedido).where(*cond, Pedido.creado >= inicio_mes)),
+                        "por_etapa": {k: sum(por_estado.get(e, 0) for e in v) for k, v in ETAPAS_SOLICITUD.items()}},
+        "unidades": {"solicitadas": int(unidades[0]), "entregadas": int(unidades[1])},
+        "paquetes_en_camino": db.session.scalar(select(func.count()).select_from(Paquete).where(
+            Paquete.id.in_(paquetes), Paquete.estado.in_(["despachado", "en_transito"]))),
+        "entregas": {"registradas": sum(1 for e, _, _ in entregas if e != "pendiente"),
+                     "pendientes": sum(1 for e, _, _ in entregas if e == "pendiente"),
+                     "conformidades_pendientes": sum(1 for e, c, _ in entregas if e == "entregada" and not c),
+                     "valoracion_promedio": round(sum(valoraciones) / len(valoraciones), 1) if valoraciones else None},
+        "incidencias_abiertas": db.session.scalar(select(func.count()).select_from(Incidencia).where(
+            Incidencia.pedido_id.in_(ids), Incidencia.estado.in_(["abierta", "en_atencion"]))),
+        "top_sucursales": [{"nombre": r.nombre, "solicitudes": r.solicitudes, "unidades": int(r.unidades)} for r in top_sucursales],
+        "top_productos": [{"nombre": r.nombre, "unidades": int(r.unidades)} for r in top_productos],
+        "serie": [{"dia": (desde.date() + timedelta(days=i)).isoformat(),
+                   "solicitudes": next((n for d, n in serie.items() if d.date() == desde.date() + timedelta(days=i)), 0)}
+                  for i in range(dias)],
+    }

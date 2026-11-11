@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Ban, Check, CheckCheck, ChevronRight, FileDown, Search, Undo2, X } from 'lucide-react';
+import { AlertTriangle, Ban, Check, CheckCheck, ChevronRight, FileDown, FileSignature, PencilLine, Search, Undo2, X } from 'lucide-react';
 import { claveIdempotencia, descargar, get, post } from '../../api/cliente';
 import type { Pagina, Pedido, PedidoResumen } from '../../api/tipos';
 import { useAuth } from '../../app/auth';
 import { Aviso, Boton, Campo, Cargando, Entrada, ErrorCaja, Estado, Modal, Paginacion, Selector, Tabla, Tarjeta, Td, Texto, useAviso } from '../../components/ui';
 import { cls, dinero, etiqueta, fechaHora, METODOS, mensajeError, PROBLEMAS_RECEPCION } from '../../lib/formato';
 import { Aparecer, EsqueletoLista, Palomita } from '../../components/movimiento';
+import ComprobanteEntrega from '../cuenta/ComprobanteEntrega';
+import EditarSolicitud from './EditarSolicitud';
 import { Encabezado, FiltroSucursal } from './AdminLayout';
 
 const ESTADOS_FILTRO = [['', 'Todos'], ['en_revision', 'Por aprobar'], ['pendiente_pago,pago_en_revision', 'Por pagar'], ['confirmado,en_preparacion', 'Por surtir'],
@@ -100,7 +102,7 @@ export function Solicitudes() {
 }
 
 /** Rastreo de cada artículo: solicitud → surtido → paquete y guía → recepción → entrega con firma → conformidad. */
-function TrazabilidadArticulos({ p }: { p: Pedido }) {
+function TrazabilidadArticulos({ p, onFirma }: { p: Pedido; onFirma: (entregaId: number) => void }) {
   const filas = p.detalles.map((d) => {
     const asig = (p.asignaciones || []).flatMap((a) => a.detalles.filter((x) => x.pedido_detalle_id === d.id).map((x) => ({ ...x, sucursal: a.sucursal.nombre })));
     const paquetes = p.paquetes.filter((pq) => pq.contenido.some((c) => c.pedido_detalle_id === d.id));
@@ -118,7 +120,8 @@ function TrazabilidadArticulos({ p }: { p: Pedido }) {
           <Td className="text-xs">{paquetes.length ? paquetes.map((pq) => <p key={pq.id}>{pq.folio} <Estado valor={pq.estado} className="ml-1" />{pq.envio && <span className="block text-tinta-400">{pq.envio.paqueteria} · {pq.envio.guia}</span>}</p>) : <span className="text-tinta-300">—</span>}</Td>
           <Td className="text-xs">{paquetes.some((pq) => pq.recepcion) ? (recepciones.length ? recepciones.map((r, i) => <p key={i} className={r.problema ? 'text-coral-600' : 'text-menta-700'}>{r.recibida}/{r.esperada}{r.problema ? ` · ${PROBLEMAS_RECEPCION[r.problema]}` : ' recibidas'}</p>)
             : <p className="text-menta-700">Recibido</p>) : <span className="text-tinta-300">—</span>}</Td>
-          <Td className="text-xs">{entregas.length ? entregas.map(({ e, entregada, esperada }) => <p key={e.id}>{e.estado === 'pendiente' ? <span className="text-tinta-400">Pendiente</span> : <>{entregada}/{esperada} · {fechaHora(e.entregado_en)}<span className="block text-tinta-400">Entregó {e.registrado_por || '—'}{e.tiene_firma ? ' · firmado' : ''}</span></>}</p>) : <span className="text-tinta-300">—</span>}</Td>
+          <Td className="text-xs">{entregas.length ? entregas.map(({ e, entregada, esperada }) => <p key={e.id}>{e.estado === 'pendiente' ? <span className="text-tinta-400">Pendiente</span> : <>{entregada}/{esperada} · {fechaHora(e.entregado_en)}<span className="block text-tinta-400">Entregó {e.registrado_por || '—'}</span>
+            {e.tiene_firma && <button type="button" onClick={() => onFirma(e.id)} className="mt-0.5 inline-flex items-center gap-1 font-semibold text-menta-700 hover:underline"><FileSignature className="h-3 w-3" />Ver firma</button>}</>}</p>) : <span className="text-tinta-300">—</span>}</Td>
           <Td className="text-xs">{entregas.map(({ e }) => <p key={e.id}>{e.conformidad_en ? <><span className="text-amber-500">{'★'.repeat(e.valoracion || 0)}</span> <Estado valor={e.estado} className="ml-1" /></> : e.estado !== 'pendiente' ? <span className="text-tinta-400">Pendiente</span> : ''}</p>)}</Td>
         </tr>
       ))}
@@ -137,6 +140,8 @@ export function PedidoAdmin() {
   const [aceptar, setAceptar] = useState(false);
   const [clave, setClave] = useState(() => claveIdempotencia('efectivo'));
   const [tipoInc, setTipoInc] = useState('seguimiento');
+  const [comprobante, setComprobante] = useState<number | null>(null);
+  const [editando, setEditando] = useState(false);
   const refrescar = () => { qc.invalidateQueries({ queryKey: ['admin-pedido', id] }); qc.invalidateQueries({ queryKey: ['admin-pedidos'] }); };
   const accion = useMutation({
     mutationFn: async () => {
@@ -166,6 +171,7 @@ export function PedidoAdmin() {
       <Encabezado titulo={`${p.canal === 'corporativo' ? 'Solicitud' : 'Pedido'} ${p.folio}`} sub={`${p.canal === 'corporativo' ? `Sucursal ${p.cliente.razon_social || p.cliente.nombre}` : 'Tienda en línea'} · ${fechaHora(p.creado)}`}>
         <Boton variante="secundario" icono={<FileDown className="h-4 w-4" />} onClick={() => descargar(`/admin/pedidos/${p.id}/pdf`, `${p.folio}.pdf`)}>PDF</Boton>
         {p.estado === 'en_revision' && puede('pedido.aprobar') && <>
+          {p.canal === 'corporativo' && <Boton variante="secundario" icono={<PencilLine className="h-4 w-4" />} onClick={() => setEditando(true)}>Editar</Boton>}
           <Boton variante="menta" icono={<Check className="h-4 w-4" />} onClick={() => setModal('aprobar')}>Aprobar</Boton>
           <Boton variante="secundario" icono={<Undo2 className="h-4 w-4" />} onClick={() => setModal('devuelto')}>Devolver</Boton>
           <Boton variante="peligro" icono={<X className="h-4 w-4" />} onClick={() => setModal('rechazado')}>Rechazar</Boton>
@@ -204,7 +210,7 @@ export function PedidoAdmin() {
           {p.canal === 'corporativo' && (
             <Tarjeta titulo="Trazabilidad por artículo" sub="Cada artículo, de la solicitud a la firma del empleado">
               {p.incidencias?.some((i) => ['abierta', 'en_atencion'].includes(i.estado)) && <div className="mb-3"><Aviso tipo="alerta"><span className="flex items-center gap-1"><AlertTriangle className="h-4 w-4" />Hay incidencias abiertas en esta solicitud.</span></Aviso></div>}
-              <TrazabilidadArticulos p={p} />
+              <TrazabilidadArticulos p={p} onFirma={setComprobante} />
             </Tarjeta>
           )}
 
@@ -247,11 +253,12 @@ export function PedidoAdmin() {
           )}
           {!!p.entregas_individuales?.length && (
             <Tarjeta titulo="Entregas individuales (corporativo)">
-              <Tabla columnas={['Empleado', 'Artículos', 'Entregó', 'Conformidad', 'Fecha', 'Estado']}>
+              <Tabla columnas={['Empleado', 'Artículos', 'Entregó', 'Conformidad', 'Fecha', 'Estado', 'Firma']}>
                 {p.entregas_individuales.map((e) => <tr key={e.id}><Td>{e.empleado.nombre}<p className="text-xs text-tinta-400">{e.empleado.puesto}</p></Td>
                   <Td className="text-xs">{e.detalles.map((d) => `${d.entregada}/${d.esperada} ${d.sku}`).join(', ')}</Td><Td className="text-xs">{e.registrado_por || '—'}</Td>
                   <Td className="text-xs">{e.conformidad_en ? <>{'★'.repeat(e.valoracion || 0)}<span className="block text-tinta-400">{e.conformidad_comentario}</span></> : '—'}</Td>
-                  <Td className="text-xs">{fechaHora(e.entregado_en)}</Td><Td><Estado valor={e.estado} /></Td></tr>)}
+                  <Td className="text-xs">{fechaHora(e.entregado_en)}</Td><Td><Estado valor={e.estado} /></Td>
+                  <Td>{e.tiene_firma ? <Boton tam="sm" variante="secundario" icono={<FileSignature className="h-3.5 w-3.5" />} onClick={() => setComprobante(e.id)}>Ver firma</Boton> : <span className="text-xs text-tinta-300">—</span>}</Td></tr>)}
               </Tabla>
             </Tarjeta>
           )}
@@ -284,6 +291,8 @@ export function PedidoAdmin() {
         </div>
       </div>
 
+      <ComprobanteEntrega entregaId={comprobante} origen="admin" folio={p.folio} onCerrar={() => setComprobante(null)} />
+      {p.canal === 'corporativo' && <EditarSolicitud p={p} abierto={editando} onCerrar={() => setEditando(false)} />}
       <Modal abierto={!!modal} titulo={modal ? titulos[modal] : ''} onCerrar={() => setModal(null)}>
         <div className="space-y-4">
           {modal === 'aprobar' && <>

@@ -12,6 +12,13 @@
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
 
+/* Al imprimir un comprobante de entrega solo sale el comprobante. */
+@media print {
+  body:has(#comprobante-entrega) * { visibility: hidden; }
+  #comprobante-entrega, #comprobante-entrega * { visibility: visible; }
+  #comprobante-entrega { position: absolute; inset: 0 auto auto 0; width: 100%; padding: 24px; }
+}
+
 @layer utilities {
   .contenedor { @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8; }
   .texto-equilibrado { text-wrap: balance; }

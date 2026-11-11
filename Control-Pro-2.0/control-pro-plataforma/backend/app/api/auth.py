@@ -5,6 +5,7 @@ from flask import Blueprint, g, jsonify
 from flask_jwt_extended import (get_jwt, get_jwt_identity, jwt_required, set_refresh_cookies, unset_jwt_cookies,
                                 verify_jwt_in_request)
 
+from ..errors import SinPermiso
 from ..extensions import db
 from ..models import Cliente, TokenRevocado, Usuario
 from ..schemas import (CambiarPasswordSchema, LoginSchema, RecuperarSchema, RegistroSchema, RestablecerSchema, cargar)
@@ -87,6 +88,8 @@ def yo():
 def cambiar_password():
     d = cargar(CambiarPasswordSchema, cuerpo())
     cuenta = _cargar_usuario() if get_jwt().get("tipo") == "usuario" else _cargar_cliente()
+    if isinstance(cuenta, Cliente) and cuenta.tipo == "empresa":
+        raise SinPermiso("La contraseña de la sucursal la administra el distribuidor.", codigo="administrado_por_distribuidor")
     auth_service.cambiar_password(cuenta, d["actual"], d["nueva"])
     return jsonify({"ok": True})
 

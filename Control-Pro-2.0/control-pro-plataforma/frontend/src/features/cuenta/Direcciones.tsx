@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MapPin, Pencil, Star, Trash2 } from 'lucide-react';
 import { del, get, post, put } from '../../api/cliente';
 import type { Direccion } from '../../api/tipos';
+import { useAuth } from '../../app/auth';
 import { Boton, Campo, Cargando, Entrada, ErrorCaja, Modal, Tarjeta, useAviso, Vacio } from '../../components/ui';
 
 export function FormDireccion({ inicial, onGuardada, onCancelar }: { inicial?: Direccion; onGuardada: (d: Direccion) => void; onCancelar?: () => void }) {
@@ -44,21 +45,24 @@ export function FormDireccion({ inicial, onGuardada, onCancelar }: { inicial?: D
 export default function Direcciones() {
   const qc = useQueryClient();
   const avisar = useAviso();
+  const { cliente } = useAuth();
+  const soloLectura = cliente?.tipo === 'empresa';
   const q = useQuery({ queryKey: ['direcciones'], queryFn: () => get<Direccion[]>('/cuenta/direcciones') });
   const [editar, setEditar] = useState<Direccion | 'nueva' | null>(null);
   const borrar = useMutation({ mutationFn: (id: number) => del(`/cuenta/direcciones/${id}`), onSuccess: () => { qc.invalidateQueries({ queryKey: ['direcciones'] }); avisar('Dirección eliminada.'); } });
   return (
-    <Tarjeta titulo="Direcciones de entrega" accion={<Boton onClick={() => setEditar('nueva')}>Agregar</Boton>}>
+    <Tarjeta titulo={soloLectura ? 'Dirección de entrega' : 'Direcciones de entrega'} sub={soloLectura ? 'La administra tu distribuidor; si necesitas un cambio, pídeselo.' : undefined}
+      accion={!soloLectura && <Boton onClick={() => setEditar('nueva')}>Agregar</Boton>}>
       {q.isLoading ? <Cargando /> : !q.data?.length ? <Vacio titulo="Sin direcciones" texto="Agrega una dirección para recibir tus pedidos." /> : (
         <div className="grid gap-3 sm:grid-cols-2">
           {q.data.map((d) => (
             <div key={d.id} className="rounded-xl p-4 ring-1 ring-arena-200">
               <p className="flex items-center gap-2 font-bold"><MapPin className="h-4 w-4 text-menta-600" />{d.alias}{d.predeterminada && <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />}</p>
               <p className="mt-1 text-sm text-tinta-600">{d.destinatario} · {d.telefono}<br />{d.calle} {d.numero}, {d.colonia}<br />{d.ciudad}, {d.estado} · CP {d.cp}</p>
-              <div className="mt-3 flex gap-2">
+              {!soloLectura && <div className="mt-3 flex gap-2">
                 <Boton tam="sm" variante="secundario" icono={<Pencil className="h-3.5 w-3.5" />} onClick={() => setEditar(d)}>Editar</Boton>
                 <Boton tam="sm" variante="fantasma" icono={<Trash2 className="h-3.5 w-3.5" />} onClick={() => borrar.mutate(d.id)}>Quitar</Boton>
-              </div>
+              </div>}
             </div>
           ))}
         </div>

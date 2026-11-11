@@ -5,11 +5,12 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, ChevronDown, ChevronRight, ClipboardCheck, Package, PenLine, Send, ShieldAlert, Star, Truck } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronRight, ClipboardCheck, FileSignature, Package, PenLine, Send, ShieldAlert, Star, Truck } from 'lucide-react';
 import { post } from '../../api/cliente';
 import type { EntregaIndividual, Incidencia, Paquete, Pedido } from '../../api/tipos';
 import { Aviso, Boton, Campo, Entrada, ErrorCaja, Estado, Firma, Modal, Selector, Tarjeta, Texto, useAviso } from '../../components/ui';
 import { Aparecer, Etapa, LineaProceso, Palomita } from '../../components/movimiento';
+import ComprobanteEntrega from './ComprobanteEntrega';
 import { cls, etiqueta, fechaHora, PROBLEMAS_CONFORMIDAD, PROBLEMAS_RECEPCION, tipoIncidencia, TIPOS_INCIDENCIA } from '../../lib/formato';
 
 const LOGISTICA = ['confirmado', 'en_preparacion', 'parcialmente_enviado', 'enviado', 'parcialmente_entregado', 'entregado', 'cerrado'];
@@ -267,6 +268,7 @@ export default function DetalleSolicitud({ p }: { p: Pedido }) {
   const [recibir, setRecibir] = useState<Paquete | null>(null);
   const [entrega, setEntrega] = useState<EntregaIndividual | null>(null);
   const [conformidad, setConformidad] = useState<EntregaIndividual | null>(null);
+  const [comprobante, setComprobante] = useState<number | null>(null);
   const [incidencia, setIncidencia] = useState(false);
   const [cancelar, setCancelar] = useState(false);
   const [motivo, setMotivo] = useState('');
@@ -276,7 +278,8 @@ export default function DetalleSolicitud({ p }: { p: Pedido }) {
 
   const entregas = p.entregas_individuales || [];
   const empleados = [...new Map(p.detalles.filter((d) => d.empleado).map((d) => [d.empleado!.id, d.empleado!])).values()];
-  const cancelable = ['borrador', 'en_revision', 'devuelto', 'confirmado'].includes(p.estado);
+  const cancelable = p.estado === 'borrador';  // una solicitud enviada solo la cancela el distribuidor
+  const cambiosDistribuidor = p.historial.filter((h) => h.motivo?.startsWith('Modificada por el distribuidor'));
   const observacion = p.aprobaciones?.filter((a) => a.decision !== 'aprobado').slice(-1)[0];
 
   return (
@@ -303,6 +306,9 @@ export default function DetalleSolicitud({ p }: { p: Pedido }) {
         </div>}>
         <ErrorCaja error={enviar.error} />
         {observacion && <div className="mb-4"><Aviso tipo="alerta">{etiqueta(observacion.decision)} por el distribuidor: {observacion.motivo}</Aviso></div>}
+        {cambiosDistribuidor.map((h, i) => (
+          <Aparecer key={i} orden={i}><div className="mb-3"><Aviso tipo="alerta"><b>Cambio del distribuidor</b> · {fechaHora(h.fecha)} · {h.actor}<br />{h.motivo!.replace('Modificada por el distribuidor: ', '')}</Aviso></div></Aparecer>
+        ))}
         {!['borrador', 'cancelado'].includes(p.estado) && <div className="overflow-x-auto pb-1"><div className="min-w-[560px]"><LineaProceso etapas={etapasSolicitud(p)} /></div></div>}
         {p.notas && <p className="mt-4 rounded-lg bg-tinta-50 p-3 text-xs"><b>Notas:</b> {p.notas}</p>}
       </Tarjeta>
@@ -338,7 +344,12 @@ export default function DetalleSolicitud({ p }: { p: Pedido }) {
                         p.paquetes.find((pq) => pq.id === e.paquete_id)?.recepcion
                           ? <Boton tam="sm" icono={<PenLine className="h-3.5 w-3.5" />} onClick={() => setEntrega(e)}>Registrar entrega</Boton>
                           : <span className="text-tinta-400">Recibe primero el paquete</span>
-                      ) : !e.conformidad_en && <Boton tam="sm" variante="menta" icono={<ClipboardCheck className="h-3.5 w-3.5" />} onClick={() => setConformidad(e)}>Conformidad</Boton>}
+                      ) : (
+                        <span className="flex flex-wrap gap-1.5">
+                          <Boton tam="sm" variante="secundario" icono={<FileSignature className="h-3.5 w-3.5" />} onClick={() => setComprobante(e.id)}>Ver firma</Boton>
+                          {!e.conformidad_en && <Boton tam="sm" variante="menta" icono={<ClipboardCheck className="h-3.5 w-3.5" />} onClick={() => setConformidad(e)}>Conformidad</Boton>}
+                        </span>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -414,6 +425,7 @@ export default function DetalleSolicitud({ p }: { p: Pedido }) {
       <Modal abierto={!!conformidad} titulo={`Conformidad de ${conformidad?.empleado.nombre || ''}`} onCerrar={() => setConformidad(null)}>
         {conformidad && <Conformidad e={conformidad} p={p} onCerrar={() => setConformidad(null)} />}
       </Modal>
+      <ComprobanteEntrega entregaId={comprobante} origen="cuenta" folio={p.folio} onCerrar={() => setComprobante(null)} />
       <Modal abierto={incidencia} titulo="Reportar incidencia" onCerrar={() => setIncidencia(false)} ancho="max-w-xl">
         <NuevaIncidencia p={p} onCerrar={() => setIncidencia(false)} />
       </Modal>

@@ -116,6 +116,48 @@ class PedidoCorporativoSchema(Base):
             raise ValidationError({"partidas": ["Agrega al menos un artículo."]})
 
 
+class EdicionDistribuidorSchema(Base):
+    partidas = fields.List(fields.Nested(PartidaCorporativaSchema), required=True, validate=L(min=1, max=200))
+    motivo = fields.Str(required=True, validate=L(min=5, max=300))
+
+
+class DireccionSucursalSchema(Base):
+    alias = fields.Str(load_default="Sucursal", validate=L(min=2, max=40))
+    destinatario = fields.Str(required=True, validate=L(min=3, max=120))
+    telefono = fields.Str(required=True, validate=TEL)
+    calle = fields.Str(required=True, validate=L(min=2, max=160))
+    numero = fields.Str(required=True, validate=L(min=1, max=20))
+    colonia = fields.Str(required=True, validate=L(min=2, max=120))
+    ciudad = fields.Str(required=True, validate=L(min=2, max=80))
+    estado = fields.Str(required=True, validate=L(min=2, max=80))
+    cp = fields.Str(required=True, validate=CP)
+    referencias = fields.Str(load_default=None, allow_none=True, validate=L(max=300))
+
+
+class CuentaSucursalSchema(Base):
+    razon_social = fields.Str(required=True, validate=L(min=3, max=160))
+    nombre = fields.Str(required=True, validate=L(min=3, max=120))
+    correo = fields.Email(required=True)
+    telefono = fields.Str(load_default=None, allow_none=True, validate=TEL)
+    rfc = fields.Str(load_default=None, allow_none=True,
+                     validate=validate.Regexp(r"^[A-ZÑ&]{3,4}[0-9]{6}[A-Z0-9]{3}$", error="RFC inválido."))
+    password = fields.Str(required=True, validate=L(min=8, max=128))
+    direccion = fields.Nested(DireccionSucursalSchema, required=True)
+
+
+class EdicionCuentaSucursalSchema(Base):
+    razon_social = fields.Str(validate=L(min=3, max=160))
+    nombre = fields.Str(validate=L(min=3, max=120))
+    correo = fields.Email()
+    telefono = fields.Str(allow_none=True, validate=TEL)
+    rfc = fields.Str(allow_none=True, validate=validate.Regexp(r"^[A-ZÑ&]{3,4}[0-9]{6}[A-Z0-9]{3}$", error="RFC inválido."))
+    activo = fields.Bool()
+
+
+class NuevaPasswordSchema(Base):
+    password = fields.Str(required=True, validate=L(min=8, max=128))
+
+
 class CorreccionCorporativaSchema(Base):
     """Edición de un borrador (se envía solo si `enviar` es verdadero) o corrección de una solicitud devuelta."""
     partidas = fields.List(fields.Nested(PartidaCorporativaSchema), required=True, validate=L(max=200))

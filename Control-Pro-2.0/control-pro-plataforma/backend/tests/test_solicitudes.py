@@ -38,7 +38,7 @@ def test_tienda_oculta_por_configuracion(app, client, como):
         persona = {"correo": "persona@demo.mx", "password": "Segura123", "nombre": "Una Persona"}
         assert client.post("/api/auth/cliente/registro", json=persona).status_code == 400
         empresa = {**persona, "correo": "sucursal.nueva@demo.mx", "tipo": "empresa", "razon_social": "Sucursal Norte"}
-        assert client.post("/api/auth/cliente/registro", json=empresa).status_code == 201
+        assert client.post("/api/auth/cliente/registro", json=empresa).status_code == 400  # las da de alta el distribuidor
         assert client.get("/api/tienda/productos?por_pagina=1").status_code == 200  # el catálogo sigue disponible
     finally:
         app.config["CANAL_TIENDA"] = True
@@ -134,6 +134,13 @@ def test_recepcion_por_articulo_entrega_y_conformidad(app, como):
     r = emp.post(f"/api/cuenta/entregas/{ent_carlos['id']}/conformidad", {"valoracion": 5, "comentario": "Todo bien"})
     assert r.status_code == 200 and r.get_json()["estado"] == "confirmada" and r.get_json()["conformidad_en"]
     assert emp.post(f"/api/cuenta/entregas/{ent_carlos['id']}/conformidad", {"valoracion": 4}).status_code == 409
+    # La firma se puede consultar: la sucursal y el personal interno con alcance; fuera de alcance, 404
+    assert emp.get(f"/api/cuenta/entregas/{ent_carlos['id']}").get_json()["firma"] == FIRMA
+    comp = como("admin").get(f"/api/admin/entregas/{ent_carlos['id']}").get_json()
+    assert comp["firma"] == FIRMA and comp["registrado_por"] == "Laura Compras" and comp["valoracion"] == 5
+    paq_carlos = next(pq for pq in det["paquetes"] if pq["id"] == ent_carlos["paquete_id"])
+    otra = {"Sucursal Toluca": "enc_pue", "Sucursal Querétaro": "enc_tol", "Sucursal Puebla": "enc_tol"}[paq_carlos["sucursal"]]
+    assert como(otra).get(f"/api/admin/entregas/{ent_carlos['id']}").status_code == 404
     # Rosario recibe y reporta un problema de talla: incidencia ligada a ella y al artículo
     r = emp.post(f"/api/cuenta/entregas/{ent_rosario['id']}", {"firma": FIRMA, "registrado_por": "Laura Compras"})
     assert r.status_code == 200

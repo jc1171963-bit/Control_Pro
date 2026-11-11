@@ -2,7 +2,7 @@ import { FormEvent, useState } from 'react';
 import { patch, post } from '../../api/cliente';
 import type { Cliente } from '../../api/tipos';
 import { useAuth } from '../../app/auth';
-import { Boton, Campo, Entrada, ErrorCaja, Tarjeta, useAviso } from '../../components/ui';
+import { Aviso, Boton, Campo, Entrada, ErrorCaja, Tarjeta, useAviso } from '../../components/ui';
 
 export default function Perfil() {
   const { cliente, actualizarCuenta } = useAuth();
@@ -13,7 +13,7 @@ export default function Perfil() {
     e.preventDefault();
     const f = Object.fromEntries(new FormData(e.currentTarget)) as Record<string, string>;
     try {
-      const d = await patch<Cliente>('/cuenta/perfil', { nombre: f.nombre, telefono: f.telefono || null, ...(cliente?.tipo === 'empresa' ? { razon_social: f.razon_social } : {}) });
+      const d = await patch<Cliente>('/cuenta/perfil', { nombre: f.nombre, telefono: f.telefono || null });
       actualizarCuenta(d); setE1(null); avisar('Perfil actualizado.');
     } catch (err) { setE1(err); }
   };
@@ -24,11 +24,23 @@ export default function Perfil() {
     if (f.nueva !== f.confirmar) { setE2(new Error('Las contraseñas no coinciden.')); return; }
     try { await post('/auth/password', { actual: f.actual, nueva: f.nueva }); form.reset(); setE2(null); avisar('Contraseña actualizada.'); } catch (err) { setE2(err); }
   };
+  if (cliente?.tipo === 'empresa') {
+    return (
+      <Tarjeta titulo="Datos de la sucursal" sub="Los administra tu distribuidor: datos, dirección y contraseña. Si necesitas un cambio, pídeselo.">
+        <dl className="grid gap-4 text-sm sm:grid-cols-2">
+          <div><dt className="text-xs text-tinta-400">Sucursal</dt><dd className="font-semibold">{cliente.razon_social || '—'}</dd></div>
+          <div><dt className="text-xs text-tinta-400">Contacto responsable</dt><dd className="font-semibold">{cliente.nombre}</dd></div>
+          <div><dt className="text-xs text-tinta-400">Correo de acceso</dt><dd className="font-semibold">{cliente.correo}</dd></div>
+          <div><dt className="text-xs text-tinta-400">Teléfono</dt><dd className="font-semibold">{cliente.telefono || '—'}</dd></div>
+        </dl>
+        <div className="mt-4"><Aviso>Desde tu portal administras a tus empleados, creas solicitudes, recibes paquetes y registras las entregas.</Aviso></div>
+      </Tarjeta>
+    );
+  }
   return (
     <div className="space-y-5">
       <Tarjeta titulo="Datos de contacto">
         <form onSubmit={guardar} className="grid gap-4 sm:grid-cols-2">
-          {cliente?.tipo === 'empresa' && <Campo etiqueta="Razón social"><Entrada name="razon_social" defaultValue={cliente.razon_social || ''} /></Campo>}
           <Campo etiqueta="Nombre"><Entrada name="nombre" defaultValue={cliente?.nombre} required minLength={3} /></Campo>
           <Campo etiqueta="Teléfono"><Entrada name="telefono" defaultValue={cliente?.telefono || ''} /></Campo>
           <Campo etiqueta="Correo" ayuda="Para cambiarlo, contacta a atención a clientes."><Entrada value={cliente?.correo} disabled /></Campo>

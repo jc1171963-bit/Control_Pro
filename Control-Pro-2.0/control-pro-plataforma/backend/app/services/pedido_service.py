@@ -10,7 +10,7 @@ from sqlalchemy.exc import IntegrityError
 
 from ..errors import AppError, Conflicto, NoEncontrado, SinPermiso, TransicionInvalida
 from ..extensions import db
-from ..models import (AsignacionDetalle, AsignacionSurtido, Aprobacion, Carrito, Cliente, Devolucion, Direccion,
+from ..models import (AsignacionDetalle, AsignacionSurtido, Aprobacion, Carrito, Cliente, Devolucion, Direccion, HistorialEstado,
                       EmpleadoCorporativo, Incidencia, Pago, Pedido, PedidoDetalle, Producto, ProductoSucursal,
                       Reembolso, ReservaInventario, Sucursal, SucursalZona, Variante, ahora)
 from . import inventario_service as inv_srv
@@ -47,8 +47,10 @@ ETIQUETAS = {
 
 def transicionar(pedido: Pedido, nuevo: str, motivo: str | None = None):
     cambiar_estado(pedido, "pedido", nuevo, TRANSICIONES_PEDIDO, motivo)
+    tipo = "solicitud" if pedido.canal == "corporativo" else "pedido"
+    detalle = f" Motivo: {motivo}" if motivo and nuevo in {"devuelto", "rechazado", "cancelado"} else ""
     notificar_cliente(pedido.cliente_id, f"pedido_{nuevo}", "pedido", pedido.id,
-                      f"Tu pedido {pedido.folio} está {ETIQUETAS.get(nuevo, nuevo)}.", f"/cuenta/pedidos/{pedido.id}")
+                      f"Tu {tipo} {pedido.folio} está {ETIQUETAS.get(nuevo, nuevo)}.{detalle}", f"/cuenta/pedidos/{pedido.id}")
 
 
 def bloquear_pedido(pedido_id: int) -> Pedido:
@@ -436,7 +438,8 @@ def _partidas_corporativas(cliente: Cliente, partidas: list[dict], pedido: Pedid
             continue
         precio, desc, _ = precio_con_descuento(v, promos, pedido.sucursal_recoger_id)
         pedido.detalles.append(PedidoDetalle(
-            variante_id=v.id, empleado_id=emp.id, sku=v.sku, nombre=v.producto.nombre, talla=v.talla, color=v.color,
+            variante_id=v.id, variante=v, empleado_id=emp.id, empleado=emp, sku=v.sku, nombre=v.producto.nombre,
+            talla=v.talla, color=v.color,
             cantidad=p["cantidad"], precio_unitario=precio, descuento_unitario=desc,
             importe=dinero((precio - desc) * p["cantidad"]), excepcion=None if autorizado else excepcion))
         subtotal += precio * p["cantidad"]
@@ -531,6 +534,49 @@ def enviar_borrador(cliente: Cliente, pedido: Pedido):
     notificar_personal("pedido.aprobar", "pedido_por_aprobar", "pedido", pedido.id,
                        f"Pedido corporativo {pedido.folio} de {cliente.razon_social or cliente.nombre} por aprobar.",
                        enlace=f"/admin/pedidos/{pedido.id}")
+    db.session.commit()
+    return pedido
+
+
+def _linea(d) -> str:
+    return f"{d.nombre} talla {d.talla} ({d.color}) para {d.empleado.nombre if d.empleado else 'sin empleado'}"
+
+
+def editar_por_distribuidor(pedido: Pedido, partidas: list[dict], motivo: str):
+    """El aprobador ajusta artículos, tallas y cantidades de una solicitud en revisión. La sucursal recibe el detalle."""
+    if pedido.canal != "corporativo":
+        raise AppError("Solo se editan solicitudes de sucursal.")
+    if pedido.estado != "en_revision":
+        raise TransicionInvalida("Solo se editan solicitudes en revisión.")
+    motivo = (motivo or "").strip()
+    if len(motivo) < 5:
+        raise AppError("Indica el motivo del cambio para avisarle a la sucursal.")
+    if not partidas:
+        raise AppError("La solicitud debe conservar al menos un artículo; si no procede, recházala.")
+    antes = {(d.empleado_id, d.variante_id): (d.cantidad, _linea(d)) for d in pedido.detalles}
+    _reemplazar_partidas(pedido.cliente, pedido, partidas, estricto=False)
+    for d in pedido.detalles:  # lo que agrega el distribuidor fuera de la regla por puesto queda autorizado por él
+        if d.excepcion is None and d.empleado and d.empleado.puesto not in {pp.puesto for pp in d.variante.producto.puestos}:
+            d.excepcion = "Autorizado por el distribuidor al editar la solicitud"
+    despues = {(d.empleado_id, d.variante_id): (d.cantidad, _linea(d)) for d in pedido.detalles}
+    cambios = []
+    for k, (cant, texto) in despues.items():
+        if k not in antes:
+            cambios.append(f"se agregó {cant}× {texto}")
+        elif antes[k][0] != cant:
+            cambios.append(f"{texto}: de {antes[k][0]} a {cant}")
+    cambios += [f"se quitó {cant}× {texto}" for k, (cant, texto) in antes.items() if k not in despues]
+    if not cambios:
+        raise AppError("No hay cambios que guardar.")
+    resumen = "; ".join(cambios)
+    registrar_historial("pedido", pedido.id, pedido.estado, pedido.estado, f"Modificada por el distribuidor: {motivo}. {resumen}"[:500])
+    auditar("pedido.editar_distribuidor", "pedido", pedido.id,
+            antes={"partidas": [f"{c}× {t}" for c, t in antes.values()]},
+            despues={"partidas": [f"{c}× {t}" for c, t in despues.values()], "motivo": motivo})
+    n = sum(1 for _ in db.session.scalars(select(HistorialEstado.id).where(HistorialEstado.entidad == "pedido",
+                                                                        HistorialEstado.entidad_id == pedido.id)))
+    notificar_cliente(pedido.cliente_id, f"pedido_modificado_{n}", "pedido", pedido.id,
+                      f"El distribuidor modificó tu solicitud {pedido.folio} ({motivo}): {resumen}", f"/cuenta/pedidos/{pedido.id}")
     db.session.commit()
     return pedido
 

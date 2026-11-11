@@ -23,6 +23,7 @@ const destinoSeguro = (s: string | null, defecto: string) => (s && s.startsWith(
 
 export function Entrar() {
   const { entrarCliente } = useAuth();
+  const { canalTienda } = useConfig();
   const nav = useNavigate();
   const [params] = useSearchParams();
   const [error, setError] = useState<unknown>(null);
@@ -37,7 +38,7 @@ export function Entrar() {
     } catch (err) { setError(err); } finally { setCargando(false); }
   };
   return (
-    <Marco titulo="Entra a tu cuenta" sub="Consulta pedidos, paga y da seguimiento a tus envíos.">
+    <Marco titulo={canalTienda ? 'Entra a tu cuenta' : 'Portal de sucursal'} sub={canalTienda ? 'Consulta pedidos, paga y da seguimiento a tus envíos.' : 'Entra con el correo y la contraseña que te dio tu distribuidor.'}>
       <form onSubmit={enviar} className="space-y-4">
         <Campo etiqueta="Correo electrónico"><Entrada name="correo" type="email" autoComplete="email" required /></Campo>
         <Campo etiqueta="Contraseña"><Entrada name="password" type="password" autoComplete="current-password" required /></Campo>
@@ -46,7 +47,7 @@ export function Entrar() {
       </form>
       <div className="mt-5 flex justify-between text-sm">
         <Link to="/recuperar" className="font-semibold text-tinta-500 hover:text-tinta-800">¿Olvidaste tu contraseña?</Link>
-        <Link to={`/registro${params.get('siguiente') ? `?siguiente=${encodeURIComponent(params.get('siguiente')!)}` : ''}`} className="font-semibold text-menta-700">Crear cuenta</Link>
+        {canalTienda && <Link to={`/registro${params.get('siguiente') ? `?siguiente=${encodeURIComponent(params.get('siguiente')!)}` : ''}`} className="font-semibold text-menta-700">Crear cuenta</Link>}
       </div>
     </Marco>
   );
@@ -87,7 +88,12 @@ export function Registro() {
     } catch (err) { setError(err); } finally { setCargando(false); }
   };
   return (
-    <Marco titulo={canalTienda ? 'Crea tu cuenta' : 'Registra tu sucursal'} sub={canalTienda ? 'Compra en línea y sigue cada pedido.' : 'Solicita uniformes por empleado y sigue cada entrega.'}>
+    !canalTienda ? (
+    <Marco titulo="Alta de sucursales" sub="Las cuentas de sucursal las crea tu distribuidor.">
+      <Aviso>Pide a tu distribuidor que dé de alta tu sucursal; te entregará el correo y la contraseña para entrar al portal.</Aviso>
+      <p className="mt-4 text-center text-sm">¿Ya tienes cuenta? <Link to="/entrar" className="font-semibold text-menta-700">Entra</Link></p>
+    </Marco>
+    ) : <Marco titulo={canalTienda ? 'Crea tu cuenta' : 'Registra tu sucursal'} sub={canalTienda ? 'Compra en línea y sigue cada pedido.' : 'Solicita uniformes por empleado y sigue cada entrega.'}>
       {canalTienda && <div className="mb-5 grid grid-cols-2 gap-2 rounded-xl bg-arena-100 p-1 text-sm font-semibold">
         {(['persona', 'empresa'] as const).map((t) => (
           <button key={t} type="button" onClick={() => setTipo(t)} className={cls('rounded-lg py-2', tipo === t ? 'bg-white shadow-sm' : 'text-tinta-500')}>{t === 'persona' ? 'Persona' : 'Empresa'}</button>
@@ -116,6 +122,7 @@ export function Registro() {
 }
 
 export function Recuperar() {
+  const { canalTienda } = useConfig();
   const [hecho, setHecho] = useState<{ mensaje: string; token_desarrollo?: string } | null>(null);
   const [error, setError] = useState<unknown>(null);
   const enviar = async (e: FormEvent<HTMLFormElement>) => {
@@ -133,6 +140,7 @@ export function Recuperar() {
         </div>
       ) : (
         <form onSubmit={enviar} className="space-y-4">
+          {!canalTienda && <Aviso>Si eres una sucursal, tu distribuidor restablece tu contraseña: pídesela directamente.</Aviso>}
           <Campo etiqueta="Correo electrónico"><Entrada name="correo" type="email" required /></Campo>
           <ErrorCaja error={error} />
           <Boton type="submit" className="w-full">Enviar enlace</Boton>

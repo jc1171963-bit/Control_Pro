@@ -3,7 +3,7 @@ notificaciones y funciones corporativas (empleados, pedidos por empleado, recepc
 from flask import Blueprint, current_app, g, jsonify, request
 from sqlalchemy import func, select, update
 
-from ..errors import AppError, Conflicto, NoEncontrado
+from ..errors import AppError, Conflicto, NoEncontrado, SinPermiso
 from ..extensions import db
 from ..models import (AsignacionSurtido, Carrito, CarritoItem, Devolucion, Direccion, EmpleadoCorporativo,
                       EntregaIndividual, Favorito, Incidencia, Notificacion, Paquete, Pedido, Producto, Recepcion,
@@ -28,6 +28,13 @@ bp = Blueprint("cuenta", __name__, url_prefix="/api/cuenta")
 
 # ---------------------------------------------------------------- perfil y direcciones
 
+def _administrado_por_distribuidor():
+    """Las cuentas de sucursal (empresa) solo administran a sus empleados; sus datos los gestiona el distribuidor."""
+    if g.cliente.tipo == "empresa":
+        raise SinPermiso("Los datos de tu sucursal los administra el distribuidor. Pídele el cambio.",
+                         codigo="administrado_por_distribuidor")
+
+
 @bp.get("/perfil")
 @requiere_cliente()
 def perfil():
@@ -37,6 +44,7 @@ def perfil():
 @bp.patch("/perfil")
 @requiere_cliente()
 def editar_perfil():
+    _administrado_por_distribuidor()
     d = cargar(PerfilSchema, cuerpo())
     for k, v in d.items():
         setattr(g.cliente, k, v)
@@ -70,6 +78,7 @@ def direcciones():
 @bp.post("/direcciones")
 @requiere_cliente()
 def crear_direccion():
+    _administrado_por_distribuidor()
     datos = cargar(DireccionSchema, cuerpo())
     pred = datos.pop("predeterminada")
     hay = db.session.scalar(select(func.count()).select_from(Direccion).where(Direccion.cliente_id == g.cliente.id,
@@ -86,6 +95,7 @@ def crear_direccion():
 @bp.put("/direcciones/<int:direccion_id>")
 @requiere_cliente()
 def editar_direccion(direccion_id):
+    _administrado_por_distribuidor()
     d = _mi_direccion(direccion_id)
     datos = cargar(DireccionSchema, cuerpo())
     pred = datos.pop("predeterminada")
@@ -100,6 +110,7 @@ def editar_direccion(direccion_id):
 @bp.delete("/direcciones/<int:direccion_id>")
 @requiere_cliente()
 def borrar_direccion(direccion_id):
+    _administrado_por_distribuidor()
     d = _mi_direccion(direccion_id)
     d.activo, d.predeterminada = False, False  # baja lógica: los pedidos conservan su copia de la dirección
     db.session.commit()
@@ -295,6 +306,8 @@ def registrar_pago(pedido_id):
 @requiere_cliente()
 def cancelar_pedido(pedido_id):
     d = cargar(MotivoSchema, cuerpo())
+    if g.cliente.tipo == "empresa" and _mi_pedido(pedido_id).estado != "borrador":
+        raise SinPermiso("Para cancelar una solicitud enviada, pídeselo al distribuidor.", codigo="administrado_por_distribuidor")
     _mi_pedido(pedido_id)
     pedido = ped_srv.bloquear_pedido(pedido_id)
     ped_srv.cancelar(pedido, d["motivo"], por_cliente=True)
@@ -304,6 +317,8 @@ def cancelar_pedido(pedido_id):
 @bp.post("/pedidos/<int:pedido_id>/devoluciones")
 @requiere_cliente()
 def solicitar_devolucion(pedido_id):
+    if g.cliente.tipo == "empresa":
+        raise SinPermiso("Las sucursales reportan los problemas como incidencias.", codigo="administrado_por_distribuidor")
     d = cargar(DevolucionSolicitudSchema, cuerpo())
     pedido = ped_srv.bloquear_pedido(_mi_pedido(pedido_id).id)
     partidas = [{"pedido_detalle_id": int(p["pedido_detalle_id"]), "cantidad": int(p["cantidad"])} for p in d["partidas"]]

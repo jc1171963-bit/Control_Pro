@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, ArrowLeftRight, Bell, Boxes, Building2, ClipboardCheck, ClipboardList, CreditCard, FileBarChart, History,
-  Inbox, LayoutDashboard, LogOut, Menu, PackageOpen, Shirt, Tag, Undo2, Users, UserSquare2, X } from 'lucide-react';
+import { AlertTriangle, ArrowLeftRight, Bell, Boxes, ClipboardCheck, ClipboardList, CreditCard, FileBarChart, History,
+  Gauge, Inbox, LayoutDashboard, LogOut, Menu, PackageOpen, Shirt, Store, Tag, Undo2, Users, UserSquare2, Warehouse, X } from 'lucide-react';
 import { get } from '../../api/cliente';
 import type { Sucursal } from '../../api/tipos';
 import { useAuth } from '../../app/auth';
@@ -14,13 +14,15 @@ export function useSucursalesAdmin() {
 }
 
 const GRUPOS: { titulo: string; items: [string, string, any, string][] }[] = [
-  { titulo: 'General', items: [['', 'Panel', LayoutDashboard, 'reporte.ver'], ['notificaciones', 'Notificaciones', Bell, '']] },
-  { titulo: 'Solicitudes', items: [['solicitudes', 'Solicitudes de sucursales', Inbox, 'pedido.ver'], ['pedidos', 'Todos los pedidos', ClipboardList, 'pedido.ver'], ['pagos', 'Pagos y reembolsos', CreditCard, 'pago.ver'], ['clientes', 'Clientes', UserSquare2, 'cliente.ver']] },
+  { titulo: 'General', items: [['', 'Panel', LayoutDashboard, ''], ['indicadores', 'Indicadores de solicitudes', Gauge, 'reporte.ver'],
+    ['notificaciones', 'Notificaciones', Bell, '']] },
+  { titulo: 'Solicitudes', items: [['solicitudes', 'Solicitudes de sucursales', Inbox, 'pedido.ver'], ['sucursales-cliente', 'Sucursales', Store, 'cliente.ver'],
+    ['pedidos', 'Todos los pedidos', ClipboardList, 'pedido.ver'], ['pagos', 'Pagos y reembolsos', CreditCard, 'pago.ver'], ['clientes', 'Clientes', UserSquare2, 'cliente.ver']] },
   { titulo: 'Operación', items: [['surtido', 'Surtido y envíos', PackageOpen, 'surtido.operar'], ['inventario', 'Inventario', Boxes, 'inventario.ver'],
     ['transferencias', 'Transferencias', ArrowLeftRight, 'inventario.ver']] },
   { titulo: 'Posventa', items: [['devoluciones', 'Devoluciones', Undo2, 'pedido.ver'], ['incidencias', 'Incidencias', AlertTriangle, 'incidencia.gestionar']] },
   { titulo: 'Catálogo', items: [['catalogo', 'Productos', Shirt, 'inventario.ver'], ['promociones', 'Promociones', Tag, 'inventario.ver']] },
-  { titulo: 'Administración', items: [['reportes', 'Reportes', FileBarChart, 'reporte.ver'], ['sucursales', 'Sucursales', Building2, 'sucursal.ver'],
+  { titulo: 'Administración', items: [['reportes', 'Reportes', FileBarChart, 'reporte.ver'], ['sucursales', 'Centros de distribución', Warehouse, 'sucursal.ver'],
     ['usuarios', 'Usuarios y roles', Users, 'usuario.gestionar'], ['auditoria', 'Auditoría', History, 'auditoria.ver']] },
 ];
 

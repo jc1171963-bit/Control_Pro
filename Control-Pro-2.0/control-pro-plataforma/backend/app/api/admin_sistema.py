@@ -223,6 +223,13 @@ def dashboard():
     return jsonify(rep.dashboard(request.args.get("desde"), request.args.get("hasta"), sid))
 
 
+@bp.get("/reportes/solicitudes")
+@requiere_usuario("pedido.ver")
+def panel_solicitudes():
+    """Indicadores del flujo de solicitudes de sucursal para el panel del aprobador."""
+    return jsonify(rep.panel_solicitudes())
+
+
 @bp.get("/reportes/sucursales")
 @requiere_usuario("reporte.ver")
 def comparativa():

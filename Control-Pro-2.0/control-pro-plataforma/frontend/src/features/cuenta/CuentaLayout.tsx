@@ -23,9 +23,9 @@ export default function CuentaLayout() {
     ] as [string, string, typeof Bell][] : [
       ['/cuenta/pedidos', 'Mis pedidos', ClipboardList],
     ] as [string, string, typeof Bell][]),
-    ['/cuenta/notificaciones', 'Notificaciones', Bell], ['/cuenta/direcciones', 'Direcciones', MapPin],
+    ['/cuenta/notificaciones', 'Notificaciones', Bell], ['/cuenta/direcciones', empresa ? 'Dirección de entrega' : 'Direcciones', MapPin],
     ...(canalTienda ? [['/cuenta/favoritos', 'Favoritos', Heart]] as [string, string, typeof Bell][] : []),
-    ['/cuenta/perfil', 'Perfil y seguridad', User],
+    ['/cuenta/perfil', empresa ? 'Datos de la sucursal' : 'Perfil y seguridad', User],
   ];
   return (
     <div className="contenedor grid gap-8 py-8 lg:grid-cols-[240px_1fr]">

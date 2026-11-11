@@ -57,8 +57,8 @@ def login(tipo: str, correo: str, password: str):
 
 
 def registrar_cliente(datos: dict) -> Cliente:
-    if not current_app.config["CANAL_TIENDA"] and datos.get("tipo", "persona") != "empresa":
-        raise AppError("El registro está disponible solo para cuentas de sucursal (empresa).", codigo="canal_no_disponible")
+    if not current_app.config["CANAL_TIENDA"]:
+        raise AppError("Las cuentas de sucursal las da de alta el distribuidor.", codigo="canal_no_disponible")
     validar_fortaleza(datos["password"])
     if _buscar("cliente", datos["correo"]):
         raise Conflicto("Ya existe una cuenta con ese correo.", codigo="correo_duplicado")
@@ -80,6 +80,8 @@ def solicitar_recuperacion(tipo: str, correo: str) -> str | None:
     cuenta = _buscar(tipo, correo)
     if not cuenta or not cuenta.activo:
         return None
+    if tipo == "cliente" and cuenta.tipo == "empresa":
+        return None  # la contraseña de una sucursal la restablece el distribuidor (misma respuesta para no revelar nada)
     token = secrets.token_urlsafe(32)
     db.session.add(TokenRecuperacion(tipo_cuenta=tipo, cuenta_id=cuenta.id,
                                      hash_token=hashlib.sha256(token.encode()).hexdigest(),

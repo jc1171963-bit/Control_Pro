@@ -7,6 +7,7 @@ PERMISOS = {
     "catalogo.gestionar": "Administrar categorías, productos, variantes y habilitación",
     "promocion.gestionar": "Administrar promociones",
     "cliente.ver": "Consultar clientes",
+    "cliente.gestionar": "Administrar las cuentas de sucursal: alta, datos, dirección, acceso y contraseña",
     "inventario.ver": "Consultar existencias y movimientos",
     "inventario.entrada": "Registrar entradas de mercancía",
     "inventario.ajustar": "Registrar ajustes y mermas (autorización de encargado)",
@@ -66,8 +67,10 @@ ROLES = {
     },
     "aprobador": {
         "nombre": "Aprobador corporativo", "global": True,
-        "descripcion": "Aprueba, rechaza o devuelve pedidos del canal corporativo.",
-        "permisos": ["sucursal.ver", "cliente.ver", "inventario.ver", "pedido.ver", "pedido.aprobar"],
+        "descripcion": "Administra las sucursales, revisa, edita, aprueba o cancela sus solicitudes y da seguimiento "
+                       "al surtido y al envío hasta la entrega.",
+        "permisos": ["sucursal.ver", "cliente.ver", "cliente.gestionar", "inventario.ver", "pedido.ver", "pedido.aprobar",
+                     "pedido.cancelar", "surtido.operar", "incidencia.gestionar"],
     },
     "auditor": {
         "nombre": "Supervisor / auditor", "global": True,

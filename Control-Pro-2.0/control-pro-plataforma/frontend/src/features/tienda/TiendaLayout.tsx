@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, ScrollRestoration, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Building2, FilePlus2, Heart, LogOut, Menu, Package, Search, ShoppingBag, User, X } from 'lucide-react';
+import { Bell, Building2, FilePlus2, Heart, LogOut, Menu, Package, Search, ShoppingBag, User, X } from 'lucide-react';
 import { get } from '../../api/cliente';
 import type { Carrito, Sucursal } from '../../api/tipos';
 import { useAuth } from '../../app/auth';
@@ -45,6 +45,8 @@ export default function TiendaLayout() {
   const [q, setQ] = useState(params.get('q') || '');
   const [menu, setMenu] = useState(false);
   useEffect(() => setMenu(false), [loc.pathname]);
+  const notif = useQuery({ queryKey: ['notif-cliente', 'contador'], queryFn: () => get<{ no_leidas: number }>('/cuenta/notificaciones?por_pagina=1'),
+    enabled: tipo === 'cliente', refetchInterval: 30_000 });
   const sucursales = useQuery({ queryKey: ['sucursales-publicas'], queryFn: () => get<Sucursal[]>('/tienda/sucursales'), staleTime: 300_000 });
 
   const buscar = (e: FormEvent) => {
@@ -74,6 +76,10 @@ export default function TiendaLayout() {
             {tipo === 'usuario' && <Link to="/admin" className="hidden rounded-full bg-tinta-900 px-3 py-1.5 text-xs font-semibold text-white sm:block">Panel interno</Link>}
             {tipo === 'cliente' ? (
               <>
+                <Link to="/cuenta/notificaciones" className="relative rounded-full p-2 text-tinta-700 hover:bg-arena-200" aria-label={`Notificaciones${notif.data?.no_leidas ? `: ${notif.data.no_leidas} sin leer` : ''}`}>
+                  <Bell className="h-5 w-5" />
+                  {!!notif.data?.no_leidas && <span key={notif.data.no_leidas} className="absolute -right-0.5 -top-0.5 grid h-5 min-w-5 animate-rebote place-items-center rounded-full bg-coral-500 px-1 text-[10px] font-bold text-white">{notif.data.no_leidas}</span>}
+                </Link>
                 {canalTienda && <Link to="/cuenta/favoritos" className="rounded-full p-2 text-tinta-700 hover:bg-arena-200" aria-label="Favoritos"><Heart className="h-5 w-5" /></Link>}
                 <Link to={cliente?.tipo === 'empresa' ? '/cuenta' : '/cuenta/pedidos'} className="flex items-center gap-2 rounded-full px-2 py-1.5 text-sm font-semibold text-tinta-800 hover:bg-arena-200">
                   <User className="h-5 w-5" /><span className="hidden max-w-[10rem] truncate sm:inline">{cliente?.razon_social || cliente?.nombre.split(' ')[0]}</span>

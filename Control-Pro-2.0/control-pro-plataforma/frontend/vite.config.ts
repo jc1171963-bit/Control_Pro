@@ -3,12 +3,15 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
+  // `.trycloudflare.com`: enlace temporal de Cloudflare Tunnel para mostrar la app fuera de la red local.
   server: {
     port: 5173,
+    allowedHosts: ['.trycloudflare.com'],
     proxy: { '/api': { target: process.env.VITE_API_URL || 'http://localhost:5000', changeOrigin: false } },
   },
   preview: {
     port: 4173,
+    allowedHosts: ['.trycloudflare.com'],
     proxy: { '/api': { target: process.env.VITE_API_URL || 'http://localhost:5000', changeOrigin: false } },
   },
   build: { sourcemap: false, chunkSizeWarningLimit: 900 },

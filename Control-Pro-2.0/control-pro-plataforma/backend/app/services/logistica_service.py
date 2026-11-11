@@ -149,6 +149,9 @@ def crear_paquete(a: AsignacionSurtido, partidas: list[dict], peso_kg: Decimal |
     db.session.add(paq)
     asignar_folio(paq, "PAQ")
     _actualizar_asignacion(a)
+    notificar_cliente(a.pedido.cliente_id, f"paquete_preparado_{paq.id}", "paquete", paq.id,
+                      f"Se preparó el paquete {paq.folio} de tu {'solicitud' if a.pedido.canal == 'corporativo' else 'pedido'} "
+                      f"{a.pedido.folio} ({total} artículo(s)).", f"/cuenta/pedidos/{a.pedido_id}")
     auditar("paquete.crear", "paquete", paq.id, despues={"unidades": total}, sucursal_id=a.sucursal_id)
     db.session.commit()
     return paq
@@ -234,6 +237,11 @@ def registrar_evento(paq: Paquete, estado: str, descripcion: str):
                              sucursal_id=a.sucursal_id, descripcion=descripcion)
     else:
         _marcar_entregado(paq, a, pedido)
+    avisos = {"en_transito": f"Tu paquete {paq.folio} va en camino ({envio.paqueteria}, guía {envio.guia}).",
+              "entregado": f"El paquete {paq.folio} se entregó en tu sucursal. Registra la recepción.",
+              "incidencia": f"Hubo una incidencia con el paquete {paq.folio}: {descripcion.strip()}"}
+    notificar_cliente(pedido.cliente_id, f"envio_{estado}_{paq.id}_{len(envio.eventos)}", "paquete", paq.id, avisos[estado],
+                      f"/cuenta/pedidos/{pedido.id}")
     auditar(f"envio.{estado}", "paquete", paq.id, despues={"descripcion": descripcion}, sucursal_id=a.sucursal_id)
     db.session.commit()
     return paq

@@ -4,8 +4,8 @@ from sqlalchemy import or_, select
 
 from ..errors import NoEncontrado
 from ..extensions import db
-from ..models import AsignacionSurtido, Cliente, Pedido
-from ..schemas import (DecisionSchema, DespachoSchema, EntregaSucursalSchema, EventoSchema, MotivoSchema, NotaSchema,
+from ..models import AsignacionSurtido, Cliente, EntregaIndividual, Paquete, Pedido
+from ..schemas import (DecisionSchema, DespachoSchema, EdicionDistribuidorSchema, EntregaSucursalSchema, EventoSchema, MotivoSchema, NotaSchema,
                        PaqueteSchema, SurtidoSchema, cargar)
 from ..security.auth import es_global, filtro_sucursal, requiere_usuario, sucursales_permitidas, verificar_alcance
 from ..services import logistica_service as log
@@ -68,6 +68,15 @@ def decidir(pedido_id):
     d = cargar(DecisionSchema, cuerpo())
     p = _pedido(pedido_id, bloquear=True)
     ped.decidir_corporativo(p, d["decision"], d.get("motivo"), d["aceptar_excepciones"])
+    return jsonify(serial.pedido(p, interno=True))
+
+
+@bp.put("/pedidos/<int:pedido_id>/partidas")
+@requiere_usuario("pedido.aprobar")
+def editar_partidas(pedido_id):
+    d = cargar(EdicionDistribuidorSchema, cuerpo())
+    p = _pedido(pedido_id, bloquear=True)
+    ped.editar_por_distribuidor(p, d["partidas"], d["motivo"])
     return jsonify(serial.pedido(p, interno=True))
 
 
@@ -187,3 +196,14 @@ def listo(pid):
 def entregar(pid):
     d = cargar(EntregaSucursalSchema, cuerpo())
     return jsonify(serial.paquete(log.entregar_en_sucursal(_paq(pid), d["recibio"], d["identificacion"])))
+
+
+@bp.get("/entregas/<int:entrega_id>")
+@requiere_usuario("pedido.ver")
+def entrega(entrega_id):
+    """Comprobante de una entrega individual con la firma del empleado (solo dentro del alcance del usuario)."""
+    e = db.session.get(EntregaIndividual, entrega_id)
+    if not e:
+        raise NoEncontrado("Entrega no encontrada.")
+    _pedido(db.session.get(Paquete, e.paquete_id).asignacion.pedido_id)
+    return jsonify(serial.entrega_individual(e, con_firma=True))
