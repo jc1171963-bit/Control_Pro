@@ -143,6 +143,7 @@ class CuentaSucursalSchema(Base):
                      validate=validate.Regexp(r"^[A-ZÑ&]{3,4}[0-9]{6}[A-Z0-9]{3}$", error="RFC inválido."))
     password = fields.Str(required=True, validate=L(min=8, max=128))
     direccion = fields.Nested(DireccionSucursalSchema, required=True)
+    zona_id = fields.Int(load_default=None, allow_none=True)
 
 
 class EdicionCuentaSucursalSchema(Base):
@@ -152,6 +153,22 @@ class EdicionCuentaSucursalSchema(Base):
     telefono = fields.Str(allow_none=True, validate=TEL)
     rfc = fields.Str(allow_none=True, validate=validate.Regexp(r"^[A-ZÑ&]{3,4}[0-9]{6}[A-Z0-9]{3}$", error="RFC inválido."))
     activo = fields.Bool()
+    zona_id = fields.Int(allow_none=True)
+
+
+class DivisionSchema(Base):
+    nombre = fields.Str(required=True, validate=L(min=2, max=60))
+    responsable = fields.Str(load_default=None, allow_none=True, validate=L(max=120))
+    correo = fields.Email(load_default=None, allow_none=True)
+    telefono = fields.Str(load_default=None, allow_none=True, validate=TEL)
+
+
+class ZonaSchema(Base):
+    nombre = fields.Str(required=True, validate=L(min=2, max=60))
+    division_id = fields.Int(load_default=None, allow_none=True)
+    gerente = fields.Str(load_default=None, allow_none=True, validate=L(max=120))
+    correo = fields.Email(load_default=None, allow_none=True)
+    telefono = fields.Str(load_default=None, allow_none=True, validate=TEL)
 
 
 class NuevaPasswordSchema(Base):

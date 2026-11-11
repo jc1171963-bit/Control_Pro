@@ -115,3 +115,41 @@ def test_aprobador_cancela_solicitud(como):
     assert r.status_code == 200 and r.get_json()["estado"] == "cancelado"
     aviso = next(n for n in emp.get("/api/cuenta/notificaciones").get_json()["items"] if n["evento"] == "pedido_cancelado")
     assert "Duplicada con otra solicitud" in aviso["mensaje"]
+
+
+def test_carga_masiva_de_sucursales(app, como, client):
+    from seeds.cargar_sucursales import cargar
+    with app.app_context():
+        r = cargar("ControlPro2026")
+        assert (r["creadas"], r["existentes"], r["zonas"], r["divisiones"], r["direcciones_reales"]) == (236, 0, 30, 6, 9)
+        assert cargar("ControlPro2026")["creadas"] == 0  # se puede repetir sin duplicar
+    aprob = como("aprobador")
+    org = aprob.get("/api/admin/cuentas-sucursal/organizacion").get_json()
+    divisiones = {d["nombre"]: d for d in org["divisiones"]}
+    assert set(divisiones) == {"Noroeste", "Norte", "Bajío", "Centro", "Sur", "Centroamérica"}
+    assert divisiones["Noroeste"]["responsable"] == "Gerardo Fernández Torres" and divisiones["Noroeste"]["total"] == 35
+    zonas = {z["nombre"]: z for d in org["divisiones"] for z in d["zonas"]}
+    assert zonas["Nuevo León Metropolitana"]["gerente"] == "Jesús Martínez Gómez" and zonas["Nuevo León Metropolitana"]["total"] == 10
+    assert zonas["CDMX Centro II"]["vacante"] and zonas["CDMX Centro II"]["telefono"] == "55 1914 4029"
+    laguna = zonas["Laguna"]
+    lista = aprob.get(f"/api/admin/cuentas-sucursal?zona={laguna['id']}&por_pagina=50").get_json()
+    assert lista["total"] == 9 and {x["direccion"]["estado"] for x in lista["items"]} == {"Coahuila", "Durango"}
+    assert lista["items"][0]["zona"]["division"]["nombre"] == "Norte"
+    assert aprob.get(f"/api/admin/cuentas-sucursal?division={divisiones['Sur']['id']}&por_pagina=1").get_json()["total"] == 51
+    # Domicilio real aplicado (deja de ser provisional)
+    capu = next(x for x in aprob.get("/api/admin/cuentas-sucursal?q=Puebla CAPU").get_json()["items"])
+    assert capu["direccion"]["cp"] == "72050" and capu["direccion"]["colonia"] == "Las Cuartillas"
+    # El aprobador actualiza un gerente de zona (vacante cubierta)
+    r = aprob.put(f"/api/admin/cuentas-sucursal/organizacion/zonas/{zonas['Guanajuato']['id']}",
+                  {"nombre": "Guanajuato", "division_id": divisiones["Bajío"]["id"], "gerente": "Nueva Gerente", "correo": "nueva@salud-digna.org",
+                   "telefono": "477 289 1873"})
+    assert r.status_code == 200 and r.get_json()["vacante"] is False
+    # Una sucursal cargada opera como cualquier otra y ve a su gerente de zona
+    tok = client.post("/api/auth/cliente/login", json={"correo": "torreon.plaza.triana@sucursal.controlpro.mx", "password": "ControlPro2026"}).get_json()["access_token"]
+    suc = Api(client, tok)
+    assert suc.get("/api/cuenta/resumen").get_json()["zona"]["gerente"] == "Ángel Alfonso Palacios López"
+    emp = suc.post("/api/cuenta/empleados", {"numero": "T-01", "nombre": "Laura Torres", "puesto": "Intendencia"}).get_json()
+    var = _var(como)
+    p = _solicitud(suc, [{"empleado_id": emp["id"], "variante_id": var("MAN-001", "Unitalla"), "cantidad": 2}])
+    assert p["estado"] == "en_revision"
+    assert aprob.post(f"/api/admin/pedidos/{p['id']}/decision", {"decision": "aprobado"}).get_json()["estado"] == "confirmado"

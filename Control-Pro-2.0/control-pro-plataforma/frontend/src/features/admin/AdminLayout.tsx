@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, ArrowLeftRight, Bell, Boxes, ClipboardCheck, ClipboardList, CreditCard, FileBarChart, History,
-  Gauge, Inbox, LayoutDashboard, LogOut, Menu, PackageOpen, Shirt, Store, Tag, Undo2, Users, UserSquare2, Warehouse, X } from 'lucide-react';
+  Gauge, Inbox, Network, LayoutDashboard, LogOut, Menu, PackageOpen, Shirt, Store, Tag, Undo2, Users, UserSquare2, Warehouse, X } from 'lucide-react';
 import { get } from '../../api/cliente';
 import type { Sucursal } from '../../api/tipos';
 import { useAuth } from '../../app/auth';
@@ -16,7 +16,7 @@ export function useSucursalesAdmin() {
 const GRUPOS: { titulo: string; items: [string, string, any, string][] }[] = [
   { titulo: 'General', items: [['', 'Panel', LayoutDashboard, ''], ['indicadores', 'Indicadores de solicitudes', Gauge, 'reporte.ver'],
     ['notificaciones', 'Notificaciones', Bell, '']] },
-  { titulo: 'Solicitudes', items: [['solicitudes', 'Solicitudes de sucursales', Inbox, 'pedido.ver'], ['sucursales-cliente', 'Sucursales', Store, 'cliente.ver'],
+  { titulo: 'Solicitudes', items: [['solicitudes', 'Solicitudes de sucursales', Inbox, 'pedido.ver'], ['sucursales-cliente', 'Sucursales', Store, 'cliente.ver'], ['organizacion', 'Divisiones y zonas', Network, 'cliente.ver'],
     ['pedidos', 'Todos los pedidos', ClipboardList, 'pedido.ver'], ['pagos', 'Pagos y reembolsos', CreditCard, 'pago.ver'], ['clientes', 'Clientes', UserSquare2, 'cliente.ver']] },
   { titulo: 'Operación', items: [['surtido', 'Surtido y envíos', PackageOpen, 'surtido.operar'], ['inventario', 'Inventario', Boxes, 'inventario.ver'],
     ['transferencias', 'Transferencias', ArrowLeftRight, 'inventario.ver']] },

@@ -35,6 +35,15 @@ def registrar_comandos(app):
         from seeds.demo import cargar_demo
         cargar_demo()
 
+    @app.cli.command("cargar-sucursales")
+    @click.option("--password", default="ControlPro2026", show_default=True, help="Contraseña inicial de todas las sucursales.")
+    def cargar_sucursales(password):
+        """Da de alta las sucursales (cuentas empresa) de seeds/sucursales_cliente.py. Se puede repetir sin duplicar."""
+        from seeds.cargar_sucursales import cargar
+        r = cargar(password)
+        click.echo(f"Divisiones: {r['divisiones']}. Zonas: {r['zonas']}. Sucursales creadas: {r['creadas']}, ya existían: "
+                   f"{r['existentes']}. Direcciones reales aplicadas: {r['direcciones_reales']}.")
+
     @app.cli.command("expirar-reservas")
     def expirar():
         """Expira pedidos sin pago dentro del plazo. Programar cada 15 minutos (cron o systemd timer)."""

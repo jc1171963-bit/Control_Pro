@@ -9,6 +9,29 @@ from ..extensions import db
 from .base import ConFechas
 
 
+class Division(db.Model):
+    """División de la red de sucursales (p. ej. Noroeste) y su responsable divisional."""
+    __tablename__ = "division"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    nombre: Mapped[str] = mapped_column(String(60), unique=True)
+    responsable: Mapped[str | None] = mapped_column(String(120))
+    correo: Mapped[str | None] = mapped_column(String(120))
+    telefono: Mapped[str | None] = mapped_column(String(20))
+    zonas = relationship("Zona", back_populates="division", order_by="Zona.nombre")
+
+
+class Zona(db.Model):
+    """Zona dentro de una división y su gerente (vacía = vacante)."""
+    __tablename__ = "zona"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    nombre: Mapped[str] = mapped_column(String(60), unique=True)
+    division_id: Mapped[int | None] = mapped_column(ForeignKey("division.id", ondelete="SET NULL"), index=True)
+    gerente: Mapped[str | None] = mapped_column(String(120))
+    correo: Mapped[str | None] = mapped_column(String(120))
+    telefono: Mapped[str | None] = mapped_column(String(20))
+    division = relationship("Division", back_populates="zonas", lazy="joined")
+
+
 class Cliente(ConFechas, db.Model):
     __tablename__ = "cliente"
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
@@ -19,12 +42,15 @@ class Cliente(ConFechas, db.Model):
     tipo: Mapped[str] = mapped_column(String(10), default="persona")
     razon_social: Mapped[str | None] = mapped_column(String(160))
     rfc: Mapped[str | None] = mapped_column(String(13))
+    # Sucursales (cuentas empresa): pertenecen a una zona, y la zona a una división.
+    zona_id: Mapped[int | None] = mapped_column(ForeignKey("zona.id", ondelete="SET NULL"), index=True)
     activo: Mapped[bool] = mapped_column(Boolean, default=True)
     intentos_fallidos: Mapped[int] = mapped_column(Integer, default=0)
     bloqueado_hasta: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     ultimo_acceso: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     direcciones = relationship("Direccion", back_populates="cliente", order_by="Direccion.id")
+    zona = relationship("Zona", lazy="joined")
 
     __table_args__ = (
         Index("uq_cliente_correo", func.lower(correo), unique=True),

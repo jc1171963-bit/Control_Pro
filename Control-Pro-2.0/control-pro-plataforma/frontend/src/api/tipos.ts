@@ -94,6 +94,8 @@ export type ResumenSucursal = {
   solicitudes: { borradores: number; en_revision: number; por_corregir: number; en_proceso: number; entregadas: number; rechazadas: number };
   paquetes_en_camino: number; paquetes_por_recibir: number; entregas_pendientes: number; conformidades_pendientes: number;
   incidencias_abiertas: number; empleados_activos: number;
+  zona: { nombre: string; gerente: string | null; correo: string | null; telefono: string | null; vacante: boolean;
+    division: { nombre: string; responsable: string | null; correo: string | null; telefono: string | null } | null } | null;
 };
 export type PedidoResumen = {
   id: number; folio: string; canal: 'tienda' | 'corporativo'; estado: string; modalidad: 'envio' | 'recoger';

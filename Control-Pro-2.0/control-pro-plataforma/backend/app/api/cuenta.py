@@ -20,6 +20,7 @@ from ..services import pedido_service as ped_srv
 from ..services.comun import auditar, paginar
 from ..services.precios import precio_con_descuento, promociones_vigentes, totales
 from . import serial
+from .admin_sucursales import zona_json
 from .tienda import existencias
 from .util import cuerpo, int_keys, obtener, pagina
 
@@ -488,6 +489,7 @@ def resumen():
             Incidencia.pedido_id.in_(mis), Incidencia.estado.in_(["abierta", "en_atencion"]))),
         "empleados_activos": db.session.scalar(select(func.count()).select_from(EmpleadoCorporativo).where(
             EmpleadoCorporativo.cliente_id == g.cliente.id, EmpleadoCorporativo.activo.is_(True))),
+        "zona": zona_json(g.cliente.zona),
     })
 
 

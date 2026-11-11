@@ -17,6 +17,7 @@ import { Aparecer, Contador, EsqueletoLista, LineaProceso, Transicion, volarHaci
 import { cls, fechaHora } from '../../lib/formato';
 import { catalogoCompleto, elegible, PartidaSolicitud, PuestosAutorizados } from '../../lib/solicitud';
 import { ImagenProducto } from '../tienda/ProductoCard';
+import { Contacto } from '../admin/Organizacion';
 import type { EmpleadoCorporativo } from './Corporativo';
 
 // ---------------------------------------------------------------- inicio de la sucursal
@@ -79,6 +80,17 @@ export function InicioCuenta() {
           <Indicador orden={7} titulo="Incidencias abiertas" valor={r.incidencias_abiertas} alerta icono={<ShieldAlert className="h-4 w-4" />} enlace="/cuenta/pedidos" />
           <Indicador orden={8} titulo="Empleados activos" valor={r.empleados_activos} icono={<Users className="h-4 w-4" />} enlace="/cuenta/empleados" />
         </div>
+      )}
+
+      {r?.zona && (
+        <Aparecer orden={9}>
+          <Tarjeta titulo={`Tu zona: ${r.zona.nombre}`} sub={r.zona.division ? `División ${r.zona.division.nombre}` : undefined}>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Contacto rol="Gerente de zona" nombre={r.zona.gerente} correo={r.zona.correo} telefono={r.zona.telefono} />
+              {r.zona.division && <Contacto rol="Responsable divisional" nombre={r.zona.division.responsable} correo={r.zona.division.correo} telefono={r.zona.division.telefono} />}
+            </div>
+          </Tarjeta>
+        </Aparecer>
       )}
 
       <Tarjeta titulo="Borradores" sub="Solicitudes guardadas que aún no envías a revisión">

@@ -92,6 +92,7 @@ export const router = createBrowserRouter([
         children: [
           { index: true, lazy: () => c(import('../features/admin/PanelSolicitudes'), 'InicioAdmin') },
           { path: 'indicadores', lazy: () => c(import('../features/admin/PanelSolicitudes')) },
+          { path: 'organizacion', lazy: () => c(import('../features/admin/Organizacion')) },
           { path: 'sucursales-cliente', lazy: () => c(import('../features/admin/SucursalesCliente'), 'SucursalesCliente') },
           { path: 'sucursales-cliente/:id', lazy: () => c(import('../features/admin/SucursalesCliente'), 'SucursalCliente') },
           { path: 'solicitudes', lazy: () => c(import('../features/admin/Pedidos'), 'Solicitudes') },
