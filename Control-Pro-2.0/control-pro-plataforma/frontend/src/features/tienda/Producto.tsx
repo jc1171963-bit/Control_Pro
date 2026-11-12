@@ -14,6 +14,17 @@ import Visor360 from '../../components/Visor360';
 import { cls, dinero, mensajeError } from '../../lib/formato';
 import ProductoCard, { ImagenProducto } from './ProductoCard';
 
+/** Selector de cantidad compartido por la compra en línea y la solicitud de sucursal. */
+function Cantidad({ valor, onCambio, max }: { valor: number; onCambio: (n: number) => void; max: number }) {
+  return (
+    <div role="group" aria-label="Cantidad" className="flex h-12 items-center rounded-xl bg-white ring-1 ring-lurima-200">
+      <button type="button" className="grid h-12 w-11 place-items-center disabled:opacity-30" disabled={valor <= 1} onClick={() => onCambio(valor - 1)} aria-label="Menos"><Minus className="h-4 w-4" /></button>
+      <span className="w-8 text-center font-bold" aria-live="polite">{valor}</span>
+      <button type="button" className="grid h-12 w-11 place-items-center disabled:opacity-30" disabled={valor >= max} onClick={() => onCambio(valor + 1)} aria-label="Más"><Plus className="h-4 w-4" /></button>
+    </div>
+  );
+}
+
 /** Portal de sucursal: el artículo se agrega al borrador de solicitud, asignado a un empleado. */
 function AgregarASolicitud({ p, variante, color }: { p: ProductoDetalle; variante: VarianteT | undefined; color: string }) {
   const { tipo, cliente } = useAuth();
@@ -41,16 +52,16 @@ function AgregarASolicitud({ p, variante, color }: { p: ProductoDetalle; variant
   });
   if (!empresa) {
     return (
-      <div className="mt-6 rounded-2xl bg-white p-5 ring-1 ring-arena-200">
+      <div className="mt-6 rounded-2xl bg-white p-5 ring-1 ring-lurima-100">
         <p className="font-display font-bold">¿Necesitas este artículo para tu equipo?</p>
-        <p className="mt-1 text-sm text-tinta-500">Las sucursales solicitan uniformes por empleado desde su portal.</p>
+        <p className="mt-1 text-sm text-tinta-600">Las sucursales solicitan uniformes por empleado desde su portal.</p>
         <Boton className="mt-3" onClick={() => nav(`/entrar?siguiente=${encodeURIComponent(loc.pathname)}`)}>Entrar con la cuenta de mi sucursal</Boton>
       </div>
     );
   }
   return (
-    <div className="mt-6 space-y-3 rounded-2xl bg-white p-5 ring-1 ring-arena-200">
-      <p className="flex items-center gap-2 font-display font-bold"><ClipboardPlus className="h-5 w-5 text-menta-600" />Agregar a mi solicitud</p>
+    <div className="mt-6 space-y-3 rounded-2xl bg-white p-5 ring-1 ring-lurima-100">
+      <p className="flex items-center gap-2 font-display font-bold"><ClipboardPlus className="h-5 w-5 text-bienestar-600" />Agregar a mi solicitud</p>
       <Selector value={empleado} onChange={(e) => setEmpleado(e.target.value ? Number(e.target.value) : '')} aria-label="Empleado">
         <option value="">¿Para qué empleado?</option>
         {empleados.data?.filter((e) => e.activo).map((e) => (
@@ -60,16 +71,12 @@ function AgregarASolicitud({ p, variante, color }: { p: ProductoDetalle; variant
       {!ok && <><Aviso tipo="alerta">No está autorizado para el puesto {emp?.puesto}; se enviará como excepción y el distribuidor decide.</Aviso>
         <Texto rows={2} placeholder="Justificación (mínimo 10 caracteres; puedes completarla al revisar)" value={excepcion} onChange={(e) => setExcepcion(e.target.value)} /></>}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex h-12 items-center rounded-xl bg-white ring-1 ring-arena-300">
-          <button className="px-3" onClick={() => setCantidad(Math.max(1, cantidad - 1))} aria-label="Menos"><Minus className="h-4 w-4" /></button>
-          <span className="w-8 text-center font-bold" aria-live="polite">{cantidad}</span>
-          <button className="px-3" onClick={() => setCantidad(Math.min(50, cantidad + 1))} aria-label="Más"><Plus className="h-4 w-4" /></button>
-        </div>
+        <Cantidad valor={cantidad} onCambio={setCantidad} max={50} />
         <span ref={boton} className="flex flex-1"><Boton tam="lg" className="flex-1 rounded-xl" disabled={!variante || !empleado} cargando={m.isPending} icono={<ClipboardPlus className="h-5 w-5" />} onClick={() => m.mutate()}>
           {!variante ? 'Elige una talla' : !empleado ? 'Elige al empleado' : `Agregar (${color}, ${variante.talla})`}
         </Boton></span>
       </div>
-      <p className="text-xs text-tinta-400">Se guarda en tu borrador de solicitud; lo revisas y envías desde <Link to="/cuenta" data-destino-solicitud className="font-semibold text-menta-700">tu portal</Link>.</p>
+      <p className="text-xs text-tinta-500">Se guarda en tu borrador de solicitud; lo revisas y envías desde <Link to="/cuenta" data-destino-solicitud className="font-semibold text-bienestar-700">tu portal</Link>.</p>
     </div>
   );
 }
@@ -116,24 +123,24 @@ export default function Producto() {
 
   return (
     <div className="contenedor py-8">
-      <nav className="mb-5 text-xs text-tinta-400"><Link to="/catalogo" className="hover:text-tinta-700">Catálogo</Link> / <Link to={`/catalogo?categoria=${p.categoria.slug}`} className="hover:text-tinta-700">{p.categoria.nombre}</Link> / <span className="text-tinta-700">{p.nombre}</span></nav>
+      <nav aria-label="Ruta de navegación" className="mb-5 text-xs text-tinta-500"><Link to="/catalogo" className="hover:text-lurima-900">Catálogo</Link> / <Link to={`/catalogo?categoria=${p.categoria.slug}`} className="hover:text-lurima-900">{p.categoria.nombre}</Link> / <span className="text-lurima-800">{p.nombre}</span></nav>
       <div className="grid gap-10 lg:grid-cols-2">
         <div>
-          <div className="aspect-square overflow-hidden rounded-3xl bg-white ring-1 ring-arena-200">
+          <div className="aspect-square overflow-hidden rounded-3xl bg-white ring-1 ring-lurima-100">
             {vista === '360' && giro ? <Visor360 key={giro.frames[0]} frames={giro.frames} alt={`${p.nombre} ${color}`} />
               : <ImagenProducto src={p.imagenes[vista as number]?.url || p.imagen} alt={p.imagenes[vista as number]?.alt || p.nombre} />}
           </div>
           {(p.imagenes.length > 1 || giro) && (
             <div className="mt-3 flex flex-wrap gap-3">
               {giro && (
-                <button onClick={() => setVista('360')} aria-label="Vista 360°" aria-pressed={vista === '360'}
-                  className={cls('relative h-20 w-20 overflow-hidden rounded-xl bg-white ring-2', vista === '360' ? 'ring-menta-500' : 'ring-arena-200')}>
+                <button type="button" onClick={() => setVista('360')} aria-label="Vista 360°" aria-pressed={vista === '360'}
+                  className={cls('relative h-20 w-20 overflow-hidden rounded-xl bg-white ring-2', vista === '360' ? 'ring-lurima-500' : 'ring-lurima-100')}>
                   <ImagenProducto src={giro.frames[0]} alt="" className="opacity-40" />
-                  <span className="absolute inset-0 grid place-items-center text-xs font-extrabold text-tinta-800"><span className="flex flex-col items-center"><Rotate3d className="h-5 w-5 text-menta-600" />360°</span></span>
+                  <span className="absolute inset-0 grid place-items-center text-xs font-extrabold text-lurima-900"><span className="flex flex-col items-center"><Rotate3d className="h-5 w-5 text-bienestar-600" />360°</span></span>
                 </button>
               )}
               {p.imagenes.map((im, i) => (
-                <button key={im.url} onClick={() => setVista(i)} className={cls('h-20 w-20 overflow-hidden rounded-xl ring-2', i === vista ? 'ring-menta-500' : 'ring-transparent')} aria-label={`Imagen ${i + 1}`}>
+                <button key={im.url} type="button" aria-pressed={i === vista} onClick={() => setVista(i)} className={cls('h-20 w-20 overflow-hidden rounded-xl ring-2', i === vista ? 'ring-lurima-500' : 'ring-transparent')} aria-label={`Imagen ${i + 1}`}>
                   <ImagenProducto src={im.url} alt={im.alt} />
                 </button>
               ))}
@@ -142,76 +149,72 @@ export default function Producto() {
         </div>
 
         <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-menta-700">{p.categoria.nombre} · {p.sku_base}</p>
-          <h1 className="mt-1 font-display text-3xl font-extrabold tracking-tight sm:text-4xl">{p.nombre}</h1>
+          <p className="text-xs font-semibold uppercase tracking-widest text-bienestar-700">{p.categoria.nombre} · {p.sku_base}</p>
+          <h1 className="mt-1 font-display text-3xl font-extrabold tracking-tight text-lurima-900 sm:text-4xl">{p.nombre}</h1>
           {canalTienda && <><div className="mt-4 flex items-baseline gap-3">
-            <span className="font-display text-3xl font-extrabold">{dinero(variante?.precio_final ?? delColor[0]?.precio_final ?? p.precio_desde)}</span>
-            {(variante ?? delColor[0])?.descuento !== '0.00' && <span className="text-tinta-400 line-through">{dinero((variante ?? delColor[0])?.precio_base)}</span>}
+            <span className="font-display text-3xl font-extrabold text-lurima-900">{dinero(variante?.precio_final ?? delColor[0]?.precio_final ?? p.precio_desde)}</span>
+            {(variante ?? delColor[0])?.descuento !== '0.00' && <span className="text-tinta-500 line-through">{dinero((variante ?? delColor[0])?.precio_base)}</span>}
             {(variante ?? delColor[0])?.promocion && <span className="rounded-full bg-coral-100 px-2 py-0.5 text-xs font-bold text-coral-700">{(variante ?? delColor[0])?.promocion}</span>}
           </div>
-          <p className="text-xs text-tinta-400">IVA incluido</p></>}
+          <p className="text-xs text-tinta-500">IVA incluido</p></>}
           <p className="mt-5 text-tinta-600">{p.descripcion}</p>
 
           <div className="mt-6">
-            <p className="mb-2 text-sm font-semibold">Color: <span className="font-normal text-tinta-500">{color}</span></p>
+            <p className="mb-2 text-sm font-semibold">Color: <span className="font-normal text-tinta-600">{color}</span></p>
             <div className="flex gap-2">
               {colores.map(([c, h]) => (
-                <button key={c} onClick={() => setColor(c)} aria-label={c} title={c}
-                  className={cls('h-10 w-10 rounded-full ring-2 ring-offset-2 ring-offset-arena-100', color === c ? 'ring-tinta-900' : 'ring-arena-300')} style={{ background: h }} />
+                <button key={c} type="button" onClick={() => setColor(c)} aria-label={c} title={c} aria-pressed={color === c}
+                  className={cls('h-10 w-10 rounded-full ring-2 ring-offset-2 ring-offset-white', color === c ? 'ring-lurima-800' : 'ring-lurima-200')} style={{ background: h }} />
               ))}
             </div>
           </div>
           <div className="mt-5">
-            <p className="mb-2 text-sm font-semibold">Talla {variante && <span className="font-normal text-tinta-500">· {variante.disponible} disponible(s)</span>}</p>
+            <p className="mb-2 text-sm font-semibold">Talla {variante && <span className="font-normal text-tinta-600">· {variante.disponible} disponible(s)</span>}</p>
             <div className="flex flex-wrap gap-2">
               {delColor.map((v) => (
-                <button key={v.id} disabled={!v.disponible} onClick={() => setTalla(v.talla)}
-                  className={cls('h-11 min-w-12 rounded-xl px-3 text-sm font-bold ring-1 transition', talla === v.talla ? 'bg-tinta-900 text-white ring-tinta-900' : 'bg-white ring-arena-300 hover:ring-tinta-500',
-                    !v.disponible && 'cursor-not-allowed bg-arena-100 text-tinta-300 line-through')}>{v.talla}</button>
+                <button key={v.id} type="button" disabled={!v.disponible} onClick={() => setTalla(v.talla)} aria-pressed={talla === v.talla} aria-label={`Talla ${v.talla}${v.disponible ? '' : ' (agotada)'}`}
+                  className={cls('h-11 min-w-12 rounded-xl px-3 text-sm font-bold ring-1 transition', talla === v.talla ? 'bg-lurima-800 text-white ring-lurima-800' : 'bg-white ring-lurima-200 hover:ring-lurima-500',
+                    !v.disponible && 'cursor-not-allowed bg-lurima-50 text-tinta-300 line-through')}>{v.talla}</button>
               ))}
             </div>
           </div>
           {canalTienda ? <div className="mt-6 flex flex-wrap items-center gap-3">
-            <div className="flex h-12 items-center rounded-xl bg-white ring-1 ring-arena-300">
-              <button className="px-3" onClick={() => setCantidad(Math.max(1, cantidad - 1))} aria-label="Menos"><Minus className="h-4 w-4" /></button>
-              <span className="w-8 text-center font-bold" aria-live="polite">{cantidad}</span>
-              <button className="px-3" onClick={() => setCantidad(Math.min(variante?.disponible || 1, cantidad + 1))} aria-label="Más"><Plus className="h-4 w-4" /></button>
-            </div>
+            <Cantidad valor={cantidad} onCambio={setCantidad} max={variante?.disponible || 1} />
             <Boton tam="lg" className="flex-1 rounded-xl" disabled={!variante} cargando={agregar.isPending} icono={<ShoppingBag className="h-5 w-5" />}
               onClick={() => (tipo === 'cliente' ? agregar.mutate() : requiereSesion())}>
               {variante ? 'Agregar al carrito' : 'Elige una talla'}
             </Boton>
-            <Boton tam="lg" variante="secundario" className="rounded-xl" aria-label="Favorito" onClick={() => (tipo === 'cliente' ? fav.mutate() : requiereSesion())}
+            <Boton tam="lg" variante="secundario" className="rounded-xl" aria-label={esFav ? 'Quitar de favoritos' : 'Agregar a favoritos'} aria-pressed={esFav} onClick={() => (tipo === 'cliente' ? fav.mutate() : requiereSesion())}
               icono={<Heart className={cls('h-5 w-5', esFav && 'fill-coral-500 text-coral-500')} />} />
           </div> : <AgregarASolicitud p={p} variante={variante} color={color} />}
 
-          <div className="mt-8 rounded-2xl bg-white p-5 ring-1 ring-arena-200">
-            <p className="mb-3 flex items-center gap-2 font-display font-bold"><Store className="h-4 w-4 text-menta-600" />{canalTienda ? 'Disponibilidad por sucursal' : 'Disponibilidad en almacenes'} {variante ? `· talla ${variante.talla}` : ''}</p>
-            <ul className="divide-y divide-arena-200 text-sm">
+          <div className="mt-8 rounded-2xl bg-white p-5 ring-1 ring-lurima-100">
+            <p className="mb-3 flex items-center gap-2 font-display font-bold text-lurima-900"><Store className="h-4 w-4 text-bienestar-600" />{canalTienda ? 'Disponibilidad por sucursal' : 'Disponibilidad en almacenes'} {variante ? `· talla ${variante.talla}` : ''}</p>
+            <ul className="divide-y divide-lurima-100 text-sm">
               {p.disponibilidad_sucursal?.map((s) => {
                 const n = variante ? s.variantes[String(variante.id)] || 0 : delColor.reduce((a, v) => a + (s.variantes[String(v.id)] || 0), 0);
                 return (
                   <li key={s.sucursal_id} className="flex items-center justify-between py-2">
                     <span>{s.sucursal}</span>
-                    <span className={cls('font-semibold', n > 5 ? 'text-menta-700' : n > 0 ? 'text-amber-700' : 'text-tinta-300')}>
+                    <span className={cls('font-semibold', n > 5 ? 'text-bienestar-700' : n > 0 ? 'text-amber-700' : 'text-tinta-500')}>
                       {n > 5 ? 'Disponible' : n > 0 ? `Últimas ${n}` : 'Sin existencias'}
                     </span>
                   </li>
                 );
               })}
             </ul>
-            <p className="mt-3 flex items-start gap-2 text-xs text-tinta-400"><Truck className="mt-0.5 h-3.5 w-3.5" />{canalTienda ? 'Envío a domicilio desde la sucursal de tu zona, o recoge sin costo.' : 'Se surte desde el almacén más cercano a tu sucursal; cada paquete lleva su propia guía.'}</p>
+            <p className="mt-3 flex items-start gap-2 text-xs text-tinta-500"><Truck className="mt-0.5 h-3.5 w-3.5" />{canalTienda ? 'Envío a domicilio desde la sucursal de tu zona, o recoge sin costo.' : 'Se surte desde el almacén más cercano a tu sucursal; cada paquete lleva su propia guía.'}</p>
           </div>
           <dl className="mt-6 grid grid-cols-2 gap-4 text-sm">
-            {p.material && <div><dt className="text-tinta-400">Material</dt><dd className="font-semibold">{p.material}</dd></div>}
-            {p.cuidados && <div><dt className="text-tinta-400">Cuidados</dt><dd className="font-semibold">{p.cuidados}</dd></div>}
-            {p.puestos.length > 0 && <div className="col-span-2"><dt className="text-tinta-400">{canalTienda ? 'Recomendado para' : 'Autorizado para los puestos'}</dt><dd className="mt-1 flex flex-wrap gap-1">{p.puestos.map((x) => <span key={x} className="flex items-center gap-1 rounded-full bg-menta-50 px-2 py-0.5 text-xs font-semibold text-menta-800"><Check className="h-3 w-3" />{x}</span>)}</dd></div>}
+            {p.material && <div><dt className="text-tinta-500">Material</dt><dd className="font-semibold">{p.material}</dd></div>}
+            {p.cuidados && <div><dt className="text-tinta-500">Cuidados</dt><dd className="font-semibold">{p.cuidados}</dd></div>}
+            {p.puestos.length > 0 && <div className="col-span-2"><dt className="text-tinta-500">{canalTienda ? 'Recomendado para' : 'Autorizado para los puestos'}</dt><dd className="mt-1 flex flex-wrap gap-1">{p.puestos.map((x) => <span key={x} className="flex items-center gap-1 rounded-full bg-bienestar-50 px-2 py-0.5 text-xs font-semibold text-bienestar-700"><Check className="h-3 w-3" />{x}</span>)}</dd></div>}
           </dl>
         </div>
       </div>
       {!!p.relacionados?.length && (
         <section className="mt-16">
-          <h2 className="mb-5 font-display text-2xl font-extrabold">También te puede servir</h2>
+          <h2 className="mb-5 font-display text-2xl font-extrabold text-lurima-900">También te puede servir</h2>
           <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">{p.relacionados.map((r, i) => <ProductoCard key={r.id} p={r} orden={i} />)}</div>
         </section>
       )}
