@@ -3,6 +3,28 @@
 @tailwind utilities;
 
 @layer base {
+  /* Valores por defecto de `menta` (los mismos de siempre, en canales RGB). */
+  :root {
+    --menta-50: 236 251 249; --menta-100: 207 245 240; --menta-200: 159 233 224; --menta-300: 98 214 201; --menta-400: 47 188 174;
+    --menta-500: 15 159 148; --menta-600: 11 128 120; --menta-700: 13 102 97; --menta-800: 15 81 78; --menta-900: 15 67 65;
+    /* Tienda LURIMA (valores de siempre). */
+    --lurima-50: 241 246 252; --lurima-100: 221 233 247; --lurima-200: 185 209 238; --lurima-300: 134 174 221; --lurima-400: 79 130 194;
+    --lurima-500: 42 98 168; --lurima-600: 31 81 146; --lurima-700: 23 69 138; --lurima-800: 18 58 115; --lurima-900: 12 42 85; --lurima-950: 8 28 59;
+    --bienestar-50: 239 248 240; --bienestar-100: 214 238 218; --bienestar-400: 82 174 98; --bienestar-500: 59 154 74; --bienestar-600: 47 131 64; --bienestar-700: 37 106 52;
+  }
+  /* Portal de sucursales (Salud Digna): el acento pasa a verde. El 500 es el verde de botón medido en la maqueta
+     (#089748); el resto de la escala se derivó a partir de él. Debe ir después de :root (misma especificidad). */
+  .tema-sd {
+    --menta-50: 238 249 241; --menta-100: 213 240 220; --menta-200: 174 225 187; --menta-300: 122 206 146; --menta-400: 63 180 104;
+    --menta-500: 7 127 61; --menta-600: 7 102 50; --menta-700: 7 102 50; --menta-800: 7 80 43; --menta-900: 6 61 36;
+    /* Contraste AA: el botón menta (texto blanco) y el borde de foco usan el verde 7 127 61 (5,1:1); el verde 8 151 72 daba 3,8:1. */
+    /* Los componentes de la tienda que se reutilizan en el portal (catálogo, tarjetas, ficha) toman la paleta Salud Digna:
+       tintes claros de la maqueta, neutros de la paleta `tinta` y verdes institucionales (derivados del verde medido). */
+    --lurima-50: 235 243 253; --lurima-100: 228 237 251; --lurima-200: 201 214 234; --lurima-300: 147 167 194; --lurima-400: 95 119 153;
+    --lurima-500: 62 85 118; --lurima-600: 10 90 75; --lurima-700: 10 90 75; --lurima-800: 1 67 57; --lurima-900: 2 61 52; --lurima-950: 1 45 38;
+    --bienestar-50: 238 249 241; --bienestar-100: 213 240 220; --bienestar-400: 63 180 104; --bienestar-500: 8 151 72; --bienestar-600: 7 127 61; --bienestar-700: 7 102 50;
+  }
+  .tema-sd ::placeholder { color: theme('colors.tinta.400'); opacity: 1; }
   html { -webkit-font-smoothing: antialiased; }
   body { @apply bg-arena-100 font-sans text-tinta-900; }
   :focus-visible { outline: 2px solid theme('colors.menta.500'); outline-offset: 2px; }
