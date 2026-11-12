@@ -6,6 +6,7 @@ import { get } from '../../api/cliente';
 import type { Carrito } from '../../api/tipos';
 import { useAuth } from '../../app/auth';
 import { useConfig } from '../../app/config';
+import { useContadorNotificaciones } from '../../app/notificaciones';
 import { Transicion } from '../../components/movimiento';
 import { cls } from '../../lib/formato';
 import { useSucursalesPublicas } from './Ubicaciones';
@@ -67,8 +68,7 @@ export default function TiendaLayout() {
     return () => window.removeEventListener('keydown', f);
   }, [menu]);
   const categorias = useQuery({ queryKey: ['categorias'], queryFn: () => get<{ id: number; nombre: string; slug: string; padre_id: number | null }[]>('/tienda/categorias'), staleTime: 300_000 });
-  const notif = useQuery({ queryKey: ['notif-cliente', 'contador'], queryFn: () => get<{ no_leidas: number }>('/cuenta/notificaciones?por_pagina=1'),
-    enabled: tipo === 'cliente', refetchInterval: 30_000 });
+  const notif = useContadorNotificaciones(tipo === 'cliente');
   const sucursales = useSucursalesPublicas();
 
   const buscar = (e: FormEvent) => {
