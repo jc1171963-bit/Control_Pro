@@ -5,7 +5,7 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, ChevronDown, ChevronRight, ClipboardCheck, FileSignature, Package, PenLine, Send, ShieldAlert, Star, Truck } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, FileSignature, Package, PenLine, Send, ShieldAlert, Star, Truck } from 'lucide-react';
 import { post } from '../../api/cliente';
 import type { EntregaIndividual, Incidencia, Paquete, Pedido } from '../../api/tipos';
 import { Aviso, Boton, Campo, Entrada, ErrorCaja, Estado, Firma, Modal, Selector, Tarjeta, Texto, useAviso } from '../../components/ui';
@@ -284,6 +284,7 @@ export default function DetalleSolicitud({ p }: { p: Pedido }) {
 
   return (
     <div className="space-y-5">
+      <Link to="/cuenta/pedidos" className="inline-flex min-h-8 items-center gap-1 text-sm font-semibold text-menta-700 hover:underline"><ChevronLeft className="h-4 w-4" aria-hidden />Mis solicitudes</Link>
       {params.get('nuevo') && p.estado !== 'borrador' && (
         <Aparecer>
           <div className="flex items-center gap-4 rounded-2xl bg-menta-500 p-5 text-white">

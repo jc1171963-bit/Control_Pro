@@ -5,13 +5,10 @@ import { ChevronRight } from 'lucide-react';
 import { get } from '../../api/cliente';
 import type { Pagina, PedidoResumen } from '../../api/tipos';
 import { useAuth } from '../../app/auth';
-import { Entrada, ErrorCaja, Estado, Paginacion, Tarjeta, Vacio } from '../../components/ui';
+import { Entrada, ErrorCaja, Estado, Paginacion, Selector, Tarjeta, Vacio } from '../../components/ui';
 import { Aparecer, EsqueletoLista } from '../../components/movimiento';
-import { cls, dinero, fecha } from '../../lib/formato';
-
-const FILTROS = [['', 'Todas'], ['borrador', 'Borradores'], ['en_revision', 'En revisión'], ['devuelto', 'Por corregir'],
-  ['confirmado,en_preparacion', 'En surtido'], ['parcialmente_enviado,enviado', 'En camino'], ['parcialmente_entregado,entregado', 'Por recibir / entregar'],
-  ['cerrado', 'Cerradas'], ['rechazado,cancelado', 'Rechazadas o canceladas']];
+import { cls, dinero, etiqueta, fecha } from '../../lib/formato';
+import TablaSolicitudes, { ESTADOS_SOLICITUD } from '../portal/TablaSolicitudes';
 
 export default function Pedidos() {
   const { cliente } = useAuth();
@@ -21,17 +18,24 @@ export default function Pedidos() {
   const [estado, setEstado] = useState(params.get('estado') || '');
   const [folio, setFolio] = useState('');
   const q = useQuery({ queryKey: ['mis-pedidos', pagina, estado, empresa], queryFn: () => get<Pagina<PedidoResumen>>(`/cuenta/pedidos?pagina=${pagina}&por_pagina=10${empresa ? '&canal=corporativo' : ''}${estado ? `&estado=${estado}` : ''}`) });
-  const filtros = empresa ? FILTROS : [['', 'Todos'], ['pendiente_pago', 'Por pagar'], ['en_preparacion', 'En preparación'], ['enviado', 'Enviados'], ['entregado', 'Entregados']];
+  const filtros = [['', 'Todos'], ['pendiente_pago', 'Por pagar'], ['en_preparacion', 'En preparación'], ['enviado', 'Enviados'], ['entregado', 'Entregados']];
   const items = q.data?.items.filter((pedido) => pedido.folio.toLowerCase().includes(folio.trim().toLowerCase())) || [];
   return (
     <Tarjeta titulo={empresa ? 'Mis solicitudes' : 'Mis pedidos'} sub={empresa ? 'Solicitudes corporativas y su estado de revisión' : 'Historial de tus pedidos'}>
-      <div className="mb-4 flex flex-wrap gap-2">
-        {empresa && <label className="w-full sm:max-w-xs"><span className="sr-only">Filtrar por folio en la página cargada</span><Entrada value={folio} onChange={(e) => setFolio(e.target.value)} placeholder="Filtrar por folio en esta página" /></label>}
-        {filtros.map(([v, n]) => <button key={v} onClick={() => { setEstado(v); setPagina(1); }} className={cls('rounded-full px-3 py-1 text-xs font-semibold ring-1', estado === v ? 'bg-tinta-900 text-white ring-tinta-900' : 'ring-arena-300')}>{n}</button>)}
+      <div className="mb-4 flex flex-wrap items-end gap-3">
+        {empresa && <>
+          <label className="block w-full text-sm sm:w-56"><span className="mb-1 block font-semibold text-tinta-800">Estado</span>
+            <Selector value={estado} onChange={(e) => { setEstado(e.target.value); setPagina(1); }}>
+              <option value="">Todas</option>{ESTADOS_SOLICITUD.map((v) => <option key={v} value={v}>{etiqueta(v)}</option>)}</Selector></label>
+          <label className="block w-full text-sm sm:max-w-xs"><span className="mb-1 block font-semibold text-tinta-800">Folio</span>
+            <Entrada value={folio} onChange={(e) => setFolio(e.target.value)} placeholder="Buscar en esta página" /></label>
+        </>}
+        {!empresa && filtros.map(([v, n]) => <button key={v} onClick={() => { setEstado(v); setPagina(1); }} className={cls('rounded-full px-3 py-1 text-xs font-semibold ring-1', estado === v ? 'bg-tinta-900 text-white ring-tinta-900' : 'ring-arena-300')}>{n}</button>)}
       </div>
       <ErrorCaja error={q.error} />
-      {q.isLoading ? <EsqueletoLista /> : !items.length ? <Vacio titulo={folio ? 'No hay coincidencias en esta página' : empresa ? 'Aún no tienes solicitudes' : 'Aún no tienes pedidos'} texto={folio ? 'Prueba otro folio o cambia de página.' : empresa ? 'Crea una solicitud por empleado y aquí verás su avance.' : 'Cuando realices un pedido, aquí verás su estado.'}
-        accion={empresa && !folio ? <Link to="/cuenta/solicitudes/nueva" className="mt-2 font-semibold text-menta-700">Crear solicitud →</Link> : undefined} /> : (
+      {q.isLoading ? <EsqueletoLista /> : !items.length ? <Vacio titulo={folio ? 'No hay coincidencias en esta página' : empresa && estado ? 'No hay solicitudes en este estado' : empresa ? 'Aún no tienes solicitudes' : 'Aún no tienes pedidos'} texto={folio ? 'Prueba otro folio o cambia de página.' : empresa && estado ? 'Elige otro estado o vuelve a «Todas».' : empresa ? 'Crea una solicitud por empleado y aquí verás su avance.' : 'Cuando realices un pedido, aquí verás su estado.'}
+        accion={empresa && !folio && !estado ? <Link to="/cuenta/solicitudes/nueva" className="mt-2 font-semibold text-menta-700">Crear solicitud →</Link> : undefined} /> : (
+        empresa ? <TablaSolicitudes items={items} /> : (
         <ul className="divide-y divide-arena-200">
           {items.map((p, i) => (
             <Aparecer como="li" orden={i} key={p.id}>
@@ -47,6 +51,7 @@ export default function Pedidos() {
             </Aparecer>
           ))}
         </ul>
+        )
       )}
       {q.data && <Paginacion pagina={q.data.pagina} paginas={q.data.paginas} total={q.data.total} onCambio={setPagina} />}
     </Tarjeta>
