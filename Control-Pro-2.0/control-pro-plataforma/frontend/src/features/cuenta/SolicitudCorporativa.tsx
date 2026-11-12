@@ -1,134 +1,40 @@
 /**
- * Portal de la sucursal: inicio con indicadores y constructor de solicitudes por empleado.
+ * Portal de la sucursal: constructor de solicitudes por empleado (el inicio está en features/portal/Inicio.tsx).
  * La solicitud se arma por persona (no hay productos sin destinatario), se guarda como borrador en el servidor y se
  * envía a revisión; el servidor vuelve a validar empleado, regla por puesto, variante y cantidades.
  */
-import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, ArrowLeft, ArrowRight, Check, ClipboardList, FilePlus2, Minus, PackageCheck, PenLine, Plus, Save, Search,
-  Send, ShieldAlert, Trash2, Truck, Users } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, ArrowRight, Check, Plus, Save, Search, Send, Trash2 } from 'lucide-react';
 import { claveIdempotencia, get, post, put } from '../../api/cliente';
-import type { Direccion, Pagina, Pedido, PedidoResumen, ProductoDetalle, ProductoResumen, ResumenSucursal } from '../../api/tipos';
-import { useAuth } from '../../app/auth';
+import type { Direccion, Pedido, ProductoDetalle, ProductoResumen } from '../../api/tipos';
 import { Aviso, Boton, Campo, Cargando, Entrada, ErrorCaja, Modal, Selector, Tarjeta, Texto, useAviso, Vacio } from '../../components/ui';
+import Cantidad from '../../components/Cantidad';
+import SelectorVariante, { useSeleccionVariante } from '../../components/SelectorVariante';
 import Visor360 from '../../components/Visor360';
-import { Aparecer, Contador, EsqueletoLista, LineaProceso, Transicion, volarHacia } from '../../components/movimiento';
-import { cls, fechaHora } from '../../lib/formato';
+import { Aparecer, Transicion, volarHacia } from '../../components/movimiento';
+import { cls } from '../../lib/formato';
 import { catalogoCompleto, elegible, PartidaSolicitud, PuestosAutorizados } from '../../lib/solicitud';
 import { ImagenProducto } from '../tienda/ProductoCard';
-import { Contacto } from '../admin/Organizacion';
 import type { EmpleadoCorporativo } from './Corporativo';
-
-// ---------------------------------------------------------------- inicio de la sucursal
-
-const FLUJO = [
-  { clave: 'sol', titulo: 'Solicitud', detalle: 'Por empleado' }, { clave: 'rev', titulo: 'Revisión', detalle: 'Distribuidor' },
-  { clave: 'sur', titulo: 'Surtido', detalle: 'Almacén' }, { clave: 'env', titulo: 'Envío', detalle: 'Guía por paquete' },
-  { clave: 'rec', titulo: 'Recepción', detalle: 'En tu sucursal' }, { clave: 'ent', titulo: 'Entrega', detalle: 'Firma del empleado' },
-];
-
-function Indicador({ titulo, valor, icono, enlace, alerta, orden }: { titulo: string; valor: number; icono: ReactNode; enlace: string; alerta?: boolean; orden: number }) {
-  return (
-    <Aparecer orden={orden}>
-      <Link to={enlace} className={cls('group block rounded-2xl bg-white p-4 shadow-suave ring-1 transition hover:-translate-y-0.5 hover:shadow-lg',
-        alerta && valor > 0 ? 'ring-amber-300' : 'ring-tinta-100')}>
-        <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-tinta-400">
-          <span>{titulo}</span>
-          <span className={cls('grid h-8 w-8 place-items-center rounded-xl transition group-hover:scale-110', alerta && valor > 0 ? 'bg-amber-100 text-amber-700' : 'bg-menta-50 text-menta-700')}>{icono}</span>
-        </div>
-        <p className="mt-2 font-display text-3xl font-extrabold text-tinta-900"><Contador valor={valor} /></p>
-      </Link>
-    </Aparecer>
-  );
-}
-
-export function InicioCuenta() {
-  const { cliente } = useAuth();
-  const empresa = cliente?.tipo === 'empresa';
-  const resumen = useQuery({ queryKey: ['resumen-sucursal'], queryFn: () => get<ResumenSucursal>('/cuenta/resumen'), enabled: empresa });
-  const borradores = useQuery({ queryKey: ['mis-borradores'], queryFn: () => get<Pagina<PedidoResumen>>('/cuenta/pedidos?canal=corporativo&estado=borrador&por_pagina=5'), enabled: empresa });
-  if (!empresa) return <Navigate to="pedidos" replace />;
-  const r = resumen.data;
-  return (
-    <div className="space-y-5">
-      <Aparecer>
-        <section className="relative overflow-hidden rounded-3xl bg-tinta-900 p-6 text-white sm:p-8">
-          <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-menta-500/25 blur-3xl" />
-          <p className="text-xs font-bold uppercase tracking-widest text-menta-300">Portal de sucursal</p>
-          <h1 className="mt-1 font-display text-2xl font-extrabold sm:text-3xl">{cliente?.razon_social || cliente?.nombre}</h1>
-          <p className="mt-2 max-w-xl text-sm text-tinta-200">Solicita uniformes por empleado, sigue cada paquete y registra la entrega con firma de quien los recibe.</p>
-          <div className="mt-5 flex flex-wrap gap-3">
-            <Link to="/cuenta/solicitudes/nueva" className="inline-flex h-11 items-center gap-2 rounded-full bg-menta-500 px-5 text-sm font-bold text-white transition hover:bg-menta-400"><FilePlus2 className="h-4 w-4" />Crear solicitud</Link>
-            <Link to="/catalogo" className="inline-flex h-11 items-center gap-2 rounded-full bg-white/10 px-5 text-sm font-semibold ring-1 ring-white/20 transition hover:bg-white/15">Ver catálogo</Link>
-          </div>
-          <div className="mt-7 hidden rounded-2xl bg-white/5 p-4 ring-1 ring-white/10 sm:block [&_span]:!text-tinta-100">
-            <LineaProceso compacta etapas={FLUJO.map((e) => ({ ...e, estado: 'pendiente' as const }))} />
-          </div>
-        </section>
-      </Aparecer>
-
-      {resumen.isLoading ? <EsqueletoLista filas={2} /> : <ErrorCaja error={resumen.error} />}
-      {r && (
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <Indicador orden={1} titulo="En revisión" valor={r.solicitudes.en_revision} icono={<ClipboardList className="h-4 w-4" />} enlace="/cuenta/pedidos?estado=en_revision" />
-          <Indicador orden={2} titulo="Por corregir" valor={r.solicitudes.por_corregir} alerta icono={<PenLine className="h-4 w-4" />} enlace="/cuenta/pedidos?estado=devuelto" />
-          <Indicador orden={3} titulo="En proceso" valor={r.solicitudes.en_proceso} icono={<Truck className="h-4 w-4" />} enlace="/cuenta/pedidos?estado=confirmado,en_preparacion,parcialmente_enviado,enviado,parcialmente_entregado" />
-          <Indicador orden={4} titulo="Paquetes por recibir" valor={r.paquetes_por_recibir} alerta icono={<PackageCheck className="h-4 w-4" />} enlace="/cuenta/pedidos?estado=parcialmente_entregado,entregado" />
-          <Indicador orden={5} titulo="Entregas pendientes" valor={r.entregas_pendientes} alerta icono={<Users className="h-4 w-4" />} enlace="/cuenta/pedidos?estado=parcialmente_entregado,entregado" />
-          <Indicador orden={6} titulo="Conformidades pendientes" valor={r.conformidades_pendientes} alerta icono={<Check className="h-4 w-4" />} enlace="/cuenta/pedidos?estado=parcialmente_entregado,entregado" />
-          <Indicador orden={7} titulo="Incidencias abiertas" valor={r.incidencias_abiertas} alerta icono={<ShieldAlert className="h-4 w-4" />} enlace="/cuenta/pedidos" />
-          <Indicador orden={8} titulo="Empleados activos" valor={r.empleados_activos} icono={<Users className="h-4 w-4" />} enlace="/cuenta/empleados" />
-        </div>
-      )}
-
-      {r?.zona && (
-        <Aparecer orden={9}>
-          <Tarjeta titulo={`Tu zona: ${r.zona.nombre}`} sub={r.zona.division ? `División ${r.zona.division.nombre}` : undefined}>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Contacto rol="Gerente de zona" nombre={r.zona.gerente} correo={r.zona.correo} telefono={r.zona.telefono} />
-              {r.zona.division && <Contacto rol="Responsable divisional" nombre={r.zona.division.responsable} correo={r.zona.division.correo} telefono={r.zona.division.telefono} />}
-            </div>
-          </Tarjeta>
-        </Aparecer>
-      )}
-
-      <Tarjeta titulo="Borradores" sub="Solicitudes guardadas que aún no envías a revisión">
-        {borradores.isLoading ? <EsqueletoLista filas={2} /> : !borradores.data?.items.length ? (
-          <Vacio titulo="Sin borradores" texto="Cuando guardes una solicitud sin enviarla, aparecerá aquí para continuarla." />
-        ) : (
-          <ul className="divide-y divide-tinta-100">
-            {borradores.data.items.map((b, i) => (
-              <Aparecer como="li" orden={i} key={b.id} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm">
-                <div><p className="font-semibold">{b.folio}</p><p className="text-xs text-tinta-400">{b.articulos} artículo(s) · guardado {fechaHora(b.creado)}</p></div>
-                <Link to={`/cuenta/solicitudes/${b.id}/editar`} className="inline-flex h-8 items-center gap-1 rounded-lg bg-tinta-900 px-3 text-xs font-semibold text-white">Continuar <ArrowRight className="h-3.5 w-3.5" /></Link>
-              </Aparecer>
-            ))}
-          </ul>
-        )}
-      </Tarjeta>
-    </div>
-  );
-}
 
 // ---------------------------------------------------------------- constructor de solicitud
 
 type Linea = PartidaSolicitud & { clave: string; nombre: string; talla: string; color: string; imagen: string | null; producto_id: number | null };
 const PASOS = ['Empleados', 'Artículos', 'Revisar y enviar'];
+// En pantallas pequeñas la acción principal queda fija al pie de la tarjeta (las listas son largas); desde 1024 px vuelve a su lugar.
+const barraAccion = 'sticky bottom-0 z-10 -mx-5 -mb-5 mt-5 rounded-b-2xl border-t border-tinta-100 bg-white/95 px-5 py-3 backdrop-blur lg:static lg:z-auto lg:m-0 lg:mt-5 lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none';
 
 function SelectorArticulo({ producto, empleado, puestos, onAgregar, onCerrar }: {
   producto: ProductoResumen; empleado: EmpleadoCorporativo; puestos: PuestosAutorizados | undefined;
   onAgregar: (l: Omit<Linea, 'clave'>) => void; onCerrar: () => void;
 }) {
   const det = useQuery({ queryKey: ['producto', producto.slug], queryFn: () => get<ProductoDetalle>(`/tienda/productos/${producto.slug}`) });
-  const colores = useMemo(() => [...new Map((det.data?.variantes || []).map((v) => [v.color, v.color_hex])).entries()], [det.data]);
-  const [color, setColor] = useState('');
-  const [talla, setTalla] = useState('');
+  const { colores, color, elegirColor, talla, setTalla, delColor, variante } = useSeleccionVariante(det.data?.variantes);
   const [cantidad, setCantidad] = useState(1);
   const [excepcion, setExcepcion] = useState('');
-  useEffect(() => { if (colores.length && !color) setColor(colores[0][0]); }, [colores, color]);
   const ok = elegible(puestos, empleado.puesto, producto.id);
-  const variante = det.data?.variantes.find((v) => v.color === color && v.talla === talla);
   const giro = det.data?.giros.find((g) => g.color === color) ?? det.data?.giros.find((g) => g.color === null);
   if (det.isLoading) return <Cargando />;
   return (
@@ -139,23 +45,10 @@ function SelectorArticulo({ producto, empleado, puestos, onAgregar, onCerrar }: 
       <div className="space-y-4">
         <p className="text-sm text-tinta-500">Para <b className="text-tinta-900">{empleado.nombre}</b> · {empleado.puesto}</p>
         {!ok && <Aviso tipo="alerta">Este artículo no está autorizado para el puesto {empleado.puesto}. Puedes solicitarlo como excepción justificada; el distribuidor decide si la acepta.</Aviso>}
-        {colores.length > 1 && (
-          <div><p className="mb-2 text-sm font-semibold">Color: <span className="font-normal text-tinta-500">{color}</span></p>
-            <div className="flex gap-2">{colores.map(([c, h]) => <button key={c} type="button" onClick={() => { setColor(c); setTalla(''); }} aria-label={c}
-              className={cls('h-9 w-9 rounded-full ring-2 ring-offset-2', color === c ? 'ring-tinta-900' : 'ring-arena-300')} style={{ background: h }} />)}</div></div>
-        )}
-        <div><p className="mb-2 text-sm font-semibold">Talla</p>
-          <div className="flex flex-wrap gap-2">{det.data?.variantes.filter((v) => v.color === color).map((v) => (
-            <button key={v.id} type="button" onClick={() => setTalla(v.talla)}
-              className={cls('h-10 min-w-11 rounded-xl px-3 text-sm font-bold ring-1 transition', talla === v.talla ? 'bg-tinta-900 text-white ring-tinta-900' : 'bg-white ring-arena-300 hover:ring-tinta-500')}>{v.talla}</button>
-          ))}</div></div>
+        <SelectorVariante colores={colores} color={color} onColor={elegirColor} delColor={delColor} talla={talla} onTalla={setTalla} ocultarColorUnico />
         <div className="flex items-center gap-3">
           <span className="text-sm font-semibold">Cantidad</span>
-          <div className="flex h-10 items-center rounded-xl bg-white ring-1 ring-arena-300">
-            <button type="button" className="px-3" onClick={() => setCantidad(Math.max(1, cantidad - 1))} aria-label="Menos"><Minus className="h-4 w-4" /></button>
-            <span className="w-8 text-center font-bold">{cantidad}</span>
-            <button type="button" className="px-3" onClick={() => setCantidad(Math.min(50, cantidad + 1))} aria-label="Más"><Plus className="h-4 w-4" /></button>
-          </div>
+          <Cantidad valor={cantidad} onCambio={setCantidad} tam="md" />
         </div>
         {!ok && <Campo etiqueta="Justificación de la excepción" ayuda="Mínimo 10 caracteres. Puedes completarla después en la revisión."><Texto value={excepcion} onChange={(e) => setExcepcion(e.target.value)} /></Campo>}
         <div className="flex justify-end gap-2">
@@ -284,14 +177,14 @@ export default function ConstructorSolicitud() {
         accion={editable && previo.data?.estado !== 'devuelto' && <Boton variante="secundario" tam="sm" icono={<Save className="h-3.5 w-3.5" />} cargando={guardar.isPending && guardar.variables === false}
           disabled={!id && !direccion} onClick={() => guardar.mutate(false)}>{sucio || !id ? 'Guardar borrador' : 'Guardado'}</Boton>}>
         {previo.data?.aprobaciones?.filter((a) => a.decision === 'devuelto').slice(-1).map((a) => <div key={a.fecha} className="mb-4"><Aviso tipo="alerta">Observación del distribuidor: {a.motivo}</Aviso></div>)}
-        <ol className="grid grid-cols-3 gap-2">
+        <ol className="flex gap-2">
           {PASOS.map((n, i) => (
-            <li key={n}>
+            <li key={n} className={cls(i === paso ? 'min-w-0 flex-1' : 'shrink-0 sm:min-w-0 sm:flex-1')}>
               <button type="button" onClick={() => (i < paso || (i === 1 && seleccion.length) || (i === 2 && lineas.length)) && setPaso(i)}
                 className={cls('flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold ring-1 transition',
                   i === paso ? 'bg-tinta-900 text-white ring-tinta-900' : i < paso ? 'bg-menta-50 text-menta-800 ring-menta-200' : 'text-tinta-400 ring-tinta-100')}>
                 <span className={cls('grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs', i === paso ? 'bg-white text-tinta-900' : i < paso ? 'bg-menta-500 text-white' : 'bg-tinta-100')}>{i < paso ? <Check className="h-3.5 w-3.5" /> : i + 1}</span>
-                <span className="truncate">{n}</span>
+                <span className={cls('truncate', i !== paso && 'sr-only sm:not-sr-only')}>{n}</span>
               </button>
             </li>
           ))}
@@ -304,7 +197,7 @@ export default function ConstructorSolicitud() {
             accion={<div className="flex gap-2"><Boton tam="sm" variante="fantasma" onClick={() => setSeleccion(activos.map((e) => e.id))}>Todos</Boton><Boton tam="sm" variante="fantasma" onClick={() => setSeleccion([])}>Ninguno</Boton></div>}>
             <div className="relative mb-4 max-w-sm"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-tinta-300" />
               <Entrada value={busqEmpleado} onChange={(e) => setBusqEmpleado(e.target.value)} placeholder="Buscar por nombre, número o puesto" className="pl-9" /></div>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {activos.filter((e) => `${e.nombre} ${e.numero} ${e.puesto}`.toLowerCase().includes(busqEmpleado.toLowerCase())).map((e, i) => {
                 const sel = seleccion.includes(e.id);
                 return (
@@ -320,7 +213,7 @@ export default function ConstructorSolicitud() {
                 );
               })}
             </div>
-            <div className="mt-5 flex justify-end"><Boton disabled={!seleccion.length} icono={<ArrowRight className="h-4 w-4" />}
+            <div className={cls(barraAccion, 'flex justify-end')}><Boton disabled={!seleccion.length} icono={<ArrowRight className="h-4 w-4" />}
               onClick={() => { setActivo(activo && seleccion.includes(activo) ? activo : seleccion[0]); setPaso(1); }}>Elegir artículos</Boton></div>
           </Tarjeta>
         )}
@@ -370,7 +263,7 @@ export default function ConstructorSolicitud() {
                   })}
                 </div>
               )}
-              <div className="mt-5 flex flex-wrap justify-between gap-2">
+              <div className={cls(barraAccion, 'flex flex-wrap justify-between gap-2')}>
                 <Boton variante="secundario" icono={<ArrowLeft className="h-4 w-4" />} onClick={() => setPaso(0)}>Empleados</Boton>
                 <Boton disabled={!lineas.length} icono={<ArrowRight className="h-4 w-4" />} onClick={() => setPaso(2)}>Revisar solicitud ({lineas.reduce((a, l) => a + l.cantidad, 0)})</Boton>
               </div>
@@ -398,11 +291,7 @@ export default function ConstructorSolicitud() {
                               <div className="flex items-center gap-3">
                                 <span className="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-arena-100"><ImagenProducto src={l.imagen} alt={l.nombre} /></span>
                                 <div className="min-w-0 flex-1"><p className="truncate font-semibold">{l.nombre}</p><p className="text-xs text-tinta-400">{l.color} · Talla {l.talla}</p></div>
-                                <div className="flex h-9 items-center rounded-lg ring-1 ring-arena-300">
-                                  <button type="button" className="px-2" onClick={() => cambiar(l.clave, { cantidad: Math.max(1, l.cantidad - 1) })} aria-label="Menos"><Minus className="h-3.5 w-3.5" /></button>
-                                  <span className="w-7 text-center text-sm font-bold">{l.cantidad}</span>
-                                  <button type="button" className="px-2" onClick={() => cambiar(l.clave, { cantidad: Math.min(50, l.cantidad + 1) })} aria-label="Más"><Plus className="h-3.5 w-3.5" /></button>
-                                </div>
+                                <Cantidad valor={l.cantidad} onCambio={(n) => cambiar(l.clave, { cantidad: n })} tam="sm" />
                                 <button type="button" onClick={() => quitar(l.clave)} aria-label={`Quitar ${l.nombre}`} className="rounded-lg p-2 text-tinta-400 hover:bg-coral-50 hover:text-coral-600"><Trash2 className="h-4 w-4" /></button>
                               </div>
                               {!ok && (

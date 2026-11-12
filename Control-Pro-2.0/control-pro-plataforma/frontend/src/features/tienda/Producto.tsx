@@ -1,29 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, ClipboardPlus, Heart, Minus, Plus, Rotate3d, ShoppingBag, Store, Truck } from 'lucide-react';
+import { Check, ClipboardPlus, Heart, Rotate3d, ShoppingBag, Store, Truck } from 'lucide-react';
 import { del, get, post, put } from '../../api/cliente';
 import type { ProductoDetalle, ProductoResumen, VarianteT } from '../../api/tipos';
 import { useAuth } from '../../app/auth';
 import { useConfig } from '../../app/config';
+import Cantidad from '../../components/Cantidad';
+import { useBorradores } from '../../app/borradores';
 import { volarHacia } from '../../components/movimiento';
+import SelectorBorrador, { DestinoBorrador } from '../../components/SelectorBorrador';
+import SelectorVariante, { useSeleccionVariante } from '../../components/SelectorVariante';
 import { agregarAlBorrador, elegible, PuestosAutorizados } from '../../lib/solicitud';
 import type { EmpleadoCorporativo } from '../cuenta/Corporativo';
 import { Aviso, Boton, Cargando, ErrorCaja, Selector, Texto, useAviso } from '../../components/ui';
 import Visor360 from '../../components/Visor360';
 import { cls, dinero, mensajeError } from '../../lib/formato';
+import { useContextoCatalogo } from './contextoCatalogo';
 import ProductoCard, { ImagenProducto } from './ProductoCard';
-
-/** Selector de cantidad compartido por la compra en línea y la solicitud de sucursal. */
-function Cantidad({ valor, onCambio, max }: { valor: number; onCambio: (n: number) => void; max: number }) {
-  return (
-    <div role="group" aria-label="Cantidad" className="flex h-12 items-center rounded-xl bg-white ring-1 ring-lurima-200">
-      <button type="button" className="grid h-12 w-11 place-items-center disabled:opacity-30" disabled={valor <= 1} onClick={() => onCambio(valor - 1)} aria-label="Menos"><Minus className="h-4 w-4" /></button>
-      <span className="w-8 text-center font-bold" aria-live="polite">{valor}</span>
-      <button type="button" className="grid h-12 w-11 place-items-center disabled:opacity-30" disabled={valor >= max} onClick={() => onCambio(valor + 1)} aria-label="Más"><Plus className="h-4 w-4" /></button>
-    </div>
-  );
-}
 
 /** Portal de sucursal: el artículo se agrega al borrador de solicitud, asignado a un empleado. */
 function AgregarASolicitud({ p, variante, color }: { p: ProductoDetalle; variante: VarianteT | undefined; color: string }) {
@@ -35,6 +29,8 @@ function AgregarASolicitud({ p, variante, color }: { p: ProductoDetalle; variant
   const empresa = tipo === 'cliente' && cliente?.tipo === 'empresa';
   const empleados = useQuery({ queryKey: ['empleados'], queryFn: () => get<EmpleadoCorporativo[]>('/cuenta/empleados'), enabled: empresa });
   const puestos = useQuery({ queryKey: ['puestos-autorizados'], queryFn: () => get<PuestosAutorizados>('/cuenta/puestos-autorizados'), enabled: empresa });
+  const borradores = useBorradores(empresa);
+  const [destino, setDestino] = useState<DestinoBorrador>();
   const [empleado, setEmpleado] = useState<number | ''>('');
   const [cantidad, setCantidad] = useState(1);
   const [excepcion, setExcepcion] = useState('');
@@ -42,7 +38,9 @@ function AgregarASolicitud({ p, variante, color }: { p: ProductoDetalle; variant
   const emp = empleados.data?.find((e) => e.id === empleado);
   const ok = !emp || elegible(puestos.data, emp.puesto, p.id);
   const m = useMutation({
-    mutationFn: () => agregarAlBorrador({ empleado_id: Number(empleado), variante_id: variante!.id, cantidad, excepcion: ok ? null : excepcion.trim() || null }),
+    // Sin elegir nada se usa el borrador más reciente (el comportamiento de siempre); si aún no cargan los borradores, decide el servidor.
+    mutationFn: () => agregarAlBorrador({ empleado_id: Number(empleado), variante_id: variante!.id, cantidad, excepcion: ok ? null : excepcion.trim() || null },
+      destino ?? borradores.data?.items[0]?.id),
     onSuccess: (borrador) => {
       volarHacia(boton.current, document.querySelector('[data-destino-solicitud]'), p.imagen);
       qc.invalidateQueries({ queryKey: ['mis-borradores'] });
@@ -68,6 +66,7 @@ function AgregarASolicitud({ p, variante, color }: { p: ProductoDetalle; variant
           <option key={e.id} value={e.id}>{e.nombre} · {e.puesto}{elegible(puestos.data, e.puesto, p.id) ? '' : ' (requiere excepción)'}</option>
         ))}
       </Selector>
+      <SelectorBorrador borradores={borradores.data?.items ?? []} valor={destino} onCambio={setDestino} />
       {!ok && <><Aviso tipo="alerta">No está autorizado para el puesto {emp?.puesto}; se enviará como excepción y el distribuidor decide.</Aviso>
         <Texto rows={2} placeholder="Justificación (mínimo 10 caracteres; puedes completarla al revisar)" value={excepcion} onChange={(e) => setExcepcion(e.target.value)} /></>}
       <div className="flex flex-wrap items-center gap-3">
@@ -85,25 +84,22 @@ export default function Producto() {
   const { slug } = useParams();
   const { tipo } = useAuth();
   const { canalTienda } = useConfig();
+  const { portal, rutaCatalogo } = useContextoCatalogo();
+  const tienda = canalTienda && !portal; // el portal corporativo no muestra precios ni carrito aunque la tienda esté encendida
   const nav = useNavigate();
   const loc = useLocation();
   const qc = useQueryClient();
   const avisar = useAviso();
   const q = useQuery({ queryKey: ['producto', slug], queryFn: () => get<ProductoDetalle>(`/tienda/productos/${slug}`) });
-  const favs = useQuery({ queryKey: ['favoritos'], queryFn: () => get<ProductoResumen[]>('/cuenta/favoritos'), enabled: tipo === 'cliente' && canalTienda });
+  const favs = useQuery({ queryKey: ['favoritos'], queryFn: () => get<ProductoResumen[]>('/cuenta/favoritos'), enabled: tipo === 'cliente' && tienda });
   const p = q.data;
-  const colores = useMemo(() => [...new Map((p?.variantes || []).map((v) => [v.color, v.color_hex])).entries()], [p]);
-  const [color, setColor] = useState<string>('');
-  const [talla, setTalla] = useState<string>('');
+  const { colores, color, elegirColor, talla, setTalla, delColor, variante } = useSeleccionVariante(p?.variantes);
   const [cantidad, setCantidad] = useState(1);
   // Vista principal: '360' (giro del color elegido) o el índice de una foto.
   const [vista, setVista] = useState<'360' | number>(0);
   const giro = useMemo(() => p?.giros.find((g) => g.color === color) ?? p?.giros.find((g) => g.color === null), [p, color]);
-  useEffect(() => { if (colores.length && !color) setColor(colores[0][0]); }, [colores, color]);
   useEffect(() => { setTalla(''); setCantidad(1); setVista(giro ? '360' : Math.max(0, colores.findIndex(([c]) => c === color))); }, [color, colores, giro]);
 
-  const delColor = (p?.variantes || []).filter((v) => v.color === color);
-  const variante = delColor.find((v) => v.talla === talla);
   const esFav = !!favs.data?.some((f) => f.id === p?.id);
 
   const agregar = useMutation({
@@ -123,7 +119,7 @@ export default function Producto() {
 
   return (
     <div className="contenedor py-8">
-      <nav aria-label="Ruta de navegación" className="mb-5 text-xs text-tinta-500"><Link to="/catalogo" className="hover:text-lurima-900">Catálogo</Link> / <Link to={`/catalogo?categoria=${p.categoria.slug}`} className="hover:text-lurima-900">{p.categoria.nombre}</Link> / <span className="text-lurima-800">{p.nombre}</span></nav>
+      <nav aria-label="Ruta de navegación" className="mb-5 text-xs text-tinta-500"><Link to={rutaCatalogo} className="hover:text-lurima-900">Catálogo</Link> / <Link to={`${rutaCatalogo}?categoria=${p.categoria.slug}`} className="hover:text-lurima-900">{p.categoria.nombre}</Link> / <span className="text-lurima-800">{p.nombre}</span></nav>
       <div className="grid gap-10 lg:grid-cols-2">
         <div>
           <div className="aspect-square overflow-hidden rounded-3xl bg-white ring-1 ring-lurima-100">
@@ -151,7 +147,7 @@ export default function Producto() {
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-bienestar-700">{p.categoria.nombre} · {p.sku_base}</p>
           <h1 className="mt-1 font-display text-3xl font-extrabold tracking-tight text-lurima-900 sm:text-4xl">{p.nombre}</h1>
-          {canalTienda && <><div className="mt-4 flex items-baseline gap-3">
+          {tienda && <><div className="mt-4 flex items-baseline gap-3">
             <span className="font-display text-3xl font-extrabold text-lurima-900">{dinero(variante?.precio_final ?? delColor[0]?.precio_final ?? p.precio_desde)}</span>
             {(variante ?? delColor[0])?.descuento !== '0.00' && <span className="text-tinta-500 line-through">{dinero((variante ?? delColor[0])?.precio_base)}</span>}
             {(variante ?? delColor[0])?.promocion && <span className="rounded-full bg-coral-100 px-2 py-0.5 text-xs font-bold text-coral-700">{(variante ?? delColor[0])?.promocion}</span>}
@@ -160,25 +156,10 @@ export default function Producto() {
           <p className="mt-5 text-tinta-600">{p.descripcion}</p>
 
           <div className="mt-6">
-            <p className="mb-2 text-sm font-semibold">Color: <span className="font-normal text-tinta-600">{color}</span></p>
-            <div className="flex gap-2">
-              {colores.map(([c, h]) => (
-                <button key={c} type="button" onClick={() => setColor(c)} aria-label={c} title={c} aria-pressed={color === c}
-                  className={cls('h-10 w-10 rounded-full ring-2 ring-offset-2 ring-offset-white', color === c ? 'ring-lurima-800' : 'ring-lurima-200')} style={{ background: h }} />
-              ))}
-            </div>
+            <SelectorVariante colores={colores} color={color} onColor={elegirColor} delColor={delColor} talla={talla} onTalla={setTalla} deshabilitarAgotadas
+              detalleTalla={variante && <span className="font-normal text-tinta-600">· {variante.disponible} disponible(s)</span>} />
           </div>
-          <div className="mt-5">
-            <p className="mb-2 text-sm font-semibold">Talla {variante && <span className="font-normal text-tinta-600">· {variante.disponible} disponible(s)</span>}</p>
-            <div className="flex flex-wrap gap-2">
-              {delColor.map((v) => (
-                <button key={v.id} type="button" disabled={!v.disponible} onClick={() => setTalla(v.talla)} aria-pressed={talla === v.talla} aria-label={`Talla ${v.talla}${v.disponible ? '' : ' (agotada)'}`}
-                  className={cls('h-11 min-w-12 rounded-xl px-3 text-sm font-bold ring-1 transition', talla === v.talla ? 'bg-lurima-800 text-white ring-lurima-800' : 'bg-white ring-lurima-200 hover:ring-lurima-500',
-                    !v.disponible && 'cursor-not-allowed bg-lurima-50 text-tinta-300 line-through')}>{v.talla}</button>
-              ))}
-            </div>
-          </div>
-          {canalTienda ? <div className="mt-6 flex flex-wrap items-center gap-3">
+          {tienda ? <div className="mt-6 flex flex-wrap items-center gap-3">
             <Cantidad valor={cantidad} onCambio={setCantidad} max={variante?.disponible || 1} />
             <Boton tam="lg" className="flex-1 rounded-xl" disabled={!variante} cargando={agregar.isPending} icono={<ShoppingBag className="h-5 w-5" />}
               onClick={() => (tipo === 'cliente' ? agregar.mutate() : requiereSesion())}>
@@ -189,7 +170,7 @@ export default function Producto() {
           </div> : <AgregarASolicitud p={p} variante={variante} color={color} />}
 
           <div className="mt-8 rounded-2xl bg-white p-5 ring-1 ring-lurima-100">
-            <p className="mb-3 flex items-center gap-2 font-display font-bold text-lurima-900"><Store className="h-4 w-4 text-bienestar-600" />{canalTienda ? 'Disponibilidad por sucursal' : 'Disponibilidad en almacenes'} {variante ? `· talla ${variante.talla}` : ''}</p>
+            <p className="mb-3 flex items-center gap-2 font-display font-bold text-lurima-900"><Store className="h-4 w-4 text-bienestar-600" />{tienda ? 'Disponibilidad por sucursal' : 'Disponibilidad en almacenes'} {variante ? `· talla ${variante.talla}` : ''}</p>
             <ul className="divide-y divide-lurima-100 text-sm">
               {p.disponibilidad_sucursal?.map((s) => {
                 const n = variante ? s.variantes[String(variante.id)] || 0 : delColor.reduce((a, v) => a + (s.variantes[String(v.id)] || 0), 0);
@@ -203,12 +184,12 @@ export default function Producto() {
                 );
               })}
             </ul>
-            <p className="mt-3 flex items-start gap-2 text-xs text-tinta-500"><Truck className="mt-0.5 h-3.5 w-3.5" />{canalTienda ? 'Envío a domicilio desde la sucursal de tu zona, o recoge sin costo.' : 'Se surte desde el almacén más cercano a tu sucursal; cada paquete lleva su propia guía.'}</p>
+            <p className="mt-3 flex items-start gap-2 text-xs text-tinta-500"><Truck className="mt-0.5 h-3.5 w-3.5" />{tienda ? 'Envío a domicilio desde la sucursal de tu zona, o recoge sin costo.' : 'Se surte desde el almacén más cercano a tu sucursal; cada paquete lleva su propia guía.'}</p>
           </div>
           <dl className="mt-6 grid grid-cols-2 gap-4 text-sm">
             {p.material && <div><dt className="text-tinta-500">Material</dt><dd className="font-semibold">{p.material}</dd></div>}
             {p.cuidados && <div><dt className="text-tinta-500">Cuidados</dt><dd className="font-semibold">{p.cuidados}</dd></div>}
-            {p.puestos.length > 0 && <div className="col-span-2"><dt className="text-tinta-500">{canalTienda ? 'Recomendado para' : 'Autorizado para los puestos'}</dt><dd className="mt-1 flex flex-wrap gap-1">{p.puestos.map((x) => <span key={x} className="flex items-center gap-1 rounded-full bg-bienestar-50 px-2 py-0.5 text-xs font-semibold text-bienestar-700"><Check className="h-3 w-3" />{x}</span>)}</dd></div>}
+            {p.puestos.length > 0 && <div className="col-span-2"><dt className="text-tinta-500">{tienda ? 'Recomendado para' : 'Autorizado para los puestos'}</dt><dd className="mt-1 flex flex-wrap gap-1">{p.puestos.map((x) => <span key={x} className="flex items-center gap-1 rounded-full bg-bienestar-50 px-2 py-0.5 text-xs font-semibold text-bienestar-700"><Check className="h-3 w-3" />{x}</span>)}</dd></div>}
           </dl>
         </div>
       </div>

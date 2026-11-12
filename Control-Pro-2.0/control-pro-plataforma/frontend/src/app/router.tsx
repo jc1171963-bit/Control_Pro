@@ -2,7 +2,7 @@ import { createBrowserRouter, Navigate, Outlet, useLocation, useParams } from 'r
 import { useConfig } from './config';
 import { useAuth } from './auth';
 import { Cargando } from '../components/ui';
-import TiendaLayout from '../features/tienda/TiendaLayout';
+import LayoutPorRol from '../features/portal/LayoutPorRol';
 
 function RequiereCliente({ empresa = false }: { empresa?: boolean }) {
   const { tipo, cliente, cargando } = useAuth();
@@ -38,7 +38,7 @@ const c = (p: Promise<any>, nombre = 'default') => p.then((m) => ({ Component: m
 export const router = createBrowserRouter([
   {
     path: '/',
-    element: <TiendaLayout />,
+    element: <LayoutPorRol />,
     children: [
       { index: true, lazy: () => c(import('../features/tienda/Inicio')) },
       { path: 'catalogo', lazy: () => c(import('../features/tienda/Catalogo')) },
@@ -60,7 +60,7 @@ export const router = createBrowserRouter([
             path: 'cuenta',
             lazy: () => c(import('../features/cuenta/CuentaLayout')),
             children: [
-              { index: true, lazy: () => c(import('../features/cuenta/SolicitudCorporativa'), 'InicioCuenta') },
+              { index: true, lazy: () => c(import('../features/portal/Inicio')) },
               { path: 'pedidos', lazy: () => c(import('../features/cuenta/Pedidos')) },
               { path: 'pedidos/:id', lazy: () => c(import('../features/cuenta/PedidoDetalle')) },
               { path: 'direcciones', lazy: () => c(import('../features/cuenta/Direcciones')) },
@@ -71,6 +71,8 @@ export const router = createBrowserRouter([
                 element: <RequiereCliente empresa />,
                 children: [
                   { path: 'empleados', lazy: () => c(import('../features/cuenta/Corporativo'), 'Empleados') },
+                  { path: 'catalogo', lazy: () => c(import('../features/tienda/Catalogo')) },
+                  { path: 'catalogo/:slug', lazy: () => c(import('../features/tienda/Producto')) },
                   { path: 'solicitudes/nueva', lazy: () => c(import('../features/cuenta/SolicitudCorporativa')) },
                   { path: 'solicitudes/:id/editar', lazy: () => c(import('../features/cuenta/SolicitudCorporativa')) },
                   { path: 'corporativo/nuevo', element: <Navigate to="/cuenta/solicitudes/nueva" replace /> },

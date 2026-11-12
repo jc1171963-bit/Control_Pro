@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MapPin, Pencil, Star, Trash2 } from 'lucide-react';
+import { Navigate } from 'react-router-dom';
 import { del, get, post, put } from '../../api/cliente';
 import type { Direccion } from '../../api/tipos';
 import { useAuth } from '../../app/auth';
@@ -50,6 +51,7 @@ export default function Direcciones() {
   const q = useQuery({ queryKey: ['direcciones'], queryFn: () => get<Direccion[]>('/cuenta/direcciones') });
   const [editar, setEditar] = useState<Direccion | 'nueva' | null>(null);
   const borrar = useMutation({ mutationFn: (id: number) => del(`/cuenta/direcciones/${id}`), onSuccess: () => { qc.invalidateQueries({ queryKey: ['direcciones'] }); avisar('Dirección eliminada.'); } });
+  if (soloLectura) return <Navigate to="/cuenta/perfil" replace />;
   return (
     <Tarjeta titulo={soloLectura ? 'Dirección de entrega' : 'Direcciones de entrega'} sub={soloLectura ? 'La administra tu distribuidor; si necesitas un cambio, pídeselo.' : undefined}
       accion={!soloLectura && <Boton onClick={() => setEditar('nueva')}>Agregar</Boton>}>

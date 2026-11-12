@@ -15,6 +15,19 @@ export async function catalogoCompleto(): Promise<ProductoResumen[]> {
   return [primera, ...resto].flatMap((p) => p.items);
 }
 
+export type Facetas = { tallas: string[]; colores: { nombre: string; hex: string }[] };
+
+/**
+ * Todos los productos que cumplen una consulta de catálogo (la API pagina de 48 en 48). Sirve para filtrar en el cliente
+ * lo que el backend no filtra (p. ej. por puesto) sin perder resultados por la paginación.
+ */
+export async function catalogoPorConsulta(consulta: string): Promise<{ items: ProductoResumen[]; facetas: Facetas }> {
+  const base = `/tienda/productos?por_pagina=48${consulta ? `&${consulta}` : ''}`;
+  const primera = await get<Pagina<ProductoResumen> & { facetas: Facetas }>(base);
+  const resto = await Promise.all(Array.from({ length: Math.max(0, primera.paginas - 1) }, (_, i) => get<Pagina<ProductoResumen>>(`${base}&pagina=${i + 2}`)));
+  return { items: [primera, ...resto].flatMap((p) => p.items), facetas: primera.facetas };
+}
+
 /** Regla por puesto configurada en el catálogo: puesto → ids de producto autorizados. */
 export type PuestosAutorizados = Record<string, number[]>;
 export const elegible = (puestos: PuestosAutorizados | undefined, puesto: string | undefined, productoId: number | undefined) =>
@@ -31,11 +44,18 @@ export function sumarPartida(lista: PartidaSolicitud[], nueva: PartidaSolicitud)
   return lista.map((x, j) => (j === i ? { ...x, cantidad: Math.min(50, x.cantidad + nueva.cantidad), excepcion: nueva.excepcion ?? x.excepcion } : x));
 }
 
-/** Agrega un artículo al borrador más reciente de la sucursal; si no hay, crea uno con la dirección predeterminada. */
-export async function agregarAlBorrador(nueva: PartidaSolicitud): Promise<Pedido> {
-  const borradores = await get<Pagina<PedidoResumen>>('/cuenta/pedidos?canal=corporativo&estado=borrador&por_pagina=1');
-  if (borradores.items.length) {
-    const actual = await get<Pedido>(`/cuenta/pedidos/${borradores.items[0].id}`);
+/**
+ * Agrega un artículo a un borrador de la sucursal. Sin `destino` usa el más reciente y, si no hay, crea uno con la dirección
+ * predeterminada (el comportamiento de siempre). Con el id de un borrador lo agrega a ese; con 'nuevo' empieza otro.
+ */
+export async function agregarAlBorrador(nueva: PartidaSolicitud, destino?: number | 'nuevo'): Promise<Pedido> {
+  let id = typeof destino === 'number' ? destino : undefined;
+  if (destino === undefined) {
+    const borradores = await get<Pagina<PedidoResumen>>('/cuenta/pedidos?canal=corporativo&estado=borrador&por_pagina=1');
+    id = borradores.items[0]?.id;
+  }
+  if (id !== undefined) {
+    const actual = await get<Pedido>(`/cuenta/pedidos/${id}`);
     return put<Pedido>(`/cuenta/pedidos-corporativos/${actual.id}`, { partidas: sumarPartida(partidasDe(actual), nueva), notas: actual.notas });
   }
   const dirs = await get<Direccion[]>('/cuenta/direcciones');

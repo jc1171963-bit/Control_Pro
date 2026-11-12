@@ -1,18 +1,19 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import { Bell, Building2, ClipboardList, Heart, Home, LogOut, MapPin, PlusCircle, Shirt, User } from 'lucide-react';
-import { get } from '../../api/cliente';
 import { useAuth } from '../../app/auth';
 import { useConfig } from '../../app/config';
+import { useContadorNotificaciones } from '../../app/notificaciones';
 import { Transicion } from '../../components/movimiento';
 import { cls } from '../../lib/formato';
 
 export default function CuentaLayout() {
   const { cliente, salir } = useAuth();
   const location = useLocation();
-  const notif = useQuery({ queryKey: ['notif-cliente'], queryFn: () => get('/cuenta/notificaciones?por_pagina=1'), refetchInterval: 60_000 });
   const empresa = cliente?.tipo === 'empresa';
+  const notif = useContadorNotificaciones(!empresa);
   const { canalTienda } = useConfig();
+  // Las cuentas de empresa ya tienen su propio marco (PortalLayout): aquí solo se muestra el contenido.
+  if (empresa) return <Transicion clave={location.pathname}><Outlet /></Transicion>;
   const enlaces: [string, string, typeof Bell][] = [
     ['/cuenta', 'Inicio', Home],
     ...(empresa ? [
