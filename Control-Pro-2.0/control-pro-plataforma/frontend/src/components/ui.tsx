@@ -1,7 +1,8 @@
 import { ButtonHTMLAttributes, createContext, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes,
-  useCallback, useContext, useEffect, useRef, useState } from 'react';
+  useCallback, useContext, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Inbox, Loader2, X } from 'lucide-react';
 import { cls, etiqueta, mensajeError, tono } from '../lib/formato';
+import { useAtraparFoco } from './useAtraparFoco';
 
 // ---------------------------------------------------------------- botones y campos
 
@@ -136,16 +137,13 @@ export function Paginacion({ pagina, paginas, total, onCambio }: { pagina: numbe
 // ---------------------------------------------------------------- modal
 
 export function Modal({ abierto, titulo, onCerrar, children, ancho = 'max-w-lg' }: { abierto: boolean; titulo: string; onCerrar: () => void; children: ReactNode; ancho?: string }) {
-  useEffect(() => {
-    if (!abierto) return;
-    const f = (e: KeyboardEvent) => e.key === 'Escape' && onCerrar();
-    window.addEventListener('keydown', f);
-    return () => window.removeEventListener('keydown', f);
-  }, [abierto, onCerrar]);
+  const ref = useRef<HTMLDivElement>(null);
+  // Foco atrapado dentro del diálogo, Escape para cerrar y devolución del foco al elemento que lo abrió.
+  useAtraparFoco(ref, abierto, onCerrar);
   if (!abierto) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-tinta-950/50 p-0 backdrop-blur-sm sm:items-center sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && onCerrar()}>
-      <div role="dialog" aria-modal="true" aria-label={titulo} className={cls('max-h-[92vh] w-full overflow-y-auto rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl', ancho)}>
+      <div ref={ref} role="dialog" aria-modal="true" aria-label={titulo} className={cls('max-h-[92vh] w-full overflow-y-auto rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl', ancho)}>
         <header className="sticky top-0 z-10 flex items-center justify-between border-b border-tinta-100 bg-white px-5 py-4">
           <h2 className="font-display text-lg font-bold text-tinta-900">{titulo}</h2>
           <button onClick={onCerrar} className="rounded-lg p-1.5 text-tinta-400 hover:bg-tinta-50" aria-label="Cerrar"><X className="h-5 w-5" /></button>
