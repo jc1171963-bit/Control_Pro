@@ -1,19 +1,22 @@
 import { ReactNode, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { SlidersHorizontal, X } from 'lucide-react';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Search, SlidersHorizontal, X } from 'lucide-react';
 import { get } from '../../api/cliente';
 import type { Pagina, ProductoResumen } from '../../api/tipos';
 import { useConfig } from '../../app/config';
-import { Boton, ErrorCaja, Paginacion, Vacio } from '../../components/ui';
+import { Boton, Entrada, ErrorCaja, Paginacion, Selector, Vacio } from '../../components/ui';
 import { Esqueleto } from '../../components/movimiento';
 import { cls } from '../../lib/formato';
+import { catalogoPorConsulta, elegible, PuestosAutorizados } from '../../lib/solicitud';
+import type { EmpleadoCorporativo } from '../cuenta/Corporativo';
+import { useContextoCatalogo } from './contextoCatalogo';
 import ProductoCard from './ProductoCard';
 
 type Resp = Pagina<ProductoResumen> & { facetas: { tallas: string[]; colores: { nombre: string; hex: string }[] } };
 type Cat = { id: number; nombre: string; slug: string; productos: number };
 
-const FILTROS_URL = ['q', 'categoria', 'talla', 'color', 'precio_min', 'precio_max', 'disponible', 'promocion'];
+const FILTROS_URL = ['q', 'categoria', 'talla', 'color', 'precio_min', 'precio_max', 'disponible', 'promocion', 'puesto'];
 const NOMBRES: Record<string, string> = { talla: 'Talla', color: 'Color', precio_min: 'Precio mín.', precio_max: 'Precio máx.' };
 
 function Grupo({ titulo, children }: { titulo: string; children: ReactNode }) {
@@ -29,8 +32,31 @@ export default function Catalogo() {
   const [params, setParams] = useSearchParams();
   const [panel, setPanel] = useState(false);
   const { canalTienda } = useConfig();
+  const { portal } = useContextoCatalogo();
+  const tienda = canalTienda && !portal; // el portal corporativo no muestra precios aunque la tienda esté encendida
+  const qc = useQueryClient();
+  const puesto = portal ? params.get('puesto') || '' : '';
   const consulta = params.toString();
-  const datos = useQuery({ queryKey: ['catalogo', consulta], queryFn: () => get<Resp>(`/tienda/productos?por_pagina=12&${consulta}`), placeholderData: keepPreviousData });
+  const datos = useQuery({
+    queryKey: ['catalogo', consulta, puesto],
+    queryFn: async (): Promise<Resp> => {
+      if (!puesto) return get<Resp>(`/tienda/productos?por_pagina=12&${consulta}`);
+      // El backend no filtra por puesto: se trae todo lo que cumple la consulta y se filtra aquí, para que totales y páginas sean exactos.
+      const resto = new URLSearchParams(params); resto.delete('pagina'); resto.delete('puesto');
+      const [mapa, todos] = await Promise.all([
+        qc.fetchQuery({ queryKey: ['puestos-autorizados'], queryFn: () => get<PuestosAutorizados>('/cuenta/puestos-autorizados') }),
+        catalogoPorConsulta(resto.toString()),
+      ]);
+      const aptos = todos.items.filter((p) => elegible(mapa, puesto, p.id));
+      const por = 12, paginas = Math.ceil(aptos.length / por);
+      const pagina = Math.min(Math.max(1, Number(params.get('pagina')) || 1), Math.max(paginas, 1));
+      return { items: aptos.slice((pagina - 1) * por, pagina * por), total: aptos.length, pagina, por_pagina: por, paginas, facetas: todos.facetas };
+    },
+    placeholderData: keepPreviousData,
+  });
+  const empleados = useQuery({ queryKey: ['empleados'], queryFn: () => get<EmpleadoCorporativo[]>('/cuenta/empleados'), enabled: portal });
+  const delEquipo = [...new Set((empleados.data || []).filter((e) => e.activo).map((e) => e.puesto))];
+  const opcionesPuesto = (puesto && !delEquipo.includes(puesto) ? [...delEquipo, puesto] : delEquipo).sort();
   const cats = useQuery({ queryKey: ['categorias'], queryFn: () => get<Cat[]>('/tienda/categorias'), staleTime: 300_000 });
 
   // Panel de filtros en móvil: se cierra con Escape y el foco vuelve al botón que lo abrió.
@@ -47,10 +73,10 @@ export default function Catalogo() {
     if (k !== 'pagina') p.delete('pagina');
     setParams(p);
   };
-  const activos = FILTROS_URL.filter((k) => params.get(k));
+  const activos = FILTROS_URL.filter((k) => params.get(k) && (k !== 'puesto' || portal));
   const catActual = cats.data?.find((c) => c.slug === params.get('categoria'));
   const etiquetaFiltro = (k: string) => k === 'disponible' ? 'Con existencias' : k === 'promocion' ? 'En promoción'
-    : k === 'categoria' ? `Categoría: ${catActual?.nombre ?? params.get(k)}` : k === 'q' ? `Búsqueda: ${params.get(k)}` : `${NOMBRES[k]}: ${params.get(k)}`;
+    : k === 'categoria' ? `Categoría: ${catActual?.nombre ?? params.get(k)}` : k === 'q' ? `Búsqueda: ${params.get(k)}` : k === 'puesto' ? `Autorizados para: ${params.get(k)}` : `${NOMBRES[k]}: ${params.get(k)}`;
 
   const filtros = (
     <div className="space-y-6 text-sm">
@@ -80,7 +106,7 @@ export default function Catalogo() {
           ))}
         </div>
       </Grupo>
-      {canalTienda && (
+      {tienda && (
         <Grupo titulo="Precio (MXN)">
           <form className="flex items-center gap-2" onSubmit={(e) => { e.preventDefault(); const f = new FormData(e.currentTarget); const p = new URLSearchParams(params);
             ['precio_min', 'precio_max'].forEach((k) => { const v = String(f.get(k) || ''); v ? p.set(k, v) : p.delete(k); }); p.delete('pagina'); setParams(p); }}>
@@ -88,6 +114,15 @@ export default function Catalogo() {
             <input name="precio_max" type="number" min={0} defaultValue={params.get('precio_max') || ''} placeholder="Máx" aria-label="Precio máximo" className="h-9 w-full rounded-lg border-0 px-2 ring-1 ring-lurima-200 focus:ring-2 focus:ring-lurima-500" />
             <Boton tam="sm" type="submit">OK</Boton>
           </form>
+        </Grupo>
+      )}
+      {portal && (
+        <Grupo titulo="Autorizados para el puesto">
+          <Selector value={puesto} onChange={(e) => fijar('puesto', e.target.value)} aria-label="Puesto">
+            <option value="">Todos los productos</option>
+            {opcionesPuesto.map((x) => <option key={x} value={x}>{x}</option>)}
+          </Selector>
+          {!empleados.isLoading && opcionesPuesto.length === 0 && <p className="mt-1 text-xs text-tinta-500">Registra empleados para filtrar por su puesto.</p>}
         </Grupo>
       )}
       <label className="flex min-h-9 items-center gap-2 font-semibold text-lurima-900">
@@ -112,11 +147,22 @@ export default function Catalogo() {
           <select value={params.get('orden') || 'relevancia'} onChange={(e) => fijar('orden', e.target.value === 'relevancia' ? null : e.target.value)} aria-label="Ordenar"
             className="h-10 rounded-lg border-0 bg-white pr-8 text-sm ring-1 ring-lurima-200 focus:ring-2 focus:ring-lurima-500">
             <option value="relevancia">Más relevantes</option>
-            {canalTienda && <><option value="precio_asc">Menor precio</option><option value="precio_desc">Mayor precio</option></>}
+            {tienda && <><option value="precio_asc">Menor precio</option><option value="precio_desc">Mayor precio</option></>}
             <option value="nuevos">Más recientes</option><option value="nombre">Nombre A–Z</option>
           </select>
         </div>
       </div>
+      {portal && (
+        <div className="mb-6">
+          <form role="search" className="flex max-w-xl gap-2" onSubmit={(e) => { e.preventDefault(); const v = String(new FormData(e.currentTarget).get('q') || '').trim();
+            const p = new URLSearchParams(params); if (v) p.set('q', v); else p.delete('q'); p.delete('pagina'); setParams(p); }}>
+            <label className="sr-only" htmlFor="buscar-catalogo">Buscar productos</label>
+            <Entrada id="buscar-catalogo" name="q" key={params.get('q') || ''} defaultValue={params.get('q') || ''} placeholder="Buscar productos o SKU" />
+            <Boton type="submit" icono={<Search className="h-4 w-4" aria-hidden />}>Buscar</Boton>
+          </form>
+          <p className="mt-2 text-xs text-tinta-500">Elige un producto para agregarlo a una solicitud.</p>
+        </div>
+      )}
       {activos.length > 0 && (
         <div className="mb-5 flex flex-wrap gap-2">
           {activos.map((k) => (
