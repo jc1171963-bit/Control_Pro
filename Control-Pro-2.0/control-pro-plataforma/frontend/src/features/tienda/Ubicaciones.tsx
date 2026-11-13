@@ -11,7 +11,7 @@ export function useSucursalesPublicas() {
 }
 
 /** Tarjetas de ubicación con sus estados de carga, error y lista vacía. Los datos opcionales solo se muestran si existen. */
-export function ListaUbicaciones({ mostrarRecoger = false, nivel = 'h2', className }: { mostrarRecoger?: boolean; nivel?: 'h2' | 'h3'; className?: string }) {
+export function ListaUbicaciones({ mostrarRecoger = false, nivel = 'h2', className, compacta = false }: { mostrarRecoger?: boolean; nivel?: 'h2' | 'h3'; className?: string; compacta?: boolean }) {
   const q = useSucursalesPublicas();
   const Titulo = nivel;
   if (q.isLoading) return <Cargando />;
@@ -23,7 +23,7 @@ export function ListaUbicaciones({ mostrarRecoger = false, nivel = 'h2', classNa
   );
   if (!q.data?.length) return <Vacio titulo="Aún no hay ubicaciones publicadas" texto="Cuando haya sucursales disponibles aparecerán aquí." />;
   return (
-    <ul className={cls('mt-6 grid gap-5 md:grid-cols-2 lg:grid-cols-3', className)}>
+    <ul className={cls('mt-6 grid', compacta ? 'gap-4 sm:grid-cols-2 lg:grid-cols-1' : 'gap-5 md:grid-cols-2 lg:grid-cols-3', className)}>
       {q.data.map((s) => {
         const horario = Object.entries(s.horario || {});
         return (

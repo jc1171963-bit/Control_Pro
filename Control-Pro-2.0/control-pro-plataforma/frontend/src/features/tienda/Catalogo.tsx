@@ -11,6 +11,7 @@ import { cls } from '../../lib/formato';
 import { catalogoPorConsulta, elegible, PuestosAutorizados } from '../../lib/solicitud';
 import type { EmpleadoCorporativo } from '../cuenta/Corporativo';
 import { useContextoCatalogo } from './contextoCatalogo';
+import { EncabezadoPagina } from './Decoracion';
 import ProductoCard from './ProductoCard';
 
 type Resp = Pagina<ProductoResumen> & { facetas: { tallas: string[]; colores: { nombre: string; hex: string }[] } };
@@ -132,14 +133,34 @@ export default function Catalogo() {
     </div>
   );
 
+  const titulo = params.get('q') ? `Resultados para “${params.get('q')}”` : catActual?.nombre || 'Todos los productos';
+  const conteo = <p className="text-sm font-semibold text-tinta-600" aria-live="polite">{datos.data ? `${datos.data.total} producto(s)` : datos.isLoading ? 'Cargando…' : ''}</p>;
   return (
+    <>
+    {!portal && (
+      <EncabezadoPagina eyebrow="Catálogo" titulo={titulo}>
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1">{conteo}<p className="text-xs text-tinta-500">Fotografías ilustrativas: el artículo puede variar en color y detalle.</p></div>
+        {!!cats.data?.length && (
+          <ul className="-mx-4 mt-6 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0 lg:hidden" aria-label="Categorías">
+            {cats.data.map((c) => (
+              <li key={c.slug} className="shrink-0">
+                <button type="button" onClick={() => fijar('categoria', c.slug)} aria-pressed={params.get('categoria') === c.slug}
+                  className={cls('min-h-10 rounded-full px-4 text-sm font-semibold ring-1 transition', params.get('categoria') === c.slug ? 'bg-lurima-900 text-white ring-lurima-900' : 'bg-white text-lurima-800 ring-lurima-200 hover:ring-lurima-500')}>{c.nombre}</button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </EncabezadoPagina>
+    )}
     <div className="contenedor py-8">
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-bienestar-600">Catálogo</p>
-          <h1 className="font-display text-3xl font-extrabold tracking-tight text-lurima-900">{params.get('q') ? `Resultados para “${params.get('q')}”` : catActual?.nombre || 'Todos los productos'}</h1>
-          <p className="text-sm text-lurima-500" aria-live="polite">{datos.data ? `${datos.data.total} producto(s)` : datos.isLoading ? 'Cargando…' : ''}</p>
-        </div>
+      <div className={cls('mb-6 flex flex-wrap items-end gap-4', portal ? 'justify-between' : 'justify-end')}>
+        {portal && (
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-widest text-bienestar-600">Catálogo</p>
+            <h1 className="font-display text-3xl font-extrabold tracking-tight text-lurima-900">{titulo}</h1>
+            {conteo}
+          </div>
+        )}
         <div className="flex items-center gap-2">
           <Boton id="abrir-filtros" variante="secundario" className="lg:hidden" onClick={() => setPanel(true)} aria-haspopup="dialog" icono={<SlidersHorizontal className="h-4 w-4" />}>
             Filtros{activos.length > 0 && ` (${activos.length})`}
@@ -160,7 +181,7 @@ export default function Catalogo() {
             <Entrada id="buscar-catalogo" name="q" key={params.get('q') || ''} defaultValue={params.get('q') || ''} placeholder="Buscar productos o SKU" />
             <Boton type="submit" icono={<Search className="h-4 w-4" aria-hidden />}>Buscar</Boton>
           </form>
-          <p className="mt-2 text-xs text-tinta-500">Elige un producto para agregarlo a una solicitud.</p>
+          <p className="mt-2 text-xs text-tinta-500">Elige un producto para agregarlo a una solicitud. Las fotografías son ilustrativas.</p>
         </div>
       )}
       {activos.length > 0 && (
@@ -201,5 +222,6 @@ export default function Catalogo() {
         </div>
       )}
     </div>
+    </>
   );
 }

@@ -5,6 +5,7 @@
 import { ReactNode, useEffect, useRef, useState } from 'react';
 import { Check } from 'lucide-react';
 import { cls } from '../lib/formato';
+import { fotoIlustrativa } from '../lib/fotosIlustrativas';
 
 export function reducirMovimiento() {
   return typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -94,6 +95,7 @@ export function volarHacia(origen: Element | null, destino: Element | null, imag
   const b = destino.getBoundingClientRect();
   const nodo = document.createElement('div');
   const tam = 56;
+  imagen = fotoIlustrativa(imagen) ?? imagen; // misma imagen que muestra ImagenProducto
   Object.assign(nodo.style, {
     position: 'fixed', left: `${a.left + a.width / 2 - tam / 2}px`, top: `${a.top + a.height / 2 - tam / 2}px`, width: `${tam}px`, height: `${tam}px`,
     borderRadius: '14px', zIndex: '80', pointerEvents: 'none', boxShadow: '0 10px 30px -8px rgba(15,34,56,.45)',
