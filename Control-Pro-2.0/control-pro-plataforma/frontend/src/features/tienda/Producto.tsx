@@ -99,7 +99,12 @@ export default function Producto() {
   // Vista principal: '360' (giro del color elegido) o el índice de una foto.
   const [vista, setVista] = useState<'360' | number>(0);
   const giro = useMemo(() => p?.giros.find((g) => g.color === color) ?? p?.giros.find((g) => g.color === null), [p, color]);
-  useEffect(() => { setTalla(''); setCantidad(1); setVista(giro ? '360' : Math.max(0, colores.findIndex(([c]) => c === color))); }, [color, colores, giro]);
+  useEffect(() => {
+    const i = Math.max(0, colores.findIndex(([c]) => c === color));
+    setTalla(''); setCantidad(1);
+    // La foto de stock va primero: el giro del seed son siluetas generadas y queda como miniatura.
+    setVista(giro && !fotoIlustrativa(p?.imagenes[i]?.url) ? '360' : i);
+  }, [color, colores, giro]);
 
   const esFav = !!favs.data?.some((f) => f.id === p?.id);
 
