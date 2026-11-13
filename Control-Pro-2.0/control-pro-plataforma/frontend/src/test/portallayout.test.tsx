@@ -35,8 +35,10 @@ beforeEach(() => {
 
 it('muestra la identidad Salud Digna y nunca la de LURIMA', async () => {
   const { container } = montar();
-  expect(screen.getAllByText('Salud Digna').length).toBeGreaterThan(0);
-  expect(container.textContent).not.toMatch(/lurima/i);
+  // La marca es el logotipo oficial: el nombre va en la etiqueta accesible del enlace.
+  expect(screen.getAllByRole('link', { name: 'Salud Digna, inicio del portal' }).length).toBeGreaterThan(0);
+  expect(container.querySelector('img[src$="logo-salud-digna.svg"]')).not.toBeNull();
+  expect(container.innerHTML).not.toMatch(/lurima/i);
   expect((await screen.findAllByText('Sucursal Norte')).length).toBeGreaterThan(0);
 });
 

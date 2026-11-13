@@ -15,16 +15,22 @@
   /* Portal de sucursales (Salud Digna): el acento pasa a verde. El 500 es el verde de botón medido en la maqueta
      (#089748); el resto de la escala se derivó a partir de él. Debe ir después de :root (misma especificidad). */
   .tema-sd {
-    --menta-50: 238 249 241; --menta-100: 213 240 220; --menta-200: 174 225 187; --menta-300: 122 206 146; --menta-400: 63 180 104;
-    --menta-500: 7 127 61; --menta-600: 7 102 50; --menta-700: 7 102 50; --menta-800: 7 80 43; --menta-900: 6 61 36;
-    /* Contraste AA: el botón menta (texto blanco) y el borde de foco usan el verde 7 127 61 (5,1:1); el verde 8 151 72 daba 3,8:1. */
+    /* Verde oficial del logotipo: #008959 (0 137 89). Con blanco da 4,45:1, apenas por debajo de AA para texto normal:
+       se usa en elementos gráficos (400) y los botones y textos usan versiones más oscuras del mismo tono
+       (500 = #007A4F, 5,4:1; 700 = #006B45, 5,8:1 sobre menta-50). */
+    --menta-50: 230 244 238; --menta-100: 204 233 221; --menta-200: 153 211 188; --menta-300: 77 178 138; --menta-400: 0 137 89;
+    --menta-500: 0 122 79; --menta-600: 0 107 69; --menta-700: 0 107 69; --menta-800: 0 84 54; --menta-900: 0 61 40;
     /* Los componentes de la tienda que se reutilizan en el portal (catálogo, tarjetas, ficha) toman la paleta Salud Digna:
        tintes claros de la maqueta, neutros de la paleta `tinta` y verdes institucionales (derivados del verde medido). */
     --lurima-50: 235 243 253; --lurima-100: 228 237 251; --lurima-200: 201 214 234; --lurima-300: 147 167 194; --lurima-400: 95 119 153;
     --lurima-500: 62 85 118; --lurima-600: 10 90 75; --lurima-700: 10 90 75; --lurima-800: 1 67 57; --lurima-900: 2 61 52; --lurima-950: 1 45 38;
-    --bienestar-50: 238 249 241; --bienestar-100: 213 240 220; --bienestar-400: 63 180 104; --bienestar-500: 8 151 72; --bienestar-600: 7 127 61; --bienestar-700: 7 102 50;
+    --bienestar-50: 230 244 238; --bienestar-100: 204 233 221; --bienestar-400: 0 137 89; --bienestar-500: 0 122 79; --bienestar-600: 0 122 79; --bienestar-700: 0 107 69;
   }
   .tema-sd ::placeholder { color: theme('colors.tinta.400'); opacity: 1; }
+  /* Botón primario del portal en el verde institucional oscuro (sd-900, 11:1 con blanco). Fuera de .tema-sd no aplica. */
+  .tema-sd .boton-primario { background-color: theme('colors.sd.900'); }
+  .tema-sd .boton-primario:hover:not(:disabled) { background-color: theme('colors.sd.700'); }
+  .tema-sd .boton-primario:focus-visible { --tw-ring-color: theme('colors.menta.300'); }
   html { -webkit-font-smoothing: antialiased; }
   body { @apply bg-arena-100 font-sans text-tinta-900; }
   :focus-visible { outline: 2px solid theme('colors.menta.500'); outline-offset: 2px; }

@@ -11,7 +11,8 @@ type BotonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 export function Boton({ variante = 'primario', tam = 'md', cargando, icono, className, children, disabled, ...p }: BotonProps) {
   const v = {
-    primario: 'bg-tinta-900 text-white hover:bg-tinta-700 focus-visible:ring-tinta-400',
+    // `boton-primario` no tiene estilos propios: solo permite que el portal (.tema-sd, index.css) le dé su color institucional.
+    primario: 'boton-primario bg-tinta-900 text-white hover:bg-tinta-700 focus-visible:ring-tinta-400',
     menta: 'bg-menta-500 text-white hover:bg-menta-600 focus-visible:ring-menta-300',
     secundario: 'bg-white text-tinta-900 ring-1 ring-inset ring-tinta-200 hover:bg-tinta-50 focus-visible:ring-tinta-300',
     peligro: 'bg-coral-500 text-white hover:bg-coral-600 focus-visible:ring-coral-100',
@@ -122,7 +123,7 @@ export function Tabla({ columnas, children, vacia }: { columnas: ReactNode[]; ch
 export const Td = ({ children, className }: { children?: ReactNode; className?: string }) => <td className={cls('px-5 py-3 align-middle', className)}>{children}</td>;
 
 export function Paginacion({ pagina, paginas, total, onCambio }: { pagina: number; paginas: number; total: number; onCambio: (p: number) => void }) {
-  if (paginas <= 1) return <p className="mt-4 text-xs text-tinta-400">{total} registro(s)</p>;
+  if (paginas <= 1) return <p className="mt-4 text-xs text-tinta-500">{total} registro(s)</p>;
   return (
     <div className="mt-4 flex items-center justify-between text-xs text-tinta-500">
       <span>{total} registros · página {pagina} de {paginas}</span>
