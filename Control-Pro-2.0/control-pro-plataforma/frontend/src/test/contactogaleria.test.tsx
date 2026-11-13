@@ -67,19 +67,28 @@ const detalle = (giros: unknown[]) => ({ id: 4, slug: 'polo-corporativa-pique', 
   imagenes: [{ url: '/api/archivos/publicos/polo-corporativa-pique-0.svg', alt: 'Polo color Azul' }, { url: '/api/archivos/publicos/polo-corporativa-pique-1.svg', alt: 'Polo color Verde' }] });
 
 describe('galería del detalle', () => {
-  it('con fotogramas 360° ofrece el giro y la fotografía, y alterna entre ambos', async () => {
+  it('con fotogramas 360° y foto de stock abre en la foto y alterna con el giro', async () => {
     const frames = Array.from({ length: 8 }, (_, k) => `/api/archivos/publicos/polo-corporativa-pique-0-giro-0${k}.svg`);
     vi.mocked(get).mockResolvedValue(detalle([{ color: 'Azul', frames }]) as never);
     montar(<Producto />, '/producto/polo-corporativa-pique', '/producto/:slug');
     // Margen de espera: con toda la suite en paralelo, la primera carga de la ficha puede tardar más de 1 s.
     const giro = await screen.findByRole('button', { name: 'Vista 360°' }, { timeout: 3000 });
-    expect(giro).toHaveAttribute('aria-pressed', 'true');
-    // Las dos ilustraciones del seed resuelven a la misma foto ilustrativa: una sola miniatura.
+    // Las dos ilustraciones del seed resuelven a la misma foto ilustrativa: una sola miniatura, activa al abrir.
     const foto = screen.getByRole('button', { name: 'Fotografía' });
-    fireEvent.click(foto);
     await waitFor(() => expect(foto).toHaveAttribute('aria-pressed', 'true'));
+    expect(giro).toHaveAttribute('aria-pressed', 'false');
     expect(screen.getByText('Imagen ilustrativa')).toBeInTheDocument();
     expect(document.querySelector('img[src="/assets/products/polo-corporativa-pique.webp"]')).not.toBeNull();
+    fireEvent.click(giro);
+    await waitFor(() => expect(giro).toHaveAttribute('aria-pressed', 'true'));
+  });
+
+  it('con fotogramas 360° y sin foto de stock abre en el giro', async () => {
+    const frames = Array.from({ length: 8 }, (_, k) => `/api/archivos/publicos/pantalon-cargo-negro-0-giro-0${k}.svg`);
+    vi.mocked(get).mockResolvedValue({ ...detalle([{ color: 'Azul', frames }]), imagenes: [{ url: '/api/archivos/publicos/pantalon-cargo-negro-0.svg', alt: 'Pantalón' }] } as never);
+    montar(<Producto />, '/producto/pantalon-cargo-negro', '/producto/:slug');
+    const giro = await screen.findByRole('button', { name: 'Vista 360°' }, { timeout: 3000 });
+    await waitFor(() => expect(giro).toHaveAttribute('aria-pressed', 'true'));
   });
 
   it('sin fotogramas no inventa un giro ni repite miniaturas', async () => {

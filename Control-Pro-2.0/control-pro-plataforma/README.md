@@ -47,6 +47,8 @@ npm run dev                                           # http://localhost:5173 (p
 
 Para producción usa `flask --app wsgi crear-admin` en lugar de `seed-demo`.
 
+Imágenes del catálogo (fotos de stock versionadas, SVG generados y cómo agregar fotos): [docs/imagenes-catalogo.md](docs/imagenes-catalogo.md).
+
 ### Cuentas de prueba (solo con `seed-demo`; contraseña `ControlPro2026`)
 
 | Cuenta | Rol / alcance |
