@@ -61,7 +61,7 @@ export function Estado({ valor, className }: { valor: string; className?: string
 
 export function Tarjeta({ titulo, accion, children, className, sub }: { titulo?: ReactNode; sub?: ReactNode; accion?: ReactNode; children: ReactNode; className?: string }) {
   return (
-    <section className={cls('rounded-2xl bg-white p-5 shadow-suave ring-1 ring-tinta-100', className)}>
+    <section className={cls('vidrio rounded-2xl bg-white p-5 shadow-suave ring-1 ring-tinta-100', className)}>
       {(titulo || accion) && (
         <header className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div>{titulo && <h2 className="font-display text-base font-bold text-tinta-900">{titulo}</h2>}{sub && <p className="text-xs text-tinta-400">{sub}</p>}</div>

@@ -3,9 +3,9 @@
  * Navegación: drawer con foco atrapado por debajo de 1024 px, riel de íconos de 1024 a 1365 px y barra expandida desde
  * 1366 px. El usuario puede contraer o expandir la barra en escritorio y la elección se recuerda (solo comodidad).
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, ScrollRestoration, useLocation, useNavigate } from 'react-router-dom';
-import { Bell, ChevronDown, ChevronsLeft, ChevronsRight, ClipboardList, Home, Menu, PenLine, PlusCircle, Shirt, User, Users, X } from 'lucide-react';
+import { ArrowRight, Bell, Building2, ChevronDown, ChevronRight, ChevronsLeft, ChevronsRight, ClipboardList, Heart, Home, Menu, PenLine, PlusCircle, Search, Shirt, User, Users, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuth } from '../../app/auth';
 import { useBorradores } from '../../app/borradores';
@@ -15,6 +15,7 @@ import { useAtraparFoco } from '../../components/useAtraparFoco';
 import { useMediaQuery } from '../../components/useMediaQuery';
 import { cls } from '../../lib/formato';
 import { ContextoCatalogoCtx } from '../tienda/contextoCatalogo';
+import FondoPortal from './FondoPortal';
 import MarcaPortal from './MarcaPortal';
 import { CONTEXTO_CATALOGO_PORTAL, RUTA_CATALOGO_PORTAL } from './rutas';
 
@@ -51,12 +52,12 @@ function MenuUsuario({ nombre, onSalir }: { nombre: string; onSalir: () => void 
   return (
     <div ref={raiz} className="relative">
       <button ref={boton} type="button" onClick={() => setAbierto(!abierto)} aria-expanded={abierto} aria-haspopup="true"
-        className="flex min-h-11 items-center gap-2 rounded-lg px-2 text-sm font-semibold text-tinta-800 hover:bg-sd-50">
+        className="flex min-h-12 items-center gap-2 rounded-full border border-white/80 bg-white/60 px-3 text-sm font-semibold text-[#102a31] backdrop-blur-md transition hover:bg-white/80">
         <User className="h-5 w-5" aria-hidden /><span className="hidden max-w-[12rem] truncate sm:inline">{nombre}</span><span className="sr-only sm:hidden">{nombre}</span>
         <ChevronDown className="h-4 w-4" aria-hidden />
       </button>
       {abierto && (
-        <div className="absolute right-0 z-30 mt-1 w-56 rounded-xl bg-white p-1 shadow-lg ring-1 ring-tinta-100">
+        <div className="absolute right-0 z-30 mt-2 w-56 rounded-2xl border border-white/80 bg-white/90 p-1 shadow-[0_18px_55px_rgba(25,91,87,.18)] backdrop-blur-xl">
           <Link to="/cuenta/perfil" onClick={() => setAbierto(false)} className={opcion}>Mi cuenta</Link>
           <button type="button" onClick={onSalir} className={cls(opcion, 'text-coral-600 hover:bg-coral-50')}>Cerrar sesión</button>
         </div>
@@ -75,6 +76,17 @@ export default function PortalLayout() {
   const enCurso = borradores?.items?.[0];
   const otrosBorradores = Math.max(0, (borradores?.total ?? 0) - 1);
   const salirDelPortal = async () => { await salir(); nav('/', { replace: true }); };
+  const nombreSucursal = cliente?.razon_social || cliente?.nombre;
+
+  // Buscador del encabezado: lleva al catálogo del portal. Ctrl + K lo enfoca.
+  const [q, setQ] = useState('');
+  const buscador = useRef<HTMLInputElement>(null);
+  const buscar = (e: FormEvent) => { e.preventDefault(); nav(`${RUTA_CATALOGO_PORTAL}${q.trim() ? `?q=${encodeURIComponent(q.trim())}` : ''}`); };
+  useEffect(() => {
+    const atajo = (e: KeyboardEvent) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); buscador.current?.focus(); } };
+    window.addEventListener('keydown', atajo);
+    return () => window.removeEventListener('keydown', atajo);
+  }, []);
 
   const escritorio = useMediaQuery('(min-width: 1024px)');
   const ancho = useMediaQuery('(min-width: 1366px)');
@@ -98,79 +110,103 @@ export default function PortalLayout() {
   }, [drawerAbierto]);
 
   return (
-    <div className={cls('tema-sd min-h-screen bg-sd-bg text-tinta-900', rail ? 'lg:pl-[72px]' : 'lg:pl-64')}>
+    <div className={cls('tema-sd relative isolate min-h-screen bg-[#d9eee9] text-[#102a31]', rail ? 'lg:pl-[120px]' : 'lg:pl-[304px]')}>
       <ScrollRestoration />
+      <FondoPortal />
       <a href="#contenido" className="sr-only z-50 rounded-lg bg-white px-4 py-2 font-semibold text-sd-900 focus:not-sr-only focus:fixed focus:left-4 focus:top-4">Saltar al contenido</a>
-      {drawerAbierto && <div className="fixed inset-0 z-30 bg-tinta-950/50 lg:hidden" onClick={cerrarMenu} aria-hidden />}
+      {drawerAbierto && <div className="fixed inset-0 z-30 bg-[#092f2b]/40 backdrop-blur-sm lg:hidden" onClick={cerrarMenu} aria-hidden />}
 
+      {/* Barra lateral de cristal: en escritorio flota separada de los bordes; en móvil es un drawer. */}
       <aside id="navegacion-portal" ref={panel}
         {...(drawerAbierto ? { role: 'dialog', 'aria-modal': true, 'aria-label': 'Menú de navegación' } : {})}
-        className={cls('fixed inset-y-0 left-0 z-40 flex w-72 max-w-[85vw] flex-col border-r border-tinta-100 bg-white text-tinta-800 transition-transform duration-200 lg:visible lg:z-30 lg:max-w-none lg:translate-x-0',
+        className={cls('fixed inset-y-0 left-0 z-40 flex w-72 max-w-[85vw] flex-col bg-white/90 text-[#142d32] shadow-[0_18px_55px_rgba(25,91,87,.13)] backdrop-blur-2xl transition-[transform,width] duration-200',
+          'lg:visible lg:inset-y-6 lg:left-6 lg:z-30 lg:max-w-none lg:translate-x-0 lg:rounded-[28px] lg:border lg:border-white/80 lg:bg-white/50',
           rail ? 'lg:w-[72px]' : 'lg:w-64', menu ? 'translate-x-0' : 'invisible -translate-x-full')}>
-        <div className="h-1 shrink-0 bg-gradient-to-r from-sd-900 via-menta-400 to-menta-200" aria-hidden />
-        <div className={cls('flex min-h-16 items-center justify-between px-4 lg:px-5', rail && 'lg:hidden')}>
+        <div className={cls('flex min-h-16 items-center justify-between px-4 pt-2 lg:px-5 lg:pt-5', rail && 'lg:hidden')}>
           <MarcaPortal />
-          <button type="button" onClick={cerrarMenu} aria-label="Cerrar menú" className="grid h-11 w-11 place-items-center rounded-lg text-tinta-700 hover:bg-sd-50 lg:hidden"><X className="h-5 w-5" aria-hidden /></button>
+          <button type="button" onClick={cerrarMenu} aria-label="Cerrar menú" className="grid h-11 w-11 place-items-center rounded-full text-tinta-700 hover:bg-white/70 lg:hidden"><X className="h-5 w-5" aria-hidden /></button>
         </div>
-        {/* En escritorio la sucursal se nombra en el encabezado; aquí solo en el menú móvil. */}
-        <div className="mx-3 mb-3 flex items-center gap-3 rounded-xl bg-sd-50 p-3 ring-1 ring-sd-100 lg:hidden">
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-sd-900 text-xs font-extrabold text-white" aria-hidden>{iniciales(cliente?.razon_social || cliente?.nombre)}</span>
-          <span className="min-w-0 text-sm"><span className="block text-[11px] font-semibold uppercase tracking-wider text-tinta-500">Sucursal</span><span className="block truncate font-display font-bold text-tinta-900">{cliente?.razon_social || cliente?.nombre}</span></span>
+        {/* Sucursal activa (tarjeta del archivo de diseño). Con la barra contraída se nombra en el encabezado. */}
+        <div className={cls('mx-3 mb-4 mt-4 flex items-center gap-2.5 rounded-[18px] bg-white/65 p-3 text-xs font-bold', rail && 'lg:hidden')}>
+          <Building2 className="h-5 w-5 shrink-0 text-[#0b9b6d]" aria-hidden />
+          <span className="min-w-0"><span className="block truncate font-display text-[13px] text-[#102a31]">{nombreSucursal}</span><span className="mt-0.5 block font-medium text-[#71858b]">Sucursal</span></span>
         </div>
-        <div className={cls('hidden lg:block', rail ? 'h-4' : 'h-2')} aria-hidden />
-        <p className={cls('px-6 pb-1 text-[11px] font-bold uppercase tracking-[0.16em] text-tinta-500', rail && 'lg:sr-only')}>Menú</p>
-        <nav aria-label="Principal" className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 pb-3">
+        <div className={cls('hidden lg:block', rail ? 'h-5' : 'h-0')} aria-hidden />
+        <p className={cls('px-6 pb-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-[#71858b]', rail && 'lg:sr-only')}>Menú</p>
+        <nav aria-label="Principal" className="flex flex-1 flex-col gap-1.5 overflow-y-auto px-3 pb-3">
           {ITEMS.map(([to, nombre, Icono]) => (
             <NavLink key={to} to={to} end={to === '/cuenta'} title={rail ? nombre : undefined}
-              className={({ isActive }) => cls('relative flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold transition', rail && 'lg:justify-center lg:px-0',
-                isActive ? 'bg-menta-50 text-menta-700 before:absolute before:-left-3 before:inset-y-1.5 before:w-1 before:rounded-r-full before:bg-menta-500' : 'text-tinta-700 hover:bg-sd-50 hover:text-tinta-900')}>
-              <Icono className="h-5 w-5 shrink-0" aria-hidden /><span className={cls(rail && 'lg:sr-only')}>{nombre}</span>
-              {to === '/cuenta/notificaciones' && noLeidas > 0 && (
-                <span className={cls('ml-auto rounded-full bg-coral-500 px-1.5 text-[11px] font-bold text-white', rail && 'lg:absolute lg:right-1.5 lg:top-1 lg:ml-0')} aria-label={`${noLeidas} sin leer`}>{noLeidas}</span>
+              className={({ isActive }) => cls('relative flex min-h-12 items-center gap-3 rounded-[17px] px-3.5 text-sm font-semibold transition duration-200', rail && 'lg:justify-center lg:px-0',
+                isActive ? 'bg-gradient-to-r from-[#00754f] via-[#009b6b] to-[#70e8bf] text-white shadow-[0_8px_24px_#0b9d6b55,inset_0_1px_1px_#ffffffa6]' : 'text-[#142d32] hover:translate-x-0.5 hover:bg-white/60')}>
+              {({ isActive }) => (
+                <>
+                  <Icono className="h-5 w-5 shrink-0" aria-hidden /><span className={cls(rail && 'lg:sr-only')}>{nombre}</span>
+                  {to === '/cuenta/notificaciones' && noLeidas > 0 ? (
+                    <span className={cls('ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-[#f04444] px-1 text-[10px] font-bold text-white', rail && 'lg:absolute lg:right-1.5 lg:top-1 lg:ml-0')} aria-label={`${noLeidas} sin leer`}>{noLeidas}</span>
+                  ) : isActive && <ChevronRight className={cls('ml-auto h-4 w-4', rail && 'lg:hidden')} aria-hidden />}
+                </>
               )}
             </NavLink>
           ))}
         </nav>
-        <div className="hidden border-t border-tinta-100 p-3 lg:block">
+        {/* Tarjeta institucional y perfil (decorativos, sin acciones: cerrar sesión vive en el menú de usuario). */}
+        <div className={cls('mx-3 mt-2 rounded-[22px] bg-gradient-to-br from-[#d8f7e9cc] to-[#a8e6d4aa] p-4 text-[13px] font-bold leading-snug', rail && 'lg:hidden')}>
+          <Heart className="mb-2 h-5 w-5 text-[#0b9b6d]" aria-hidden />
+          Juntos por una<br />mejor salud
+          <ArrowRight className="ml-auto mt-1 h-5 w-5" aria-hidden />
+        </div>
+        <div className={cls('mx-3 mt-3 flex items-center gap-2.5 rounded-[20px] border border-white/80 bg-white/60 p-3 text-xs font-bold', rail && 'lg:hidden')}>
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#183d42] to-[#b9d8c8] text-sm text-white" aria-hidden>{iniciales(cliente?.nombre || nombreSucursal)}</span>
+          <span className="min-w-0"><span className="block truncate">{cliente?.nombre}</span><span className="mt-0.5 block truncate font-medium text-[#71858b]">Contacto de la sucursal</span></span>
+        </div>
+        <div className="hidden p-3 lg:block">
           <button type="button" onClick={alternar} aria-expanded={!rail} aria-controls="navegacion-portal" title={rail ? 'Expandir menú' : undefined}
-            className={cls('flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-sm font-semibold text-tinta-600 hover:bg-sd-50 hover:text-tinta-900', rail && 'justify-center px-0')}>
+            className={cls('flex min-h-11 w-full items-center gap-3 rounded-[17px] px-3 text-sm font-semibold text-[#52636a] hover:bg-white/60 hover:text-[#102a31]', rail && 'justify-center px-0')}>
             {rail ? <ChevronsRight className="h-5 w-5" aria-hidden /> : <ChevronsLeft className="h-5 w-5" aria-hidden />}
             <span className={cls(rail && 'sr-only')}>{rail ? 'Expandir menú' : 'Contraer menú'}</span>
           </button>
         </div>
       </aside>
 
-      <header className="sticky top-0 z-20 flex min-h-16 items-center justify-between gap-3 border-b border-tinta-100 bg-white/95 px-4 backdrop-blur sm:px-6 lg:px-8">
-        <div className="flex min-w-0 items-center gap-2 sm:gap-4">
-          <button ref={botonMenu} type="button" onClick={() => setMenu(true)} aria-label="Abrir menú" aria-expanded={drawerAbierto} aria-controls="navegacion-portal"
-            className="-ml-2 grid h-11 w-11 shrink-0 place-items-center rounded-lg text-tinta-800 hover:bg-sd-50 lg:hidden"><Menu className="h-5 w-5" aria-hidden /></button>
-          {/* El logotipo vive en la barra lateral; en móvil y con la barra contraída pasa al encabezado. */}
-          <div className={cls(!rail && 'lg:hidden')}><MarcaPortal minima /></div>
-          <div className={cls('hidden min-w-0 lg:block', rail && 'border-l border-tinta-100 pl-4')}>
-            <p className="text-xs text-tinta-500">Portal empresarial</p>
-            <p className="truncate font-display font-bold text-tinta-900">{cliente?.razon_social || cliente?.nombre}</p>
-          </div>
+      <header className="sticky top-0 z-20 flex min-h-[70px] items-center gap-3 px-4 py-2.5 backdrop-blur-md sm:px-6 lg:mt-3 lg:pl-0 lg:pr-8 lg:backdrop-blur-none">
+        <button ref={botonMenu} type="button" onClick={() => setMenu(true)} aria-label="Abrir menú" aria-expanded={drawerAbierto} aria-controls="navegacion-portal"
+          className="-ml-1 grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/80 bg-white/60 text-tinta-800 backdrop-blur-md lg:hidden"><Menu className="h-5 w-5" aria-hidden /></button>
+        {/* El logotipo vive en la barra lateral; en móvil y con la barra contraída pasa al encabezado. */}
+        <div className={cls('shrink-0', !rail && 'lg:hidden')}><MarcaPortal minima /></div>
+        <div className={cls('hidden min-w-0 shrink-0 border-l border-white/80 pl-4', rail && 'lg:block')}>
+          <p className="text-xs text-[#71858b]">Portal empresarial</p>
+          <p className="max-w-[14rem] truncate font-display font-bold">{nombreSucursal}</p>
         </div>
-        <div className="flex items-center gap-1">
+        <form role="search" onSubmit={buscar}
+          className="hidden h-12 max-w-[560px] flex-1 items-center gap-3 rounded-[18px] border border-white/80 bg-white/55 px-4 backdrop-blur-xl focus-within:ring-2 focus-within:ring-menta-400 md:flex">
+          <Search className="h-5 w-5 shrink-0 text-[#52636a]" aria-hidden />
+          <input ref={buscador} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar productos en el catálogo..." aria-label="Buscar productos en el catálogo"
+            className="w-full border-0 bg-transparent p-0 text-sm text-[#102a31] focus:outline-none focus:ring-0" />
+          <kbd className="hidden whitespace-nowrap font-sans text-[10px] text-[#71858b] lg:inline">Ctrl + K</kbd>
+        </form>
+        <div className="ml-auto flex items-center gap-2 sm:gap-3">
           {enCurso && (
             <Link to={`/cuenta/solicitudes/${enCurso.id}/editar`} data-destino-solicitud
               aria-label={`Continuar la solicitud en curso ${enCurso.folio}: ${enCurso.articulos} artículo(s)${otrosBorradores ? `; hay ${otrosBorradores} borrador(es) más` : ''}`}
-              className="mr-1 flex min-h-11 items-center gap-2 rounded-lg bg-sd-50 px-2.5 text-sm font-semibold text-sd-950 ring-1 ring-sd-100 hover:bg-sd-100 sm:px-3">
+              className="flex min-h-12 items-center gap-2 rounded-full border border-white/80 bg-white/60 px-3 text-sm font-semibold text-sd-950 backdrop-blur-md transition hover:bg-white/80 sm:px-4">
               <PenLine className="h-4 w-4" aria-hidden />
               <span className="hidden sm:inline">En curso · {enCurso.folio}</span>
               <span className="grid h-5 min-w-5 place-items-center rounded-full bg-menta-500 px-1 text-[11px] font-bold text-white" aria-hidden>{enCurso.articulos}</span>
             </Link>
           )}
-          <Link to="/cuenta/notificaciones" className="relative grid h-11 w-11 place-items-center rounded-lg text-tinta-700 hover:bg-sd-50" aria-label={`Notificaciones${noLeidas ? `: ${noLeidas} sin leer` : ''}`}>
+          <Link to="/cuenta/notificaciones" className="relative grid h-12 w-12 place-items-center rounded-full border border-white/80 bg-white/60 text-[#102a31] backdrop-blur-md transition hover:bg-white/80" aria-label={`Notificaciones${noLeidas ? `: ${noLeidas} sin leer` : ''}`}>
             <Bell className="h-5 w-5" aria-hidden />
-            {noLeidas > 0 && <span className="absolute right-1 top-1 grid h-4 min-w-4 place-items-center rounded-full bg-coral-500 px-1 text-[10px] font-bold text-white" aria-hidden>{noLeidas}</span>}
+            {noLeidas > 0 && <span className="absolute right-1.5 top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-[#e43e43] px-1 text-[10px] font-bold text-white" aria-hidden>{noLeidas}</span>}
           </Link>
+          <span className="hidden min-h-12 items-center gap-2.5 rounded-full border border-white/80 bg-white/60 px-4 text-[13px] font-semibold backdrop-blur-md xl:flex">
+            <i className="h-2.5 w-2.5 rounded-full bg-[#08a86d] shadow-[0_0_0_5px_#08a86d1c]" aria-hidden />En línea
+          </span>
           <MenuUsuario nombre={cliente?.nombre ?? 'Mi cuenta'} onSalir={salirDelPortal} />
         </div>
       </header>
 
-      <main id="contenido" tabIndex={-1} className="px-4 py-6 focus:outline-none sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-7xl"><Transicion clave={loc.pathname}><ContextoCatalogoCtx.Provider value={CONTEXTO_CATALOGO_PORTAL}><Outlet /></ContextoCatalogoCtx.Provider></Transicion></div>
+      <main id="contenido" tabIndex={-1} className="px-4 pb-8 pt-4 focus:outline-none sm:px-6 lg:pl-0 lg:pr-8">
+        <div className="mx-auto max-w-[1500px]"><Transicion clave={loc.pathname}><ContextoCatalogoCtx.Provider value={CONTEXTO_CATALOGO_PORTAL}><Outlet /></ContextoCatalogoCtx.Provider></Transicion></div>
       </main>
     </div>
   );

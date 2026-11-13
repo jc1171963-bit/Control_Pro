@@ -47,6 +47,21 @@
   #comprobante-entrega { position: absolute; inset: 0 auto auto 0; width: 100%; padding: 24px; }
 }
 
+/* Portal de sucursales: paneles de cristal sobre el fondo animado. Solo aplica dentro de .tema-sd. */
+@layer components {
+  .tema-sd .vidrio {
+    background-color: rgb(255 255 255 / .7);
+    -webkit-backdrop-filter: blur(22px); backdrop-filter: blur(22px);
+    border-radius: 25px;
+    box-shadow: 0 18px 55px rgba(25, 91, 87, .13), inset 0 0 0 1px rgb(255 255 255 / .8);
+  }
+  /* Barra verde a la izquierda del título de cada panel. */
+  .tema-sd .vidrio > header h2::before {
+    content: ""; display: inline-block; width: 6px; height: 1.25em; margin-right: .7rem; border-radius: 8px;
+    background: #0c986b; vertical-align: -.25em;
+  }
+}
+
 @layer utilities {
   .contenedor { @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8; }
   .texto-equilibrado { text-wrap: balance; }

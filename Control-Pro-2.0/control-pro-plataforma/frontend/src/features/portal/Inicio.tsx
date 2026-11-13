@@ -4,12 +4,12 @@
  */
 import { Link, Navigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, Bell, CheckCircle2, ClipboardList, FilePlus2, PackageCheck, Save, Shirt, ShieldAlert, Undo2, Users } from 'lucide-react';
+import { ArrowRight, Bell, CheckCircle2, ChevronRight, ClipboardList, FilePlus2, PackageCheck, Save, Shirt, ShieldAlert, Undo2, Users } from 'lucide-react';
 import { get } from '../../api/cliente';
 import type { Notificacion, Pagina, PedidoResumen, ResumenSucursal } from '../../api/tipos';
 import { useAuth } from '../../app/auth';
 import { useBorradores } from '../../app/borradores';
-import { Boton, Cifra, ErrorCaja, Estado, Tarjeta, Vacio } from '../../components/ui';
+import { Boton, ErrorCaja, Estado, Tarjeta, Vacio } from '../../components/ui';
 import { EsqueletoLista } from '../../components/movimiento';
 import { cls, fecha, fechaHora } from '../../lib/formato';
 import ContactoZona from './ContactoZona';
@@ -20,20 +20,35 @@ const verde = 'bg-menta-50 text-menta-700';
 const ambar = 'bg-amber-100 text-amber-700';
 
 function ConEnlace({ a, children }: { a?: string; children: React.ReactNode }) {
-  return a ? <Link to={a} className="block rounded-2xl transition hover:-translate-y-0.5 hover:shadow-lg">{children}</Link> : <>{children}</>;
+  return a ? <Link to={a} className="block h-full rounded-[25px] transition hover:-translate-y-0.5">{children}</Link> : <>{children}</>;
 }
 
 function Acceso({ a, icono, titulo, texto }: { a: string; icono: React.ReactNode; titulo: string; texto: string }) {
   return (
-    <Link to={a} className="group flex h-full items-start gap-3 rounded-2xl bg-white p-4 shadow-suave ring-1 ring-tinta-100 transition hover:-translate-y-0.5 hover:ring-menta-400">
-      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-menta-50 text-menta-700 transition group-hover:bg-menta-500 group-hover:text-white" aria-hidden>{icono}</span>
+    <Link to={a} className="vidrio group flex h-full items-start gap-3 rounded-2xl bg-white p-4 transition hover:-translate-y-0.5">
+      <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-[#6be5b8a8] text-[#00664a] transition group-hover:bg-[#00885e] group-hover:text-white" aria-hidden>{icono}</span>
       <span className="min-w-0"><span className="block font-display font-bold text-tinta-900">{titulo}</span><span className="block text-xs text-tinta-500">{texto}</span></span>
     </Link>
   );
 }
 
-/** Patrón institucional: cruces sutiles (SVG en CSS), decorativo. */
-const CRUCES = "bg-[url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28'%3E%3Cpath d='M13 9h2v4h4v2h-4v4h-2v-4H9v-2h4z' fill='%23ffffff' fill-opacity='.09'/%3E%3C/svg%3E\")]";
+/** Fondo de los íconos de las cifras, en el orden del diseño: menta, durazno, menta y azul. */
+const FONDOS_CIFRA = ['bg-[#6be5b8a8] text-[#00664a]', 'bg-[#ffdfad] text-[#8a5300]', 'bg-[#6be5b8a8] text-[#00664a]', 'bg-[#b5d9ff] text-[#0b4f86]'];
+
+/** Cifra del portal: tarjeta de cristal con ícono circular, número grande, etiqueta y detalle. */
+function CifraPortal({ orden, etiqueta, valor, detalle, icono, alerta = false }: { orden: number; etiqueta: string; valor: number; detalle?: React.ReactNode; icono: React.ReactNode; alerta?: boolean }) {
+  return (
+    <div className="vidrio relative flex h-full min-h-[112px] items-center gap-3.5 overflow-hidden rounded-2xl bg-white p-4 sm:p-5">
+      <span className="pointer-events-none absolute -right-6 -top-9 h-[90px] w-[90px] rounded-full bg-[#5fe1b62b]" aria-hidden />
+      <span className={cls('grid h-11 w-11 shrink-0 place-items-center rounded-full sm:h-[58px] sm:w-[58px] [&>svg]:h-5 [&>svg]:w-5 sm:[&>svg]:h-6 sm:[&>svg]:w-6', alerta ? 'bg-amber-200 text-amber-800' : FONDOS_CIFRA[orden % 4])} aria-hidden>{icono}</span>
+      <div className="relative min-w-0">
+        <div className="font-display text-[27px] font-extrabold leading-none sm:text-[34px]">{valor}</div>
+        <p className="mt-1.5 text-xs font-bold sm:text-sm">{etiqueta}</p>
+        {detalle && <div className="mt-1 text-[11px] text-[#71858b]">{detalle}</div>}
+      </div>
+    </div>
+  );
+}
 
 type Tramo = { clave: string; etiqueta: string; valor: number; color: string; a?: string };
 
@@ -49,11 +64,11 @@ function Distribucion({ s }: { s: ResumenSucursal['solicitudes'] }) {
   ];
   const total = tramos.reduce((a, t) => a + t.valor, 0);
   return (
-    <section aria-labelledby="t-distribucion" className="rounded-2xl bg-white p-5 shadow-suave ring-1 ring-tinta-100 sm:p-6">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
+    <section aria-labelledby="t-distribucion" className="vidrio rounded-2xl bg-white p-5 sm:p-6">
+      <header className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 id="t-distribucion" className="font-display text-base font-bold text-tinta-900">Distribución de solicitudes</h2>
         <p className="text-sm text-tinta-500"><span className="font-display text-2xl font-extrabold text-tinta-900">{total}</span> en total</p>
-      </div>
+      </header>
       {total === 0 ? <p className="mt-4 text-sm text-tinta-500">Aún no hay solicitudes para mostrar.</p> : (
         <>
           <div className="mt-4 flex h-3 overflow-hidden rounded-full bg-tinta-50" aria-hidden>
@@ -85,9 +100,9 @@ function Pendientes({ r }: { r: ResumenSucursal }) {
     ['Empleados activos', r.empleados_activos, <Users className="h-4 w-4" />, '/cuenta/empleados'],
   ];
   return (
-    <section aria-labelledby="t-operacion" className="rounded-2xl bg-white p-5 shadow-suave ring-1 ring-tinta-100 sm:p-6">
-      <h2 id="t-operacion" className="font-display text-base font-bold text-tinta-900">Operación</h2>
-      <p className="text-xs text-tinta-500">Lo que espera una acción de tu sucursal</p>
+    <section aria-labelledby="t-operacion" className="vidrio rounded-2xl bg-white p-5 sm:p-6">
+      <header><h2 id="t-operacion" className="font-display text-base font-bold text-tinta-900">Operación</h2>
+      <p className="text-xs text-tinta-500">Lo que espera una acción de tu sucursal</p></header>
       {/* B-1: cuando /cuenta/pedidos acepte listas de estados, estos enlaces podrán llevar el filtro correspondiente. */}
       <ul className="mt-3 divide-y divide-tinta-100">
         {filas.map(([t, n, icono, a], i) => {
@@ -119,22 +134,20 @@ function InicioEmpresa() {
 
   return (
     <div className="space-y-6">
-      <section className="relative grid overflow-hidden rounded-3xl bg-sd-900 text-white shadow-suave lg:grid-cols-[1.5fr_1fr]">
-        <div className={cls('absolute inset-0', CRUCES)} aria-hidden />
-        <div className="relative p-6 sm:p-8 lg:p-10">
-          <p className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-white/85 ring-1 ring-white/15">
-            <span className="h-1.5 w-1.5 rounded-full bg-menta-300" aria-hidden />Portal empresarial · {fechaLarga()}
+      <section className="relative isolate flex min-h-[290px] items-center overflow-hidden rounded-[29px] border border-white/55 p-6 text-white shadow-[0_18px_55px_rgba(25,91,87,.13)] sm:px-10 sm:py-8">
+        <img src="/assets/escenas/pasillo-clinico.webp" alt="" width={1400} height={900} className="absolute inset-0 -z-20 h-full w-full object-cover object-[62%_center] sm:object-[center_42%]" aria-hidden />
+        <span className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,rgba(0,78,62,.97),rgba(0,92,74,.8))] sm:bg-[linear-gradient(90deg,rgba(0,78,62,.98),rgba(0,92,74,.86)_42%,rgba(0,92,74,.08))]" aria-hidden />
+        <span className="pointer-events-none absolute inset-0 animate-destello bg-[linear-gradient(110deg,transparent_40%,#b7ffe41a_65%,transparent_82%)]" aria-hidden />
+        <div className="relative max-w-[560px]">
+          <p className="inline-flex items-center gap-2 rounded-full border border-[#3be3aa88] bg-[#008a646b] px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.06em]">
+            <span className="h-2 w-2 rounded-full bg-[#54e8b6]" aria-hidden />Portal empresarial · {fechaLarga()}
           </p>
-          <h1 className="mt-4 font-display text-3xl font-extrabold tracking-tight sm:text-4xl">Hola, {nombre}</h1>
-          <p className="mt-2 max-w-xl text-white/85">{cliente?.razon_social ? `${cliente.razon_social}. ` : ''}Consulta el estado de tus solicitudes y continúa donde te quedaste.</p>
-          <div className="mt-6 flex flex-wrap gap-3">
-            <Link to="/cuenta/solicitudes/nueva" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-white px-5 text-sm font-bold text-sd-900 shadow-lg transition hover:bg-menta-50"><FilePlus2 className="h-4 w-4" aria-hidden />Crear solicitud</Link>
-            <Link to={RUTA_CATALOGO_PORTAL} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-white/10 px-5 text-sm font-semibold ring-1 ring-white/30 transition hover:bg-white/20">Consultar catálogo</Link>
+          <h1 className="mt-3.5 font-display text-[36px] font-extrabold tracking-[-0.04em] sm:text-[44px]">Hola, <span className="text-[#54e8b6]">{nombre}</span></h1>
+          <p className="mt-2 max-w-[470px] text-[15px] leading-relaxed sm:text-lg">{cliente?.razon_social ? `${cliente.razon_social}. ` : ''}Consulta el estado de tus solicitudes y continúa donde te quedaste.</p>
+          <div className="mt-5 flex flex-wrap gap-3">
+            <Link to="/cuenta/solicitudes/nueva" className="inline-flex min-h-12 items-center gap-2 rounded-full bg-gradient-to-r from-[#e5fff4] to-[#63e9ba] px-5 text-sm font-bold text-[#063e34] transition hover:-translate-y-0.5 hover:brightness-105"><FilePlus2 className="h-4 w-4" aria-hidden />Crear solicitud</Link>
+            <Link to={RUTA_CATALOGO_PORTAL} className="inline-flex min-h-12 items-center gap-2 rounded-full border border-white/40 bg-white/10 px-5 text-sm font-bold backdrop-blur-md transition hover:-translate-y-0.5 hover:bg-white/20">Consultar catálogo <ChevronRight className="h-4 w-4" aria-hidden /></Link>
           </div>
-        </div>
-        <div className="relative hidden min-h-full lg:block" aria-hidden>
-          <img src="/assets/escenas/pasillo-clinico.webp" alt="" width={1400} height={900} className="absolute inset-0 h-full w-full object-cover" />
-          <span className="absolute inset-0 bg-gradient-to-r from-sd-900 via-sd-900/40 to-transparent" />
         </div>
       </section>
 
@@ -144,12 +157,12 @@ function InicioEmpresa() {
         <>
           <section aria-labelledby="t-indicadores">
             <h2 id="t-indicadores" className="sr-only">Estado de tus solicitudes</h2>
-            <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-              <ConEnlace a="/cuenta/pedidos?estado=borrador"><Cifra etiqueta="Borradores" valor={s.borradores} detalle="Guardadas sin enviar" icono={<Save className="h-4 w-4" aria-hidden />} acento={verde} /></ConEnlace>
-              <ConEnlace a="/cuenta/pedidos?estado=en_revision"><Cifra etiqueta="En revisión" valor={s.en_revision} detalle="Con el distribuidor" icono={<ClipboardList className="h-4 w-4" aria-hidden />} acento={verde} /></ConEnlace>
+            <div className="grid grid-cols-2 gap-2.5 sm:gap-5 xl:grid-cols-4">
+              <ConEnlace a="/cuenta/pedidos?estado=borrador"><CifraPortal orden={0} etiqueta="Borradores" valor={s.borradores} detalle="Guardadas sin enviar" icono={<Save aria-hidden />} /></ConEnlace>
+              <ConEnlace a="/cuenta/pedidos?estado=en_revision"><CifraPortal orden={1} etiqueta="En revisión" valor={s.en_revision} detalle="Con el distribuidor" icono={<ClipboardList aria-hidden />} /></ConEnlace>
               {/* Sin enlace: "aprobadas" agrupa varios estados y /cuenta/pedidos solo filtra por uno (ver B-1 del plan). */}
-              <Cifra etiqueta="Aprobadas" valor={s.en_proceso + s.entregadas} detalle={`${s.en_proceso} en proceso · ${s.entregadas} entregadas`} icono={<CheckCircle2 className="h-4 w-4" aria-hidden />} acento={verde} />
-              <Cifra etiqueta="Devueltas o rechazadas" valor={s.por_corregir + s.rechazadas} icono={<Undo2 className="h-4 w-4" aria-hidden />} acento={s.por_corregir > 0 ? ambar : verde}
+              <CifraPortal orden={2} etiqueta="Aprobadas" valor={s.en_proceso + s.entregadas} detalle={`${s.en_proceso} en proceso · ${s.entregadas} entregadas`} icono={<CheckCircle2 aria-hidden />} />
+              <CifraPortal orden={3} etiqueta="Devueltas o rechazadas" valor={s.por_corregir + s.rechazadas} icono={<Undo2 aria-hidden />} alerta={s.por_corregir > 0}
                 detalle={<>{s.por_corregir > 0 ? <Link to="/cuenta/pedidos?estado=devuelto" className="font-semibold text-menta-700 underline">{s.por_corregir} por corregir</Link> : '0 por corregir'} · {s.rechazadas} rechazadas</>} />
             </div>
           </section>
@@ -162,7 +175,7 @@ function InicioEmpresa() {
       )}
 
       <section aria-labelledby="t-accesos">
-        <h2 id="t-accesos" className="mb-3 font-display text-base font-bold text-tinta-900">Accesos rápidos</h2>
+        <h2 id="t-accesos" className="mb-3 flex items-center gap-3 font-display text-base font-bold text-tinta-900"><span className="h-5 w-1.5 rounded-full bg-[#0c986b]" aria-hidden />Accesos rápidos</h2>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <Acceso a={RUTA_CATALOGO_PORTAL} icono={<Shirt className="h-5 w-5" />} titulo="Consultar catálogo" texto="Uniformes autorizados por puesto" />
           <Acceso a="/cuenta/solicitudes/nueva" icono={<FilePlus2 className="h-5 w-5" />} titulo="Crear solicitud" texto="Por empleado, paso a paso" />

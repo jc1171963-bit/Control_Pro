@@ -33,6 +33,14 @@ export default {
         crecer: { from: { transform: 'scaleX(0)' }, to: { transform: 'scaleX(1)' } },
         rebote: { '0%': { transform: 'scale(1)' }, '40%': { transform: 'scale(1.25)' }, '100%': { transform: 'scale(1)' } },
         sello: { '0%': { opacity: '0', transform: 'scale(1.6) rotate(-8deg)' }, '60%': { opacity: '1', transform: 'scale(.95) rotate(-8deg)' }, '100%': { opacity: '1', transform: 'scale(1) rotate(-8deg)' } },
+        // Fondo del portal de sucursales: esferas de luz, íconos que derivan y destello del banner.
+        flotar: { '0%': { transform: 'translate3d(-3%,0,0) scale(.9)' }, '50%': { transform: 'translate3d(8%,7%,0) scale(1.12)' }, '100%': { transform: 'translate3d(-4%,12%,0) scale(1)' } },
+        deriva: {
+          '0%': { transform: 'translate3d(0,0,0) rotate(-12deg) scale(.92)' }, '22%': { transform: 'translate3d(24px,-34px,0) rotate(8deg) scale(1.04)' },
+          '48%': { transform: 'translate3d(-12px,-72px,0) rotate(16deg) scale(.98)' }, '73%': { transform: 'translate3d(34px,-26px,0) rotate(-8deg) scale(1.08)' },
+          '100%': { transform: 'translate3d(-18px,18px,0) rotate(12deg) scale(.94)' },
+        },
+        destello: { '0%': { transform: 'translateX(-100%)' }, '55%,100%': { transform: 'translateX(100%)' } },
       },
       animation: {
         aparecer: 'aparecer .45s cubic-bezier(.2,.8,.2,1) both',
@@ -44,6 +52,9 @@ export default {
         crecer: 'crecer .9s cubic-bezier(.2,.8,.2,1) both',
         rebote: 'rebote .45s ease-out',
         sello: 'sello .5s cubic-bezier(.2,.8,.2,1) both',
+        flotar: 'flotar 18s ease-in-out infinite alternate',
+        deriva: 'deriva 17s ease-in-out infinite alternate',
+        destello: 'destello 8s ease-in-out infinite',
       },
     },
   },
