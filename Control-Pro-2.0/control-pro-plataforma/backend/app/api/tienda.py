@@ -1,10 +1,13 @@
-"""Tienda pública: inicio, catálogo con búsqueda/filtros/orden, ficha de producto y sucursales."""
-from collections import defaultdict
+"""Tienda pública: inicio, catálogo con búsqueda/filtros/orden, ficha de producto, sucursales y contacto."""
+import time
+from collections import defaultdict, deque
 
 from flask import Blueprint, current_app, jsonify, request
 from sqlalchemy import and_, func, or_, select, text
 
-from ..errors import NoEncontrado
+from ..errors import AppError, NoEncontrado
+from ..integrations.correo import correo_real_habilitado, enviar_correo
+from ..schemas import ContactoSchema, cargar
 from ..extensions import db
 from ..models import Categoria, Inventario, Producto, ProductoSucursal, Promocion, Sucursal, Variante
 from ..services.precios import precio_con_descuento, promociones_vigentes
@@ -167,3 +170,41 @@ def producto(slug):
 def sucursales():
     sucs = db.session.scalars(select(Sucursal).where(Sucursal.activo.is_(True)).order_by(Sucursal.id))
     return jsonify([serial.sucursal(s) for s in sucs])
+
+
+# shortcut: límite en memoria por proceso (con 4 workers de gunicorn el tope real es hasta 4×); usar Redis si hay abuso.
+_envios_contacto: dict[str, deque] = defaultdict(deque)
+
+
+def _limite_contacto(ip: str) -> None:
+    ahora, ventana = time.monotonic(), 3600
+    q = _envios_contacto[ip]
+    while q and ahora - q[0] > ventana:
+        q.popleft()
+    if len(q) >= current_app.config["CONTACTO_MAX_POR_HORA"]:
+        raise AppError("Enviaste varios mensajes en poco tiempo. Intenta de nuevo más tarde.", status=429, codigo="demasiados_envios")
+    q.append(ahora)
+
+
+@bp.post("/contacto")
+def contacto():
+    """Formulario público de contacto: valida, frena spam y reenvía por correo al buzón configurado.
+    Sin correo real configurado responde 503: nunca se confirma un mensaje que nadie va a recibir. No guarda nada en BD."""
+    d = cargar(ContactoSchema, request.get_json(silent=True))
+    if d["sitio_web"].strip():  # campo trampa lleno: robot
+        raise AppError("No pudimos procesar tu mensaje.", codigo="contacto_rechazado")
+    destino = current_app.config["CONTACTO_DESTINATARIO"]
+    if not destino or not correo_real_habilitado():
+        raise AppError("El formulario de contacto aún no está habilitado. Comunícate por teléfono o correo con la sucursal más cercana.",
+                       status=503, codigo="contacto_no_disponible")
+    # Último valor de X-Forwarded-For: lo agrega el nginx del proyecto con la IP real; los primeros los puede falsear el cliente.
+    _limite_contacto((request.headers.get("X-Forwarded-For") or request.remote_addr or "").split(",")[-1].strip())
+    cuerpo = (f"Mensaje desde el formulario de contacto de la tienda.\n\nNombre: {d['nombre']}\nCorreo: {d['correo']}\n"
+              f"Teléfono: {d['telefono'] or '—'}\nAsunto: {d['asunto']}\n\n{d['mensaje']}\n")
+    try:
+        enviar_correo(destino, f"[Contacto web] {d['asunto']}", cuerpo, responder_a=d["correo"])
+    except Exception:
+        current_app.logger.exception("Fallo al enviar el formulario de contacto")
+        raise AppError("No pudimos enviar tu mensaje en este momento. Intenta más tarde o llama a la sucursal más cercana.",
+                       status=502, codigo="contacto_fallo_envio")
+    return jsonify({"mensaje": "Recibimos tu mensaje. Te responderemos al correo que nos dejaste."}), 201

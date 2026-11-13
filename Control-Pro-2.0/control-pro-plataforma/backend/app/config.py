@@ -54,6 +54,15 @@ class Config:
     FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
     # Mientras no haya SMTP, los correos se escriben en el log.
     CORREO_PROVEEDOR = os.getenv("CORREO_PROVEEDOR", "consola")
+    SMTP_HOST = os.getenv("SMTP_HOST", "")
+    SMTP_PUERTO = int(os.getenv("SMTP_PUERTO", "587"))
+    SMTP_USUARIO = os.getenv("SMTP_USUARIO", "")
+    SMTP_CLAVE = os.getenv("SMTP_CLAVE", "")
+    SMTP_REMITENTE = os.getenv("SMTP_REMITENTE", "")
+    SMTP_TLS = _bool("SMTP_TLS", True)
+    # Buzón que recibe el formulario público de contacto. Vacío = formulario deshabilitado (responde 503).
+    CONTACTO_DESTINATARIO = os.getenv("CONTACTO_DESTINATARIO", "")
+    CONTACTO_MAX_POR_HORA = int(os.getenv("CONTACTO_MAX_POR_HORA", "5"))
     EXPONER_TOKEN_RECUPERACION = False
 
 
