@@ -16,6 +16,7 @@ import type { EmpleadoCorporativo } from '../cuenta/Corporativo';
 import { Aviso, Boton, Cargando, ErrorCaja, Selector, Texto, useAviso } from '../../components/ui';
 import Visor360 from '../../components/Visor360';
 import { cls, dinero, mensajeError } from '../../lib/formato';
+import { fotoIlustrativa } from '../../lib/fotosIlustrativas';
 import { useContextoCatalogo } from './contextoCatalogo';
 import ProductoCard, { ImagenProducto } from './ProductoCard';
 
@@ -116,37 +117,55 @@ export default function Producto() {
   if (q.error || !p) return <div className="contenedor py-10"><ErrorCaja error={q.error} /></div>;
 
   const requiereSesion = () => nav(`/entrar?siguiente=${encodeURIComponent(loc.pathname)}`);
+  const enGiro = vista === '360' && !!giro;
+  const principal = p.imagenes[typeof vista === 'number' ? vista : Math.max(0, colores.findIndex(([c]) => c === color))]?.url || p.imagen;
+  const resuelta = (u: string | null | undefined) => fotoIlustrativa(u) ?? u;
+  const fotos = p.imagenes.filter((im, i, todas) => todas.findIndex((x) => resuelta(x.url) === resuelta(im.url)) === i);
 
   return (
     <div className="contenedor py-8">
       <nav aria-label="Ruta de navegación" className="mb-5 text-xs text-tinta-500"><Link to={rutaCatalogo} className="hover:text-lurima-900">Catálogo</Link> / <Link to={`${rutaCatalogo}?categoria=${p.categoria.slug}`} className="hover:text-lurima-900">{p.categoria.nombre}</Link> / <span className="text-lurima-800">{p.nombre}</span></nav>
       <div className="grid gap-10 lg:grid-cols-2">
-        <div>
-          <div className="aspect-square overflow-hidden rounded-3xl bg-white ring-1 ring-lurima-100">
-            {vista === '360' && giro ? <Visor360 key={giro.frames[0]} frames={giro.frames} alt={`${p.nombre} ${color}`} />
-              : <ImagenProducto src={p.imagenes[vista as number]?.url || p.imagen} alt={p.imagenes[vista as number]?.alt || p.nombre} />}
+        <div className="lg:sticky lg:top-32 lg:self-start">
+          <div className="relative aspect-square overflow-hidden rounded-[2rem] bg-gradient-to-br from-lurima-50 to-lurima-100 ring-1 ring-lurima-100">
+            {/* La clave cambia con la vista y la imagen resuelta: el cambio entra con un fundido suave (sin animación si se pide reducir movimiento). */}
+            <div key={enGiro ? `giro-${giro!.frames[0]}` : resuelta(principal) ?? 'sin'} className="h-full w-full animate-aparecer">
+              {enGiro ? <Visor360 frames={giro!.frames} alt={`${p.nombre} ${color}`} />
+                : <ImagenProducto src={principal} alt={p.imagenes[vista as number]?.alt || p.nombre} />}
+            </div>
+            {!enGiro && fotoIlustrativa(principal) && (
+              <span className="absolute bottom-3 left-3 rounded-full bg-white/95 px-3 py-1 text-xs font-semibold text-tinta-700 shadow-sm">Imagen ilustrativa</span>
+            )}
           </div>
-          {(p.imagenes.length > 1 || giro) && (
-            <div className="mt-3 flex flex-wrap gap-3">
+          {/* Miniaturas: el giro 360° (si la API trae fotogramas) y una por fotografía distinta; las ilustrativas no se repiten. */}
+          {(giro || fotos.length > 1) && (
+            <div className="mt-3 flex flex-wrap gap-3" role="group" aria-label="Vistas del producto">
               {giro && (
-                <button type="button" onClick={() => setVista('360')} aria-label="Vista 360°" aria-pressed={vista === '360'}
-                  className={cls('relative h-20 w-20 overflow-hidden rounded-xl bg-white ring-2', vista === '360' ? 'ring-lurima-500' : 'ring-lurima-100')}>
-                  <ImagenProducto src={giro.frames[0]} alt="" className="opacity-40" />
-                  <span className="absolute inset-0 grid place-items-center text-xs font-extrabold text-lurima-900"><span className="flex flex-col items-center"><Rotate3d className="h-5 w-5 text-bienestar-600" />360°</span></span>
+                <button type="button" onClick={() => setVista('360')} aria-label="Vista 360°" aria-pressed={enGiro}
+                  className={cls('relative h-20 w-20 overflow-hidden rounded-xl bg-white ring-2 transition', enGiro ? 'ring-lurima-600' : 'ring-lurima-100 hover:ring-lurima-300')}>
+                  <img src={giro.frames[0]} alt="" className="h-full w-full object-cover opacity-50" />
+                  <span className="absolute inset-0 grid place-items-center text-xs font-extrabold text-lurima-900"><span className="flex flex-col items-center"><Rotate3d className="h-5 w-5 text-bienestar-600" aria-hidden />360°</span></span>
                 </button>
               )}
-              {p.imagenes.map((im, i) => (
-                <button key={im.url} type="button" aria-pressed={i === vista} onClick={() => setVista(i)} className={cls('h-20 w-20 overflow-hidden rounded-xl ring-2', i === vista ? 'ring-lurima-500' : 'ring-transparent')} aria-label={`Imagen ${i + 1}`}>
-                  <ImagenProducto src={im.url} alt={im.alt} />
-                </button>
-              ))}
+              {fotos.map((im, n) => {
+                const activa = !enGiro && resuelta(im.url) === resuelta(principal);
+                return (
+                  <button key={im.url} type="button" aria-pressed={activa} onClick={() => setVista(p.imagenes.indexOf(im))} aria-label={fotos.length > 1 ? `Fotografía ${n + 1}` : 'Fotografía'}
+                    className={cls('relative h-20 w-20 overflow-hidden rounded-xl ring-2 transition', activa ? 'ring-lurima-600' : 'ring-lurima-100 hover:ring-lurima-300')}>
+                    <ImagenProducto src={im.url} alt="" />
+                    {giro && <span className="absolute inset-x-0 bottom-0 bg-lurima-950/70 py-0.5 text-center text-[10px] font-bold text-white" aria-hidden>Foto</span>}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
 
         <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-bienestar-700">{p.categoria.nombre} · {p.sku_base}</p>
-          <h1 className="mt-1 font-display text-3xl font-extrabold tracking-tight text-lurima-900 sm:text-4xl">{p.nombre}</h1>
+          <p className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-widest text-bienestar-700">
+            <span className="rounded-full bg-bienestar-50 px-2.5 py-1">{p.categoria.nombre}</span><span className="text-tinta-500">SKU {p.sku_base}</span>
+          </p>
+          <h1 className="texto-equilibrado mt-3 font-display text-3xl font-extrabold leading-tight tracking-tight text-lurima-900 sm:text-5xl">{p.nombre}</h1>
           {tienda && <><div className="mt-4 flex items-baseline gap-3">
             <span className="font-display text-3xl font-extrabold text-lurima-900">{dinero(variante?.precio_final ?? delColor[0]?.precio_final ?? p.precio_desde)}</span>
             {(variante ?? delColor[0])?.descuento !== '0.00' && <span className="text-tinta-500 line-through">{dinero((variante ?? delColor[0])?.precio_base)}</span>}

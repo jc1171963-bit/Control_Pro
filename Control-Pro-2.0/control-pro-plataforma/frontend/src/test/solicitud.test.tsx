@@ -3,7 +3,7 @@
  * (qué se envía al servidor, reglas de excepción, límites, borradores y correcciones) para poder refactorizar la interfaz
  * sin tocar las reglas de negocio. Los nombres accesibles de talla se aceptan con o sin el prefijo "Talla ".
  */
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { beforeEach, vi } from 'vitest';
@@ -61,6 +61,12 @@ beforeEach(() => {
 });
 
 const boton = (nombre: string | RegExp) => screen.getByRole('button', { name: nombre });
+/** Enviar pide confirmación: hasta confirmar no se llama al servidor. */
+async function confirmarEnvio() {
+  const dialogo = await screen.findByRole('dialog', { name: /a revisión$/ });
+  expect(post).not.toHaveBeenCalled(); expect(put).not.toHaveBeenCalled();
+  fireEvent.click(within(dialogo).getByRole('button', { name: 'Confirmar envío' }));
+}
 const esperaPaso0 = () => screen.findByText('¿Para quién es la solicitud?');
 
 /** Selecciona empleados, entra al catálogo y agrega un artículo desde la ventana de selección. */
@@ -102,6 +108,7 @@ describe('nueva solicitud', () => {
     await agregar('Bata clínica', 'M');
     fireEvent.click(boton(/Revisar solicitud \(1\)/));
     fireEvent.click(await screen.findByRole('button', { name: 'Enviar a revisión' }));
+    await confirmarEnvio();
     await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
     expect(post).toHaveBeenCalledWith('/cuenta/pedidos-corporativos', {
       modalidad: 'envio', direccion_id: 5, partidas: [{ empleado_id: 1, variante_id: 101, cantidad: 1, excepcion: null }], notas: null, borrador: false, clave_idempotencia: 'clave-fija' });
@@ -129,6 +136,7 @@ describe('nueva solicitud', () => {
     await agregar('Bata clínica', 'M');
     fireEvent.click(boton(/Revisar solicitud \(2\)/));
     fireEvent.click(await screen.findByRole('button', { name: 'Enviar a revisión' }));
+    await confirmarEnvio();
     await waitFor(() => expect(post).toHaveBeenCalled());
     expect(vi.mocked(post).mock.calls[0][1]).toEqual(expect.objectContaining({ partidas: [{ empleado_id: 1, variante_id: 101, cantidad: 2, excepcion: null }] }));
   });
@@ -147,6 +155,7 @@ describe('nueva solicitud', () => {
     const justificacion = await screen.findByPlaceholderText(/Justificación/);
     fireEvent.change(justificacion, { target: { value: 'Cobertura de turno nocturno' } });
     fireEvent.click(boton('Enviar a revisión'));
+    await confirmarEnvio();
     await waitFor(() => expect(post).toHaveBeenCalled());
     const partidas = (vi.mocked(post).mock.calls[0][1] as { partidas: unknown[] }).partidas;
     expect(partidas).toEqual(expect.arrayContaining([
@@ -166,6 +175,7 @@ describe('nueva solicitud', () => {
     for (let i = 0; i < 4; i++) fireEvent.click(menos); // no baja de 1
     for (let i = 0; i < 60; i++) fireEvent.click(screen.getByRole('button', { name: 'Más' })); // no pasa de 50
     fireEvent.click(boton('Enviar a revisión'));
+    await confirmarEnvio();
     await waitFor(() => expect(post).toHaveBeenCalled());
     expect((vi.mocked(post).mock.calls[0][1] as { partidas: { cantidad: number }[] }).partidas[0].cantidad).toBe(50);
   });
@@ -227,6 +237,7 @@ describe('regla por puesto', () => {
     fireEvent.change(texto, { target: { value: 'Uso en zona fría' } });
     expect(enviar).toBeEnabled();
     fireEvent.click(enviar);
+    await confirmarEnvio();
     await waitFor(() => expect(post).toHaveBeenCalled());
     expect(vi.mocked(post).mock.calls[0][1]).toEqual(expect.objectContaining({ partidas: [{ empleado_id: 1, variante_id: 111, cantidad: 1, excepcion: 'Uso en zona fría' }] }));
   });
@@ -242,6 +253,7 @@ describe('borradores y correcciones', () => {
     expect(await screen.findByDisplayValue('Nota previa')).toBeInTheDocument();
     expect(screen.getByText(/Sucursal · Av\. Central 1, Querétaro/)).toBeInTheDocument();
     fireEvent.click(boton('Enviar a revisión'));
+    await confirmarEnvio();
     await waitFor(() => expect(put).toHaveBeenCalledTimes(1));
     expect(put).toHaveBeenCalledWith('/cuenta/pedidos-corporativos/7', { partidas: [{ empleado_id: 1, variante_id: 101, cantidad: 2, excepcion: null }], notas: 'Nota previa', enviar: true });
     expect(post).not.toHaveBeenCalled();
@@ -257,6 +269,8 @@ describe('borradores y correcciones', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Revisar solicitud/ }));
     expect(screen.queryAllByRole('button', { name: 'Guardar borrador' })).toHaveLength(0);
     fireEvent.click(await screen.findByRole('button', { name: 'Reenviar a revisión' }));
+    expect(await screen.findByRole('dialog', { name: 'Reenviar la solicitud a revisión' })).toBeInTheDocument();
+    await confirmarEnvio();
     await waitFor(() => expect(put).toHaveBeenCalled());
     expect(vi.mocked(put).mock.calls[0]).toEqual(['/cuenta/pedidos-corporativos/7', expect.objectContaining({ enviar: true })]);
   });
@@ -269,6 +283,27 @@ describe('borradores y correcciones', () => {
   });
 });
 
+describe('cambios sin guardar', () => {
+  it('pregunta antes de salir del asistente con artículos sin guardar', async () => {
+    const { router } = montar();
+    await esperaPaso0();
+    await act(async () => { await router.navigate('/cuenta/pedidos/1'); }); // sin cambios: sale sin preguntar
+    expect(router.state.location.pathname).toBe('/cuenta/pedidos/1');
+    await act(async () => { await router.navigate('/cuenta/solicitudes/nueva'); });
+    await esperaPaso0();
+    await agregar('Bata clínica', 'M');
+    await act(async () => { await router.navigate('/cuenta/pedidos/1'); });
+    const aviso = await screen.findByRole('dialog', { name: 'Tienes cambios sin guardar' });
+    expect(router.state.location.pathname).toBe('/cuenta/solicitudes/nueva');
+    fireEvent.click(within(aviso).getByRole('button', { name: 'Seguir editando' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(router.state.location.pathname).toBe('/cuenta/solicitudes/nueva');
+    await act(async () => { await router.navigate('/cuenta/pedidos/1'); });
+    fireEvent.click(within(await screen.findByRole('dialog', { name: 'Tienes cambios sin guardar' })).getByRole('button', { name: 'Salir sin guardar' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/cuenta/pedidos/1'));
+  });
+});
+
 describe('condiciones de envío', () => {
   it('sin dirección registrada no deja enviar y explica cómo resolverlo', async () => {
     api({ direcciones: [] });
@@ -276,7 +311,8 @@ describe('condiciones de envío', () => {
     await esperaPaso0();
     await agregar('Bata clínica', 'M');
     fireEvent.click(boton(/Revisar solicitud \(1\)/));
-    expect(await screen.findByText(/Registra la dirección de tu sucursal/)).toBeInTheDocument();
+    expect(await screen.findByText(/aún no tiene una dirección de entrega registrada/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Mi cuenta' })).toHaveAttribute('href', '/cuenta/perfil');
     expect(boton('Enviar a revisión')).toBeDisabled();
   });
 
@@ -287,6 +323,7 @@ describe('condiciones de envío', () => {
     await agregar('Bata clínica', 'M');
     fireEvent.click(boton(/Revisar solicitud \(1\)/));
     fireEvent.click(await screen.findByRole('button', { name: 'Enviar a revisión' }));
+    await confirmarEnvio();
     expect(await screen.findByRole('alert')).toHaveTextContent('Servidor no disponible');
     expect(router.state.location.pathname).toBe('/cuenta/solicitudes/nueva');
   });

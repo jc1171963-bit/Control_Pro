@@ -7,15 +7,16 @@ import { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronDown } from 'lucide-react';
 import { useConfig } from '../../app/config';
+import { EncabezadoPagina } from './Decoracion';
+import FormularioContacto from './FormularioContacto';
 import { ListaUbicaciones } from './Ubicaciones';
 
-function Pagina({ eyebrow, titulo, children }: { eyebrow: string; titulo: string; children: ReactNode }) {
+function Pagina({ eyebrow, titulo, sub, children }: { eyebrow: string; titulo: string; sub?: ReactNode; children: ReactNode }) {
   return (
-    <div className="contenedor max-w-5xl py-10">
-      <p className="text-xs font-semibold uppercase tracking-widest text-bienestar-600">{eyebrow}</p>
-      <h1 className="font-display text-3xl font-extrabold tracking-tight text-lurima-900">{titulo}</h1>
-      {children}
-    </div>
+    <>
+      <EncabezadoPagina eyebrow={eyebrow} titulo={titulo} sub={sub} />
+      <div className="contenedor py-10">{children}</div>
+    </>
   );
 }
 
@@ -23,10 +24,19 @@ const enlace = 'font-semibold text-lurima-800 underline hover:text-lurima-600';
 
 export function Acerca() {
   return (
-    <Pagina eyebrow="Distribuidora Lurima" titulo="Acerca de nosotros">
-      <p className="mt-3 max-w-2xl text-lg text-tinta-600"><strong className="text-lurima-900">Salud y bienestar a tu alcance.</strong> Productos de calidad para el cuidado de tu empresa y tu gente.</p>
-      <p className="mt-4"><Link to="/catalogo" className={enlace}>Conoce nuestro catálogo</Link></p>
-      <h2 className="mt-12 font-display text-2xl font-extrabold tracking-tight text-lurima-900">Dónde estamos</h2>
+    <Pagina eyebrow="Distribuidora Lurima" titulo="Acerca de nosotros" sub={<><strong className="text-lurima-900">Salud y bienestar a tu alcance.</strong> Productos de calidad para el cuidado de tu empresa y tu gente.</>}>
+      <div className="grid items-center gap-8 md:grid-cols-2">
+        <div className="relative aspect-[4/3] overflow-hidden rounded-[2rem]">
+          <img src="/assets/escenas/almacen.webp" alt="" loading="lazy" width={1400} height={900} className="h-full w-full object-cover" />
+          <span className="absolute inset-0 bg-gradient-to-tr from-lurima-950/40 to-transparent" aria-hidden />
+        </div>
+        <div>
+          <h2 className="font-display text-2xl font-extrabold tracking-tight text-lurima-900 sm:text-3xl">Uniformes y equipo de trabajo para tu equipo</h2>
+          <p className="mt-3 text-tinta-600">Consulta el catálogo por categoría, talla y color, y la disponibilidad en cada una de nuestras ubicaciones.</p>
+          <p className="mt-5"><Link to="/catalogo" className="inline-flex h-11 items-center rounded-full bg-lurima-900 px-5 text-sm font-semibold text-white hover:bg-lurima-800">Conoce nuestro catálogo</Link></p>
+        </div>
+      </div>
+      <h2 className="mt-16 font-display text-2xl font-extrabold tracking-tight text-lurima-900 sm:text-3xl">Dónde estamos</h2>
       <ListaUbicaciones nivel="h3" />
     </Pagina>
   );
@@ -34,9 +44,15 @@ export function Acerca() {
 
 export function Contacto() {
   return (
-    <Pagina eyebrow="Distribuidora Lurima" titulo="Contacto">
-      <p className="mt-3 max-w-2xl text-tinta-600">Comunícate con la sucursal que te quede más cerca.</p>
-      <ListaUbicaciones nivel="h2" />
+    <Pagina eyebrow="Distribuidora Lurima" titulo="Contacto" sub="Escríbenos o comunícate con la sucursal que te quede más cerca.">
+      <div className="grid items-start gap-8 lg:grid-cols-[1.35fr_1fr] lg:gap-10">
+        <FormularioContacto />
+        <aside aria-labelledby="t-ubicaciones">
+          <h2 id="t-ubicaciones" className="font-display text-xl font-extrabold tracking-tight text-lurima-900">Nuestras sucursales</h2>
+          <p className="mt-1 text-sm text-tinta-600">También puedes llamarnos o visitarnos.</p>
+          <ListaUbicaciones nivel="h3" compacta className="mt-4" />
+        </aside>
+      </div>
     </Pagina>
   );
 }
@@ -57,7 +73,7 @@ export function Preguntas() {
   ];
   return (
     <Pagina eyebrow="Ayuda" titulo="Preguntas frecuentes">
-      <div className="mt-8 max-w-3xl divide-y divide-lurima-100 rounded-3xl bg-white ring-1 ring-lurima-100">
+      <div className="max-w-3xl divide-y divide-lurima-100 rounded-3xl bg-white shadow-suave ring-1 ring-lurima-100">
         {preguntas.map(([p, r]) => (
           <details key={p} className="group p-5">
             <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 font-display font-bold text-lurima-900 [&::-webkit-details-marker]:hidden">

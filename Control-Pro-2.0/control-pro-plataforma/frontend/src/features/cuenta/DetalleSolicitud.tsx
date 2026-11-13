@@ -5,7 +5,8 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, FileSignature, Package, PenLine, Send, ShieldAlert, Star, Truck } from 'lucide-react';
+import { AlertTriangle, ArrowDown, ArrowRightCircle, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, Clock, FileSignature, Package, PenLine, Send, ShieldAlert, Star, Truck } from 'lucide-react';
+import ConfirmarEnvio from '../portal/ConfirmarEnvio';
 import { post } from '../../api/cliente';
 import type { EntregaIndividual, Incidencia, Paquete, Pedido } from '../../api/tipos';
 import { Aviso, Boton, Campo, Entrada, ErrorCaja, Estado, Firma, Modal, Selector, Tarjeta, Texto, useAviso } from '../../components/ui';
@@ -46,6 +47,60 @@ function etapasPaquete(pq: Paquete): Etapa[] {
   return [paso(0, 'pre', 'Preparado'), paso(1, 'env', 'Enviado'), paso(2, 'tra', 'En tránsito'),
     { clave: 'lle', titulo: 'Entregado', estado: pq.estado === 'entregado' ? (pq.recepcion ? 'hecha' : 'actual') : 'pendiente' },
     { clave: 'rec', titulo: 'Recibido en sucursal', estado: pq.recepcion ? (pq.recepcion.estado === 'parcial' ? 'alerta' : 'hecha') : 'pendiente' }];
+}
+
+// ---------------------------------------------------------------- qué sigue (derivado solo de los datos de la solicitud)
+
+type Siguiente = { tono: 'accion' | 'espera' | 'alerta' | 'fin'; titulo: string; texto: string; ir?: 'paquetes' | 'empleados' };
+
+export function proximoPaso(p: Pedido): Siguiente {
+  const entregas = p.entregas_individuales || [];
+  const porRecibir = p.paquetes.filter((pq) => pq.estado === 'entregado' && !pq.recepcion).length;
+  const porEntregar = entregas.filter((e) => e.estado === 'pendiente' && p.paquetes.find((pq) => pq.id === e.paquete_id)?.recepcion).length;
+  const porConformar = entregas.filter((e) => e.estado !== 'pendiente' && !e.conformidad_en).length;
+  const motivo = p.aprobaciones?.filter((a) => a.decision !== 'aprobado').slice(-1)[0]?.motivo;
+  switch (p.estado) {
+    case 'borrador': return { tono: 'accion', titulo: 'Revisa y envía tu solicitud', texto: 'Está guardada como borrador: el distribuidor todavía no la ve. Edítala si hace falta y envíala a revisión.' };
+    case 'en_revision': return { tono: 'espera', titulo: 'En revisión por el distribuidor', texto: 'No necesitas hacer nada por ahora. Te avisaremos cuando la apruebe, la devuelva para corrección o la rechace.' };
+    case 'devuelto': return { tono: 'alerta', titulo: 'Corrige y reenvía la solicitud', texto: motivo ? `Observación del distribuidor: ${motivo}` : 'El distribuidor la devolvió para corrección.' };
+    case 'rechazado': return { tono: 'fin', titulo: 'Solicitud rechazada', texto: motivo ? `Motivo: ${motivo}` : 'El distribuidor rechazó la solicitud.' };
+    case 'cancelado': return { tono: 'fin', titulo: 'Solicitud cancelada', texto: 'Esta solicitud ya no avanza.' };
+  }
+  if (porRecibir) return { tono: 'accion', titulo: `Registra la recepción de ${porRecibir} paquete(s)`, texto: 'Ya llegaron a tu sucursal. Confirma lo que recibiste, artículo por artículo, antes de entregarlo a cada empleado.', ir: 'paquetes' };
+  if (porEntregar) return { tono: 'accion', titulo: `Entrega los artículos a ${porEntregar} empleado(s)`, texto: 'Los paquetes ya están en tu sucursal. Registra cada entrega con la firma del empleado.', ir: 'empleados' };
+  if (porConformar) return { tono: 'accion', titulo: `Registra la conformidad de ${porConformar} empleado(s)`, texto: 'Cada empleado confirma cómo recibió sus artículos y puede reportar un problema.', ir: 'empleados' };
+  if (p.estado === 'cerrado') return { tono: 'fin', titulo: 'Solicitud cerrada', texto: 'Todas las entregas y conformidades quedaron registradas.' };
+  if (['confirmado', 'en_preparacion'].includes(p.estado)) return { tono: 'espera', titulo: 'Aprobada: el almacén prepara tu pedido', texto: 'Te avisaremos cuando salga cada paquete.' };
+  if (['parcialmente_enviado', 'enviado'].includes(p.estado)) return { tono: 'espera', titulo: 'Tus paquetes van en camino', texto: 'Cuando llegue un paquete a tu sucursal, regístralo en la sección Paquetes.', ir: 'paquetes' };
+  return { tono: 'espera', titulo: 'Entregas en curso', texto: 'No hay acciones pendientes de tu sucursal por ahora.' };
+}
+
+const TONOS_SIGUIENTE = {
+  accion: ['bg-menta-50 ring-menta-200', 'bg-menta-500 text-white', ArrowRightCircle],
+  espera: ['bg-sd-50 ring-sd-100', 'bg-sd-900 text-white', Clock],
+  alerta: ['bg-amber-50 ring-amber-200', 'bg-amber-500 text-white', AlertTriangle],
+  fin: ['bg-tinta-50 ring-tinta-100', 'bg-tinta-500 text-white', CheckCircle2],
+} as const;
+
+function QueSigue({ s, abiertas }: { s: Siguiente; abiertas: number }) {
+  const [fondo, icono, Icono] = TONOS_SIGUIENTE[s.tono];
+  return (
+    <section aria-labelledby="t-que-sigue" className={cls('flex flex-col gap-4 rounded-2xl p-5 ring-1 sm:flex-row sm:items-center', fondo)}>
+      <span className={cls('grid h-11 w-11 shrink-0 place-items-center rounded-xl', icono)} aria-hidden><Icono className="h-5 w-5" /></span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-tinta-500">Qué sigue</p>
+        <h2 id="t-que-sigue" className="font-display text-lg font-bold text-tinta-900">{s.titulo}</h2>
+        <p className="mt-0.5 text-sm text-tinta-700">{s.texto}</p>
+        {abiertas > 0 && <p className="mt-1 text-sm font-semibold text-coral-700">{abiertas} incidencia(s) abierta(s): revisa su avance en Incidencias.</p>}
+      </div>
+      {s.ir && (
+        <Boton variante="secundario" className="shrink-0" icono={<ArrowDown className="h-4 w-4" aria-hidden />}
+          onClick={() => document.getElementById(`seccion-${s.ir}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
+          {s.ir === 'paquetes' ? 'Ir a Paquetes' : 'Ir a Empleados'}
+        </Boton>
+      )}
+    </section>
+  );
 }
 
 // ---------------------------------------------------------------- recepción del paquete
@@ -273,7 +328,8 @@ export default function DetalleSolicitud({ p }: { p: Pedido }) {
   const [cancelar, setCancelar] = useState(false);
   const [motivo, setMotivo] = useState('');
   const refrescar = () => { qc.invalidateQueries({ queryKey: ['pedido', String(p.id)] }); qc.invalidateQueries({ queryKey: ['resumen-sucursal'] }); qc.invalidateQueries({ queryKey: ['mis-borradores'] }); };
-  const enviar = useMutation({ mutationFn: () => post(`/cuenta/pedidos-corporativos/${p.id}/enviar`), onSuccess: () => { refrescar(); avisar(`Solicitud ${p.folio} enviada a revisión.`); } });
+  const [confirmar, setConfirmar] = useState(false);
+  const enviar = useMutation({ mutationFn: () => post(`/cuenta/pedidos-corporativos/${p.id}/enviar`), onSuccess: () => { refrescar(); setConfirmar(false); avisar(`Solicitud ${p.folio} enviada a revisión.`); } });
   const cancelarM = useMutation({ mutationFn: () => post(`/cuenta/pedidos/${p.id}/cancelar`, { motivo }), onSuccess: () => { refrescar(); setCancelar(false); avisar(p.estado === 'borrador' ? 'Borrador descartado.' : 'Solicitud cancelada.'); } });
 
   const entregas = p.entregas_individuales || [];
@@ -300,20 +356,24 @@ export default function DetalleSolicitud({ p }: { p: Pedido }) {
         accion={<div className="flex flex-wrap gap-2">
           {p.estado === 'borrador' && <>
             <Link to={`/cuenta/solicitudes/${p.id}/editar`} className="inline-flex h-8 items-center gap-1 rounded-lg px-3 text-xs font-semibold ring-1 ring-tinta-200"><PenLine className="h-3.5 w-3.5" />Editar</Link>
-            <Boton tam="sm" icono={<Send className="h-3.5 w-3.5" />} cargando={enviar.isPending} disabled={!p.detalles.length} onClick={() => enviar.mutate()}>Enviar a revisión</Boton></>}
-          {p.estado === 'devuelto' && <Link to={`/cuenta/solicitudes/${p.id}/editar`} className="inline-flex h-8 items-center rounded-lg bg-tinta-900 px-3 text-xs font-semibold text-white">Corregir y reenviar</Link>}
+            <Boton tam="sm" icono={<Send className="h-3.5 w-3.5" />} cargando={enviar.isPending} disabled={!p.detalles.length} onClick={() => { enviar.reset(); setConfirmar(true); }}>Enviar a revisión</Boton></>}
+          {p.estado === 'devuelto' && <Link to={`/cuenta/solicitudes/${p.id}/editar`} className="inline-flex h-8 items-center rounded-lg bg-sd-900 px-3 text-xs font-semibold text-white">Corregir y reenviar</Link>}
           {p.estado !== 'borrador' && <Boton tam="sm" variante="secundario" icono={<ShieldAlert className="h-3.5 w-3.5" />} onClick={() => setIncidencia(true)}>Reportar incidencia</Boton>}
           {cancelable && <Boton tam="sm" variante="fantasma" onClick={() => setCancelar(true)}>{p.estado === 'borrador' ? 'Descartar' : 'Cancelar'}</Boton>}
         </div>}>
-        <ErrorCaja error={enviar.error} />
-        {observacion && <div className="mb-4"><Aviso tipo="alerta">{etiqueta(observacion.decision)} por el distribuidor: {observacion.motivo}</Aviso></div>}
+        {/* Devuelta o rechazada: la observación se muestra en «Qué sigue»; aquí queda como antecedente en los demás estados. */}
+        {observacion && !['devuelto', 'rechazado'].includes(p.estado) && <div className="mb-4"><Aviso tipo="alerta">{etiqueta(observacion.decision)} por el distribuidor: {observacion.motivo}</Aviso></div>}
         {cambiosDistribuidor.map((h, i) => (
           <Aparecer key={i} orden={i}><div className="mb-3"><Aviso tipo="alerta"><b>Cambio del distribuidor</b> · {fechaHora(h.fecha)} · {h.actor}<br />{h.motivo!.replace('Modificada por el distribuidor: ', '')}</Aviso></div></Aparecer>
         ))}
-        {!['borrador', 'cancelado'].includes(p.estado) && <div className="overflow-x-auto pb-1"><div className="min-w-[560px]"><LineaProceso etapas={etapasSolicitud(p)} /></div></div>}
+        {/* En móvil la línea se desplaza en horizontal: la región es enfocable para poder recorrerla con el teclado. */}
+        {!['borrador', 'cancelado'].includes(p.estado) && <div className="overflow-x-auto rounded-lg pb-1" tabIndex={0} role="region" aria-label="Avance de la solicitud"><div className="min-w-[560px]"><LineaProceso etapas={etapasSolicitud(p)} /></div></div>}
         {p.notas && <p className="mt-4 rounded-lg bg-tinta-50 p-3 text-xs"><b>Notas:</b> {p.notas}</p>}
       </Tarjeta>
 
+      <QueSigue s={proximoPaso(p)} abiertas={(p.incidencias || []).filter((i) => i.estado === 'abierta').length} />
+
+      <section id="seccion-empleados" className="scroll-mt-24">
       <Tarjeta titulo="Artículos por empleado" sub="Lo solicitado, lo entregado y lo pendiente de cada persona">
         <div className="grid gap-3 md:grid-cols-2">
           {empleados.map((emp, i) => {
@@ -359,8 +419,10 @@ export default function DetalleSolicitud({ p }: { p: Pedido }) {
           })}
         </div>
       </Tarjeta>
+      </section>
 
       {p.paquetes.length > 0 && (
+        <section id="seccion-paquetes" className="scroll-mt-24">
         <Tarjeta titulo="Paquetes" sub="Cada paquete tiene su propia guía y su propio estado">
           <div className="space-y-4">
             {p.paquetes.map((pq, i) => (
@@ -370,7 +432,7 @@ export default function DetalleSolicitud({ p }: { p: Pedido }) {
                     <p className="flex items-center gap-2 font-semibold"><Package className="h-4 w-4 text-menta-600" />{pq.folio}<span className="text-xs font-normal text-tinta-400">desde {pq.sucursal} · {fechaHora(pq.creado)}</span></p>
                     {pq.estado === 'entregado' && !pq.recepcion && <Boton tam="sm" icono={<ClipboardCheck className="h-3.5 w-3.5" />} onClick={() => setRecibir(pq)}>Registrar recepción</Boton>}
                   </div>
-                  <div className="mt-4 overflow-x-auto pb-1"><div className="min-w-[420px]"><LineaProceso compacta etapas={etapasPaquete(pq)} /></div></div>
+                  <div className="mt-4 overflow-x-auto rounded-lg pb-1" tabIndex={0} role="region" aria-label={`Avance del paquete ${pq.folio}`}><div className="min-w-[420px]"><LineaProceso compacta etapas={etapasPaquete(pq)} /></div></div>
                   {pq.envio && (
                     <div className="mt-3 rounded-lg bg-arena-50 p-3 text-xs">
                       <p className="flex flex-wrap items-center gap-2 font-semibold"><Truck className="h-3.5 w-3.5" />{pq.envio.paqueteria} · Guía {pq.envio.guia}
@@ -395,6 +457,7 @@ export default function DetalleSolicitud({ p }: { p: Pedido }) {
             ))}
           </div>
         </Tarjeta>
+        </section>
       )}
 
       <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
@@ -427,6 +490,8 @@ export default function DetalleSolicitud({ p }: { p: Pedido }) {
         {conformidad && <Conformidad e={conformidad} p={p} onCerrar={() => setConformidad(null)} />}
       </Modal>
       <ComprobanteEntrega entregaId={comprobante} origen="cuenta" folio={p.folio} onCerrar={() => setComprobante(null)} />
+      <ConfirmarEnvio abierto={confirmar} folio={p.folio} empleados={empleados.length} articulos={p.articulos} excepciones={p.detalles.filter((d) => d.excepcion).length}
+        cargando={enviar.isPending} error={enviar.error} onConfirmar={() => enviar.mutate()} onCerrar={() => setConfirmar(false)} />
       <Modal abierto={incidencia} titulo="Reportar incidencia" onCerrar={() => setIncidencia(false)} ancho="max-w-xl">
         <NuevaIncidencia p={p} onCerrar={() => setIncidencia(false)} />
       </Modal>

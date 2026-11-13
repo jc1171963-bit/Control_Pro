@@ -10,6 +10,7 @@ import { useContadorNotificaciones } from '../../app/notificaciones';
 import { Transicion } from '../../components/movimiento';
 import { cls } from '../../lib/formato';
 import { useSucursalesPublicas } from './Ubicaciones';
+import { Cintas } from './Decoracion';
 
 export function Marca({ claro = false }: { claro?: boolean }) {
   return (
@@ -35,7 +36,7 @@ export function MarcaLurima({ claro = false }: { claro?: boolean }) {
   return (
     <Link to="/" className="flex items-center gap-2.5" aria-label="Distribuidora Lurima, inicio">
       {/* Logotipo oficial en JPEG con fondo gris: se recorta en círculo hasta tener una versión transparente. */}
-      <span className="h-11 w-11 shrink-0 overflow-hidden rounded-full bg-white ring-1 ring-lurima-100">
+      <span className="h-10 w-10 shrink-0 overflow-hidden rounded-full bg-white ring-1 ring-lurima-100 sm:h-11 sm:w-11">
         <img src="/lurima-logo.jpeg" alt="" className="h-full w-full scale-[1.6] object-cover" />
       </span>
       <span className="leading-tight">
@@ -46,10 +47,12 @@ export function MarcaLurima({ claro = false }: { claro?: boolean }) {
   );
 }
 
-const FONDO_BLANCO = ['/', '/catalogo', '/acerca', '/preguntas-frecuentes', '/contacto', '/sucursales'];
+const FONDO_BLANCO = ['/', '/catalogo', '/acerca', '/preguntas-frecuentes', '/contacto', '/sucursales', '/entrar', '/registro', '/recuperar', '/cuenta/restablecer'];
 const ENLACES: [string, string][] = [
   ['/', 'Inicio'], ['/catalogo', 'Catálogo'], ['/acerca', 'Acerca de nosotros'], ['/preguntas-frecuentes', 'Preguntas frecuentes'], ['/contacto', 'Contacto'],
 ];
+// El menú móvil y el pie también enlazan Sucursales (la barra de escritorio no tiene espacio para un sexto enlace).
+const ENLACES_Y_SUCURSALES: [string, string][] = [...ENLACES, ['/sucursales', 'Sucursales']];
 
 export default function TiendaLayout() {
   const { tipo, cliente, usuario, salir } = useAuth();
@@ -80,15 +83,11 @@ export default function TiendaLayout() {
     // Fondo blanco solo donde ya se aplicó la identidad LURIMA; se extiende a más rutas en los siguientes bloques.
     <div className={cls('flex min-h-screen flex-col', (FONDO_BLANCO.includes(loc.pathname) || loc.pathname.startsWith('/producto/')) && 'bg-white')}>
       <ScrollRestoration />
-      <div className="bg-lurima-900 text-[12px] text-lurima-100">
-        <div className="contenedor flex h-8 items-center justify-between gap-4">
-          <span className="truncate">Salud y bienestar a tu alcance</span>
-          <Link to="/sucursales" className="hidden shrink-0 font-semibold text-white/90 hover:text-white sm:inline">{canalTienda ? 'Recoge en sucursal →' : 'Nuestras ubicaciones →'}</Link>
-        </div>
-      </div>
       <header className="sticky top-0 z-40 border-b border-lurima-100 bg-white/95 shadow-sm backdrop-blur">
-        <div className="contenedor flex h-16 items-center gap-3 lg:gap-5">
-          <button className="rounded-lg p-2 text-lurima-800 hover:bg-lurima-50 lg:hidden" onClick={() => setMenu(!menu)} aria-label={menu ? 'Cerrar menú' : 'Abrir menú'} aria-expanded={menu} aria-controls="menu-movil">
+        {/* Línea de color de marca (azul, verde y coral del logotipo); viaja con el encabezado fijo. */}
+        <div className="h-1 bg-gradient-to-r from-lurima-500 via-bienestar-500 to-coral-500" aria-hidden />
+        <div className="contenedor flex h-[4.25rem] items-center gap-2 sm:gap-3 lg:gap-5">
+          <button className="-ml-2 rounded-lg p-2 text-lurima-800 hover:bg-lurima-50 lg:hidden" onClick={() => setMenu(!menu)} aria-label={menu ? 'Cerrar menú' : 'Abrir menú'} aria-expanded={menu} aria-controls="menu-movil">
             {menu ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
           <MarcaLurima />
@@ -111,7 +110,7 @@ export default function TiendaLayout() {
                 </Link>
               </>
             ) : tipo !== 'usuario' && (
-              <Link to="/entrar" className="flex items-center gap-2 rounded-full bg-bienestar-600 px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-bienestar-700"><Building2 className="h-4 w-4" /><span className="hidden sm:inline">Acceso empresas</span><span className="sm:hidden">Entrar</span></Link>
+              <Link to="/entrar" className="flex items-center gap-2 rounded-full bg-bienestar-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-bienestar-700 sm:px-4"><Building2 className="h-4 w-4" /><span className="hidden sm:inline">Acceso empresas</span><span className="sm:hidden">Entrar</span></Link>
             )}
             {canalTienda ? (
               <Link to="/carrito" className="relative flex items-center gap-2 rounded-full bg-lurima-800 px-3.5 py-2 text-sm font-semibold text-white hover:bg-lurima-700" aria-label={`Carrito${carrito.data?.articulos ? `: ${carrito.data.articulos} artículos` : ''}`}>
@@ -148,7 +147,7 @@ export default function TiendaLayout() {
                 className="h-11 w-full rounded-full border-0 bg-lurima-50 px-4 text-sm ring-1 ring-lurima-100 focus:ring-2 focus:ring-lurima-500" />
             </form>
             <nav aria-label="Principal (móvil)" className="contenedor grid gap-1 py-2 text-sm font-semibold">
-              {ENLACES.map(([to, nombre]) => (
+              {ENLACES_Y_SUCURSALES.map(([to, nombre]) => (
                 <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => cls('flex min-h-11 items-center rounded-xl px-3', isActive ? 'bg-lurima-800 text-white' : 'text-lurima-900 hover:bg-lurima-50')}>{nombre}</NavLink>
               ))}
             </nav>
@@ -170,17 +169,18 @@ export default function TiendaLayout() {
 
       <main className="flex-1"><Transicion clave={loc.pathname}><Outlet /></Transicion></main>
 
-      <footer className="mt-16 bg-lurima-950 text-lurima-100">
-        <div className="contenedor grid gap-10 py-12 md:grid-cols-2 lg:grid-cols-[1fr_auto_2fr] lg:gap-14">
+      <footer className="relative mt-16 overflow-hidden bg-lurima-950 text-lurima-100">
+        <Cintas className="absolute -right-10 top-0 h-24 w-[36rem] rotate-180 opacity-40" />
+        <div className="contenedor relative grid gap-10 py-12 md:grid-cols-2 lg:grid-cols-[1fr_auto_2fr] lg:gap-14">
           <div className="space-y-3">
             <MarcaLurima claro />
             <p className="max-w-xs text-sm text-lurima-200">Productos de calidad para el cuidado de tu empresa y tu gente.</p>
-            {usuario ? null : <Link to="/admin/entrar" className="inline-block text-xs text-lurima-300 hover:text-white">Acceso para personal</Link>}
+            {usuario ? null : <Link to="/admin/entrar" className="inline-block text-xs text-lurima-200 hover:text-white">Acceso para personal</Link>}
           </div>
           <nav aria-label="Pie de página">
             <p className="mb-3 font-display text-sm font-bold text-white">Navegación</p>
             <ul className="space-y-2 text-sm">
-              {ENLACES.map(([to, nombre]) => <li key={to}><Link to={to} className="inline-flex min-h-8 items-center text-lurima-200 hover:text-white">{nombre}</Link></li>)}
+              {ENLACES_Y_SUCURSALES.map(([to, nombre]) => <li key={to}><Link to={to} className="inline-flex min-h-8 items-center text-lurima-200 hover:text-white">{nombre}</Link></li>)}
             </ul>
           </nav>
           {!!sucursales.data?.length && (
@@ -201,7 +201,7 @@ export default function TiendaLayout() {
         </div>
         <div className="border-t border-white/10">
           <div className="contenedor flex flex-wrap items-center justify-between gap-2 py-4 text-xs text-lurima-300">
-            <span>© {new Date().getFullYear()} Distribuidora Lurima{canalTienda ? ' · Precios en MXN con IVA incluido.' : ''}</span>
+            <span>© {new Date().getFullYear()} Distribuidora Lurima{canalTienda ? ' · Precios en MXN con IVA incluido.' : ''} · Fotografías de producto ilustrativas.</span>
             <span className="flex items-center gap-4">
               <span className="flex items-center gap-1"><Package className="h-3.5 w-3.5" aria-hidden />{canalTienda ? 'Pago por transferencia o en sucursal' : 'Trazabilidad por paquete y por empleado'}</span>
               {tipo === 'cliente' && <button onClick={salir} className="flex min-h-8 items-center gap-1 hover:text-white"><LogOut className="h-3.5 w-3.5" aria-hidden />Salir</button>}

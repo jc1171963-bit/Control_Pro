@@ -62,6 +62,9 @@ export const TIPOS_MOVIMIENTO: Record<string, string> = {
 };
 
 export function mensajeError(e: unknown): string {
+  // fetch sin respuesta del servidor (sin red, servidor caído): el navegador da un mensaje técnico en inglés. Solo esos casos;
+  // otros TypeError son errores de programación y conservan su mensaje.
+  if (e instanceof TypeError && /Failed to fetch|NetworkError|Load failed/i.test(e.message)) return 'No pudimos comunicarnos con el servidor. Revisa tu conexión e intenta de nuevo.';
   if (e && typeof e === 'object' && 'message' in e) {
     const err = e as { message: string; detalles?: any };
     const det = err.detalles;

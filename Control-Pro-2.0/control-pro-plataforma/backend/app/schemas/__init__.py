@@ -34,6 +34,19 @@ class RegistroSchema(Base):
                      validate=validate.Regexp(r"^[A-ZÑ&]{3,4}[0-9]{6}[A-Z0-9]{3}$", error="RFC inválido."))
 
 
+SIN_SALTOS = validate.Regexp(r"^[^\r\n]*$", error="No puede tener saltos de línea.")
+
+
+class ContactoSchema(Base):
+    """Formulario público de contacto. `sitio_web` es un campo trampa: las personas no lo ven ni lo llenan."""
+    nombre = fields.Str(required=True, validate=[L(min=3, max=120), SIN_SALTOS])
+    correo = fields.Email(required=True, validate=L(max=160))
+    telefono = fields.Str(load_default=None, allow_none=True, validate=TEL)
+    asunto = fields.Str(required=True, validate=[L(min=3, max=120), SIN_SALTOS])
+    mensaje = fields.Str(required=True, validate=L(min=10, max=3000))
+    sitio_web = fields.Str(load_default="", validate=L(max=200))
+
+
 class RecuperarSchema(Base):
     correo = fields.Email(required=True)
     tipo = fields.Str(load_default="cliente", validate=OneOf(["cliente", "usuario"]))

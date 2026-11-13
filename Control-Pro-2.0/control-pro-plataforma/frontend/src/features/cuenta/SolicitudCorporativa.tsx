@@ -4,7 +4,7 @@
  * envía a revisión; el servidor vuelve a validar empleado, regla por puesto, variante y cantidades.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useBlocker, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, ArrowLeft, ArrowRight, Check, Plus, Save, Search, Send, Trash2 } from 'lucide-react';
 import { claveIdempotencia, get, post, put } from '../../api/cliente';
@@ -18,6 +18,7 @@ import { cls } from '../../lib/formato';
 import { catalogoCompleto, elegible, PartidaSolicitud, PuestosAutorizados } from '../../lib/solicitud';
 import { ImagenProducto } from '../tienda/ProductoCard';
 import type { EmpleadoCorporativo } from './Corporativo';
+import ConfirmarEnvio from '../portal/ConfirmarEnvio';
 
 // ---------------------------------------------------------------- constructor de solicitud
 
@@ -88,9 +89,22 @@ export default function ConstructorSolicitud() {
   const [eligiendo, setEligiendo] = useState<ProductoResumen | null>(null);
   const [sucio, setSucio] = useState(false);
   const [enviada, setEnviada] = useState(false);
+  const [confirmar, setConfirmar] = useState(false);
   const [clave] = useState(() => claveIdempotencia('solicitud'));
   const chips = useRef<Record<number, HTMLElement | null>>({});
   const tarjetas = useRef<Record<number, HTMLElement | null>>({});
+
+  // Cambios sin guardar: se avisa antes de salir del asistente (navegación interna) y antes de cerrar o recargar la pestaña.
+  // Se usa una referencia para que la navegación que sigue a un guardado exitoso no quede bloqueada por el estado anterior.
+  const sinGuardar = useRef(false);
+  sinGuardar.current = sucio;
+  const bloqueo = useBlocker(({ currentLocation, nextLocation }) => sinGuardar.current && currentLocation.pathname !== nextLocation.pathname);
+  useEffect(() => {
+    if (!sucio) return;
+    const avisarAntes = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', avisarAntes);
+    return () => window.removeEventListener('beforeunload', avisarAntes);
+  }, [sucio]);
 
   // Cargar un borrador o una solicitud devuelta para corrección
   useEffect(() => {
@@ -135,6 +149,8 @@ export default function ConstructorSolicitud() {
     },
     onSuccess: (p, enviar) => {
       setSucio(false);
+      sinGuardar.current = false;
+      setConfirmar(false);
       qc.invalidateQueries({ queryKey: ['resumen-sucursal'] });
       qc.invalidateQueries({ queryKey: ['mis-borradores'] });
       qc.setQueryData(['pedido', String(p.id)], p);
@@ -169,6 +185,8 @@ export default function ConstructorSolicitud() {
 
   const cuenta = (empId: number) => lineas.filter((l) => l.empleado_id === empId).reduce((a, l) => a + l.cantidad, 0);
   const conArticulos = seleccion.filter((e) => cuenta(e) > 0);
+  const totalArticulos = lineas.reduce((a, l) => a + l.cantidad, 0);
+  const excepciones = lineas.filter((l) => !elegible(puestos.data, porId.get(l.empleado_id)?.puesto, l.producto_id ?? undefined)).length;
   const titulo = previo.data ? (previo.data.estado === 'devuelto' ? `Corregir solicitud ${previo.data.folio}` : `Borrador ${previo.data.folio}`) : 'Nueva solicitud';
 
   return (
@@ -177,14 +195,20 @@ export default function ConstructorSolicitud() {
         accion={editable && previo.data?.estado !== 'devuelto' && <Boton variante="secundario" tam="sm" icono={<Save className="h-3.5 w-3.5" />} cargando={guardar.isPending && guardar.variables === false}
           disabled={!id && !direccion} onClick={() => guardar.mutate(false)}>{sucio || !id ? 'Guardar borrador' : 'Guardado'}</Boton>}>
         {previo.data?.aprobaciones?.filter((a) => a.decision === 'devuelto').slice(-1).map((a) => <div key={a.fecha} className="mb-4"><Aviso tipo="alerta">Observación del distribuidor: {a.motivo}</Aviso></div>)}
-        <ol className="flex gap-2">
+        <ol className="flex gap-2" aria-label="Pasos de la solicitud">
           {PASOS.map((n, i) => (
             <li key={n} className={cls(i === paso ? 'min-w-0 flex-1' : 'shrink-0 sm:min-w-0 sm:flex-1')}>
-              <button type="button" onClick={() => (i < paso || (i === 1 && seleccion.length) || (i === 2 && lineas.length)) && setPaso(i)}
-                className={cls('flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold ring-1 transition',
-                  i === paso ? 'bg-tinta-900 text-white ring-tinta-900' : i < paso ? 'bg-menta-50 text-menta-800 ring-menta-200' : 'text-tinta-400 ring-tinta-100')}>
-                <span className={cls('grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs', i === paso ? 'bg-white text-tinta-900' : i < paso ? 'bg-menta-500 text-white' : 'bg-tinta-100')}>{i < paso ? <Check className="h-3.5 w-3.5" /> : i + 1}</span>
-                <span className={cls('truncate', i !== paso && 'sr-only sm:not-sr-only')}>{n}</span>
+              <button type="button" onClick={() => (i < paso || (i === 1 && seleccion.length) || (i === 2 && lineas.length)) && setPaso(i)} aria-current={i === paso ? 'step' : undefined}
+                className={cls('flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm font-semibold ring-1 transition',
+                  i === paso ? 'bg-sd-900 text-white ring-sd-900' : i < paso ? 'bg-menta-50 text-menta-800 ring-menta-200' : 'text-tinta-500 ring-tinta-100')}>
+                <span className={cls('grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs', i === paso ? 'bg-white text-tinta-900' : i < paso ? 'bg-menta-500 text-white' : 'bg-tinta-100')}>{i < paso ? <Check className="h-3.5 w-3.5" /> : i + 1}</span>
+                <span className={cls('min-w-0', i !== paso && 'sr-only sm:not-sr-only')}>
+                  <span className="block truncate">{n}</span>
+                  {/* Progreso real del armado: lo que ya se eligió en cada paso. */}
+                  <span className={cls('hidden truncate text-[11px] font-normal sm:block', i === paso ? 'text-white/75' : 'text-tinta-500')}>
+                    {i === 0 ? `${seleccion.length} seleccionado(s)` : i === 1 ? `${totalArticulos} artículo(s)` : excepciones ? `${excepciones} excepción(es)` : 'Confirmar y enviar'}
+                  </span>
+                </span>
               </button>
             </li>
           ))}
@@ -207,7 +231,7 @@ export default function ConstructorSolicitud() {
                       <span className={cls('grid h-10 w-10 shrink-0 place-items-center rounded-full font-display text-sm font-bold transition', sel ? 'bg-menta-500 text-white' : 'bg-tinta-50 text-tinta-600')}>
                         {sel ? <Check className="h-5 w-5" /> : e.nombre.split(' ').map((x) => x[0]).slice(0, 2).join('')}</span>
                       <span className="min-w-0"><span className="block truncate font-semibold">{e.nombre}</span><span className="block text-xs text-tinta-400">No. {e.numero} · {e.puesto}</span></span>
-                      {cuenta(e.id) > 0 && <span className="ml-auto rounded-full bg-tinta-900 px-2 py-0.5 text-[11px] font-bold text-white">{cuenta(e.id)}</span>}
+                      {cuenta(e.id) > 0 && <span className="ml-auto rounded-full bg-sd-900 px-2 py-0.5 text-[11px] font-bold text-white">{cuenta(e.id)}</span>}
                     </button>
                   </Aparecer>
                 );
@@ -228,7 +252,7 @@ export default function ConstructorSolicitud() {
                   return (
                     <li key={eid} className="shrink-0">
                       <button type="button" ref={(el) => { chips.current[eid] = el; }} onClick={() => setActivo(eid)}
-                        className={cls('flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm ring-1 transition', activo === eid ? 'bg-tinta-900 text-white ring-tinta-900' : 'bg-white ring-tinta-100 hover:ring-tinta-300')}>
+                        className={cls('flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm ring-1 transition', activo === eid ? 'bg-sd-900 text-white ring-sd-900' : 'bg-white ring-tinta-100 hover:ring-tinta-300')}>
                         <span className="min-w-0 flex-1"><span className="block truncate font-semibold">{e.nombre}</span><span className={cls('block text-[11px]', activo === eid ? 'text-tinta-200' : 'text-tinta-400')}>{e.puesto}</span></span>
                         <span className={cls('grid h-6 min-w-6 place-items-center rounded-full px-1 text-[11px] font-bold', cuenta(eid) ? 'bg-menta-500 text-white' : activo === eid ? 'bg-white/15' : 'bg-tinta-50 text-tinta-400')}>{cuenta(eid)}</span>
                       </button>
@@ -313,8 +337,8 @@ export default function ConstructorSolicitud() {
               <Tarjeta titulo="Resumen">
                 <dl className="space-y-2 text-sm">
                   <div className="flex justify-between"><dt className="text-tinta-500">Empleados</dt><dd className="font-bold">{conArticulos.length}</dd></div>
-                  <div className="flex justify-between"><dt className="text-tinta-500">Artículos</dt><dd className="font-bold">{lineas.reduce((a, l) => a + l.cantidad, 0)}</dd></div>
-                  <div className="flex justify-between"><dt className="text-tinta-500">Excepciones por puesto</dt><dd className="font-bold">{lineas.filter((l) => !elegible(puestos.data, porId.get(l.empleado_id)?.puesto, l.producto_id ?? undefined)).length}</dd></div>
+                  <div className="flex justify-between"><dt className="text-tinta-500">Artículos</dt><dd className="font-bold">{totalArticulos}</dd></div>
+                  <div className="flex justify-between"><dt className="text-tinta-500">Excepciones por puesto</dt><dd className="font-bold">{excepciones}</dd></div>
                 </dl>
                 <Campo etiqueta="Entregar en" className="mt-4">
                   {previo.data?.direccion_envio ? (
@@ -322,14 +346,15 @@ export default function ConstructorSolicitud() {
                   ) : dirs.data?.length ? (
                     <Selector value={direccion} onChange={(e) => { setDireccion(Number(e.target.value)); setSucio(true); }}>
                       {dirs.data.map((d) => <option key={d.id} value={d.id}>{d.alias} · {d.calle} {d.numero}, {d.ciudad}</option>)}</Selector>
-                  ) : <Aviso tipo="alerta">Registra la dirección de tu sucursal en <Link to="/cuenta/direcciones" className="font-semibold underline">Direcciones</Link>.</Aviso>}
+                  ) : <Aviso tipo="alerta">Tu sucursal aún no tiene una dirección de entrega registrada. Pide a tu distribuidor que la registre; puedes consultarla en <Link to="/cuenta/perfil" className="font-semibold underline">Mi cuenta</Link>.</Aviso>}
                 </Campo>
                 <Campo etiqueta="Notas para el distribuidor" className="mt-3"><Texto value={notas} onChange={(e) => { setNotas(e.target.value); setSucio(true); }} /></Campo>
                 {pendientesJustificar.length > 0 && <div className="mt-3"><Aviso tipo="alerta">{pendientesJustificar.length} artículo(s) fuera de la regla por puesto necesitan justificación antes de enviar.</Aviso></div>}
-                <div className="mt-3"><ErrorCaja error={guardar.error} /></div>
+                {/* El error de un envío se muestra en la confirmación; aquí, el de guardar borrador. */}
+                {!confirmar && <div className="mt-3"><ErrorCaja error={guardar.error} /></div>}
                 <div className="mt-4 grid gap-2">
                   <Boton tam="lg" icono={<Send className="h-4 w-4" />} disabled={!lineas.length || (!id && !direccion) || pendientesJustificar.length > 0}
-                    cargando={guardar.isPending && guardar.variables === true} onClick={() => guardar.mutate(true)}>
+                    cargando={guardar.isPending && guardar.variables === true} onClick={() => { guardar.reset(); setConfirmar(true); }}>
                     {previo.data?.estado === 'devuelto' ? 'Reenviar a revisión' : 'Enviar a revisión'}</Boton>
                   {previo.data?.estado !== 'devuelto' && <Boton variante="secundario" icono={<Save className="h-4 w-4" />} disabled={!id && !direccion}
                     cargando={guardar.isPending && guardar.variables === false} onClick={() => guardar.mutate(false)}>Guardar borrador</Boton>}
@@ -342,6 +367,15 @@ export default function ConstructorSolicitud() {
         )}
       </Transicion>
 
+      <ConfirmarEnvio abierto={confirmar} reenvio={previo.data?.estado === 'devuelto'} folio={previo.data?.folio} empleados={conArticulos.length} articulos={totalArticulos}
+        excepciones={excepciones} cargando={guardar.isPending} error={guardar.error} onConfirmar={() => guardar.mutate(true)} onCerrar={() => setConfirmar(false)} />
+      <Modal abierto={bloqueo.state === 'blocked'} titulo="Tienes cambios sin guardar" onCerrar={() => bloqueo.reset?.()}>
+        <p className="text-sm text-tinta-700">Si sales ahora se perderán los artículos y cambios que no has guardado{previo.data?.estado !== 'devuelto' ? '. Para conservarlos, elige «Seguir editando» y usa «Guardar borrador»' : ''}.</p>
+        <div className="mt-5 flex flex-wrap justify-end gap-2">
+          <Boton variante="secundario" onClick={() => bloqueo.reset?.()}>Seguir editando</Boton>
+          <Boton variante="peligro" onClick={() => bloqueo.proceed?.()}>Salir sin guardar</Boton>
+        </div>
+      </Modal>
       <Modal abierto={!!eligiendo && !!empActivo} titulo={eligiendo?.nombre || ''} onCerrar={() => setEligiendo(null)} ancho="max-w-2xl">
         <div data-selector-articulo>
           {eligiendo && empActivo && <SelectorArticulo producto={eligiendo} empleado={empActivo} puestos={puestos.data} onAgregar={agregar} onCerrar={() => setEligiendo(null)} />}

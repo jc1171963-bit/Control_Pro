@@ -6,14 +6,30 @@ import { useAuth } from '../../app/auth';
 import { useConfig } from '../../app/config';
 import { Aviso, Boton, Campo, Entrada, ErrorCaja } from '../../components/ui';
 import { cls } from '../../lib/formato';
+import { Cintas } from '../tienda/Decoracion';
 
+/** Marco de acceso con la identidad de la tienda LURIMA (estas rutas viven en su layout). Solo presentación. */
 function Marco({ titulo, sub, children }: { titulo: string; sub?: string; children: React.ReactNode }) {
   return (
-    <div className="contenedor flex justify-center py-12">
-      <div className="w-full max-w-md rounded-3xl bg-white p-7 shadow-suave ring-1 ring-arena-200">
-        <h1 className="font-display text-2xl font-extrabold tracking-tight">{titulo}</h1>
-        {sub && <p className="mt-1 text-sm text-tinta-500">{sub}</p>}
-        <div className="mt-6">{children}</div>
+    <div className="relative overflow-hidden bg-gradient-to-b from-lurima-50 to-white">
+      <Cintas className="absolute -left-24 bottom-0 h-32 w-[40rem] opacity-40" />
+      <div className="contenedor relative flex justify-center py-10 sm:py-14">
+        <div className="grid w-full max-w-4xl overflow-hidden rounded-[2rem] bg-white shadow-suave ring-1 ring-lurima-100 md:grid-cols-[1fr_1.1fr]">
+          <div className="relative hidden min-h-[32rem] bg-lurima-950 md:block" aria-hidden>
+            <img src="/assets/escenas/uniformes-clinicos.webp" alt="" width={1200} height={1200} className="absolute inset-0 h-full w-full object-cover opacity-70" />
+            <span className="absolute inset-0 bg-gradient-to-t from-lurima-950 via-lurima-950/50 to-lurima-900/10" />
+            <div className="absolute inset-x-0 bottom-0 p-8 text-white">
+              <span className="block h-14 w-14 overflow-hidden rounded-full bg-white ring-4 ring-white/20"><img src="/lurima-logo.jpeg" alt="" className="h-full w-full scale-[1.6] object-cover" /></span>
+              <p className="mt-4 font-display text-2xl font-extrabold leading-tight">Distribuidora Lurima</p>
+              <p className="text-sm text-lurima-100">Salud y bienestar a tu alcance</p>
+            </div>
+          </div>
+          <div className="p-7 sm:p-10">
+            <h1 className="font-display text-2xl font-extrabold tracking-tight text-lurima-900 sm:text-3xl">{titulo}</h1>
+            {sub && <p className="mt-1 text-sm text-tinta-600">{sub}</p>}
+            <div className="mt-7">{children}</div>
+          </div>
+        </div>
       </div>
     </div>
   );
