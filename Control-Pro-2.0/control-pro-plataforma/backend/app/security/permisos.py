@@ -28,6 +28,8 @@ PERMISOS = {
     "incidencia.gestionar": "Registrar y dar seguimiento a incidencias",
     "reporte.ver": "Consultar indicadores y exportar reportes",
     "auditoria.ver": "Consultar la bitácora de auditoría",
+    "permiso_padron.gestionar": "Autorizar o rechazar los permisos de las sucursales para modificar su padrón de empleados",
+    "orden.recibir": "Recibir las órdenes aprobadas por el aprobador corporativo (distribuidora)",
 }
 
 _LECTURA = ["sucursal.ver", "cliente.ver", "inventario.ver", "pedido.ver", "pago.ver", "reporte.ver", "auditoria.ver"]
@@ -44,7 +46,7 @@ ROLES = {
         "permisos": ["sucursal.ver", "cliente.ver", "inventario.ver", "inventario.entrada", "inventario.ajustar",
                      "transferencia.solicitar", "transferencia.autorizar", "transferencia.operar", "pedido.ver",
                      "pedido.cancelar", "surtido.operar", "pago.ver", "pago.registrar_efectivo",
-                     "devolucion.recibir", "incidencia.gestionar", "reporte.ver", "promocion.gestionar"],
+                     "devolucion.recibir", "incidencia.gestionar", "reporte.ver", "promocion.gestionar", "orden.recibir"],
     },
     "inventario": {
         "nombre": "Personal de inventario", "global": False,
@@ -57,20 +59,21 @@ ROLES = {
         "nombre": "Finanzas y caja", "global": True,
         "descripcion": "Valida pagos, registra cobros y autoriza reembolsos.",
         "permisos": ["sucursal.ver", "cliente.ver", "pedido.ver", "pago.ver", "pago.validar",
-                     "pago.registrar_efectivo", "reembolso.autorizar", "reporte.ver"],
+                     "pago.registrar_efectivo", "reembolso.autorizar", "reporte.ver", "orden.recibir"],
     },
     "atencion": {
         "nombre": "Atención a clientes", "global": True,
         "descripcion": "Seguimiento de pedidos, devoluciones e incidencias.",
         "permisos": ["sucursal.ver", "cliente.ver", "inventario.ver", "pedido.ver", "pedido.cancelar",
-                     "pedido.cerrar", "pago.ver", "devolucion.gestionar", "incidencia.gestionar"],
+                     "pedido.cerrar", "pago.ver", "devolucion.gestionar", "incidencia.gestionar", "orden.recibir"],
     },
     "aprobador": {
         "nombre": "Aprobador corporativo", "global": True,
-        "descripcion": "Administra las sucursales, revisa, edita, aprueba o cancela sus solicitudes y da seguimiento "
-                       "al surtido y al envío hasta la entrega.",
-        "permisos": ["sucursal.ver", "cliente.ver", "cliente.gestionar", "inventario.ver", "pedido.ver", "pedido.aprobar",
-                     "pedido.cancelar", "surtido.operar", "incidencia.gestionar"],
+        "descripcion": "Del lado de Salud Digna: administra las sucursales, revisa, edita, aprueba o cancela sus "
+                       "solicitudes, autoriza cambios al padrón de empleados y se comunica con sucursales y distribuidora. "
+                       "Entra por el portal de sucursales, no por el panel interno.",
+        "permisos": ["sucursal.ver", "cliente.ver", "cliente.gestionar", "pedido.ver", "pedido.aprobar", "pedido.cancelar",
+                     "permiso_padron.gestionar"],
     },
     "auditor": {
         "nombre": "Supervisor / auditor", "global": True,

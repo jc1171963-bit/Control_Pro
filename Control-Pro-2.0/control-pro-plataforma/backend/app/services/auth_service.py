@@ -56,6 +56,15 @@ def login(tipo: str, correo: str, password: str):
     return cuenta
 
 
+def tipo_portal(correo: str) -> str:
+    """Quién entra por el portal: una sucursal (cliente) o el aprobador corporativo (usuario con rol aprobador).
+    El resto del personal interno entra por /admin/entrar; para ellos se responde como cuenta inexistente."""
+    if _buscar("cliente", correo):
+        return "cliente"
+    u = _buscar("usuario", correo)
+    return "usuario" if u and u.rol.codigo == "aprobador" else "cliente"
+
+
 def registrar_cliente(datos: dict) -> Cliente:
     if not current_app.config["CANAL_TIENDA"]:
         raise AppError("Las cuentas de sucursal las da de alta el distribuidor.", codigo="canal_no_disponible")

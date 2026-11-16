@@ -5,6 +5,7 @@ import { AlertTriangle, ClipboardCheck, Inbox, PackageCheck, Star, Store, Truck,
 import { ReactNode } from 'react';
 import { get } from '../../api/cliente';
 import { useAuth } from '../../app/auth';
+import { useBasePanel } from '../../app/panel';
 import { ErrorCaja, Tarjeta } from '../../components/ui';
 import { Aparecer, Contador, EsqueletoLista } from '../../components/movimiento';
 import { cls, fecha } from '../../lib/formato';
@@ -32,7 +33,7 @@ const ETAPAS: [string, string, string, string][] = [
 
 function Kpi({ titulo, valor, detalle, icono, orden, enlace, alerta }: { titulo: string; valor: number; detalle?: ReactNode; icono: ReactNode; orden: number; enlace?: string; alerta?: boolean }) {
   const cuerpo = (
-    <div className={cls('h-full rounded-2xl bg-white p-4 shadow-suave ring-1 transition', enlace && 'hover:-translate-y-0.5 hover:shadow-lg', alerta && valor > 0 ? 'ring-amber-300' : 'ring-tinta-100')}>
+    <div className={cls('vidrio h-full rounded-2xl bg-white p-4 shadow-suave ring-1 transition', enlace && 'hover:-translate-y-0.5 hover:shadow-lg', alerta && valor > 0 ? 'ring-amber-300' : 'ring-tinta-100')}>
       <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-tinta-400">
         <span>{titulo}</span><span className={cls('grid h-8 w-8 place-items-center rounded-xl', alerta && valor > 0 ? 'bg-amber-100 text-amber-700' : 'bg-menta-50 text-menta-700')}>{icono}</span>
       </div>
@@ -43,32 +44,34 @@ function Kpi({ titulo, valor, detalle, icono, orden, enlace, alerta }: { titulo:
   return <Aparecer orden={orden}>{enlace ? <Link to={enlace} className="block h-full">{cuerpo}</Link> : cuerpo}</Aparecer>;
 }
 
-export default function PanelSolicitudes() {
+export default function PanelSolicitudes({ encabezado = true }: { encabezado?: boolean }) {
+  const base = useBasePanel();
+  const { puede } = useAuth();
   const q = useQuery({ queryKey: ['panel-solicitudes'], queryFn: () => get<Panel>('/admin/reportes/solicitudes'), refetchInterval: 60_000 });
   const k = q.data;
   const maxSerie = Math.max(1, ...(k?.serie.map((s) => s.solicitudes) || [1]));
   const totalEtapas = k ? Object.values(k.solicitudes.por_etapa).reduce((a, b) => a + b, 0) : 0;
   return (
     <>
-      <Encabezado titulo="Panel de solicitudes" sub="Sucursales, solicitudes y entregas en tiempo real" />
+      {encabezado && <Encabezado titulo="Panel de solicitudes" sub="Sucursales, solicitudes y entregas en tiempo real" />}
       <ErrorCaja error={q.error} />
       {q.isLoading || !k ? <EsqueletoLista filas={4} /> : (
         <div className="space-y-5">
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Kpi orden={0} titulo="Sucursales activas" valor={k.sucursales.activas} icono={<Store className="h-4 w-4" />} enlace="/admin/sucursales-cliente"
+            <Kpi orden={0} titulo="Sucursales activas" valor={k.sucursales.activas} icono={<Store className="h-4 w-4" />} enlace={`${base}/sucursales-cliente`}
               detalle={`${k.sucursales.con_solicitudes_en_curso} con solicitudes en curso · ${k.sucursales.inactivas} inactiva(s)`} />
-            <Kpi orden={1} titulo="Total de solicitudes" valor={k.solicitudes.total} icono={<Inbox className="h-4 w-4" />} enlace="/admin/solicitudes?estado="
+            <Kpi orden={1} titulo="Total de solicitudes" valor={k.solicitudes.total} icono={<Inbox className="h-4 w-4" />} enlace={`${base}/solicitudes?estado=`}
               detalle={`${k.solicitudes.este_mes} este mes`} />
-            <Kpi orden={2} titulo="Por revisar" valor={k.solicitudes.por_etapa.por_revisar} alerta icono={<ClipboardCheck className="h-4 w-4" />} enlace="/admin/solicitudes?estado=en_revision"
+            <Kpi orden={2} titulo="Por revisar" valor={k.solicitudes.por_etapa.por_revisar} alerta icono={<ClipboardCheck className="h-4 w-4" />} enlace={`${base}/solicitudes?estado=en_revision`}
               detalle="Esperan aprobación" />
-            <Kpi orden={3} titulo="Paquetes en camino" valor={k.paquetes_en_camino} icono={<Truck className="h-4 w-4" />} enlace="/admin/solicitudes?estado=parcialmente_enviado,enviado" />
+            <Kpi orden={3} titulo="Paquetes en camino" valor={k.paquetes_en_camino} icono={<Truck className="h-4 w-4" />} enlace={`${base}/solicitudes?estado=parcialmente_enviado,enviado`} />
             <Kpi orden={4} titulo="Prendas solicitadas" valor={k.unidades.solicitadas} icono={<PackageCheck className="h-4 w-4" />}
               detalle={`${k.unidades.entregadas} entregadas en sucursal`} />
             <Kpi orden={5} titulo="Entregas a empleados" valor={k.entregas.registradas} icono={<Users className="h-4 w-4" />}
               detalle={`${k.entregas.pendientes} pendientes · ${k.entregas.conformidades_pendientes} sin conformidad`} />
             <Kpi orden={6} titulo="Satisfacción promedio" valor={k.entregas.valoracion_promedio ? Math.round(k.entregas.valoracion_promedio * 10) / 10 : 0} icono={<Star className="h-4 w-4" />}
               detalle={k.entregas.valoracion_promedio ? `${k.entregas.valoracion_promedio} de 5 estrellas` : 'Sin conformidades aún'} />
-            <Kpi orden={7} titulo="Incidencias abiertas" valor={k.incidencias_abiertas} alerta icono={<AlertTriangle className="h-4 w-4" />} enlace="/admin/incidencias" />
+            <Kpi orden={7} titulo="Incidencias abiertas" valor={k.incidencias_abiertas} alerta icono={<AlertTriangle className="h-4 w-4" />} enlace={puede('incidencia.gestionar') ? '/admin/incidencias' : undefined} />
           </div>
 
           <Tarjeta titulo="Solicitudes por etapa" sub="Cada etapa lleva su propio estado: revisión, surtido, envío y entrega">
@@ -80,7 +83,7 @@ export default function PanelSolicitudes() {
             <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
               {ETAPAS.map(([clave, nombre, color, estados], i) => (
                 <Aparecer key={clave} orden={i}>
-                  <Link to={`/admin/solicitudes?estado=${estados}`} className="block rounded-xl p-2 transition hover:bg-arena-50">
+                  <Link to={`${base}/solicitudes?estado=${estados}`} className="block rounded-xl p-2 transition hover:bg-arena-50">
                     <span className="flex items-center gap-2 text-xs text-tinta-500"><span className={cls('h-2.5 w-2.5 rounded-full', color)} />{nombre}</span>
                     <span className="font-display text-xl font-extrabold"><Contador valor={k.solicitudes.por_etapa[clave]} /></span>
                   </Link>

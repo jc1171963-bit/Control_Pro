@@ -7,6 +7,8 @@ type Estado = { tipo: TipoSesion | null; cliente: Cliente | null; usuario: Usuar
 type Ctx = Estado & {
   entrarCliente: (correo: string, password: string) => Promise<void>;
   entrarUsuario: (correo: string, password: string) => Promise<void>;
+  /** Portal Salud Digna: sucursales y aprobador corporativo con el mismo formulario. Devuelve quién entró. */
+  entrarPortal: (correo: string, password: string) => Promise<{ tipo: TipoSesion; cuenta: Cliente | Usuario }>;
   registrar: (datos: Record<string, unknown>) => Promise<void>;
   salir: () => Promise<void>;
   puede: (...permisos: string[]) => boolean;
@@ -46,6 +48,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const d = await post('/auth/login', { correo, password });
       qc.clear();
       aplicar('usuario', d.cuenta, d.access_token);
+    },
+    async entrarPortal(correo, password) {
+      const d = await post('/auth/portal/login', { correo, password });
+      qc.clear();
+      aplicar(d.tipo, d.cuenta, d.access_token);
+      return { tipo: d.tipo, cuenta: d.cuenta };
     },
     async registrar(datos) {
       const d = await post('/auth/cliente/registro', datos);

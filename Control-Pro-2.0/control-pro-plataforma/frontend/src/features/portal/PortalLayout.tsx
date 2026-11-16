@@ -5,7 +5,7 @@
  */
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, ScrollRestoration, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowRight, Bell, Building2, ChevronDown, ChevronRight, ChevronsLeft, ChevronsRight, ClipboardList, Heart, Home, Menu, PenLine, PlusCircle, Search, Shirt, User, Users, X } from 'lucide-react';
+import { ArrowRight, Bell, Building2, ChevronDown, ChevronRight, ChevronsLeft, ChevronsRight, ClipboardList, Heart, Home, Menu, MessagesSquare, PenLine, PlusCircle, Search, Shirt, User, Users, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuth } from '../../app/auth';
 import { useBorradores } from '../../app/borradores';
@@ -15,6 +15,7 @@ import { useAtraparFoco } from '../../components/useAtraparFoco';
 import { useMediaQuery } from '../../components/useMediaQuery';
 import { cls } from '../../lib/formato';
 import { ContextoCatalogoCtx } from '../tienda/contextoCatalogo';
+import { useMensajesNoLeidos } from '../colaboracion/Mensajes';
 import FondoPortal from './FondoPortal';
 import MarcaPortal from './MarcaPortal';
 import { CONTEXTO_CATALOGO_PORTAL, RUTA_CATALOGO_PORTAL } from './rutas';
@@ -23,7 +24,8 @@ import { CONTEXTO_CATALOGO_PORTAL, RUTA_CATALOGO_PORTAL } from './rutas';
 // "Dirección de entrega" vive dentro de "Mi cuenta"; /cuenta/direcciones redirige allí.
 const ITEMS: [string, string, LucideIcon][] = [
   ['/cuenta', 'Inicio', Home], [RUTA_CATALOGO_PORTAL, 'Catálogo', Shirt], ['/cuenta/solicitudes/nueva', 'Crear solicitud', PlusCircle],
-  ['/cuenta/pedidos', 'Solicitudes', ClipboardList], ['/cuenta/empleados', 'Empleados', Users], ['/cuenta/notificaciones', 'Notificaciones', Bell],
+  ['/cuenta/pedidos', 'Solicitudes', ClipboardList], ['/cuenta/empleados', 'Empleados', Users], ['/cuenta/mensajes', 'Mensajes', MessagesSquare],
+  ['/cuenta/notificaciones', 'Notificaciones', Bell],
   ['/cuenta/perfil', 'Mi cuenta', User],
 ];
 
@@ -71,6 +73,8 @@ export default function PortalLayout() {
   const nav = useNavigate();
   const loc = useLocation();
   const noLeidas = useContadorNotificaciones().data?.no_leidas ?? 0;
+  const mensajesSinLeer = useMensajesNoLeidos().data?.no_leidos ?? 0;
+  const insignia = (to: string) => (to === '/cuenta/notificaciones' ? noLeidas : to === '/cuenta/mensajes' ? mensajesSinLeer : 0);
   // "Solicitud en curso": el borrador más reciente (no es un carrito: no hay importes ni pago).
   const borradores = useBorradores().data;
   const enCurso = borradores?.items?.[0];
@@ -141,8 +145,8 @@ export default function PortalLayout() {
               {({ isActive }) => (
                 <>
                   <Icono className="h-5 w-5 shrink-0" aria-hidden /><span className={cls(rail && 'lg:sr-only')}>{nombre}</span>
-                  {to === '/cuenta/notificaciones' && noLeidas > 0 ? (
-                    <span className={cls('ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-[#f04444] px-1 text-[10px] font-bold text-white', rail && 'lg:absolute lg:right-1.5 lg:top-1 lg:ml-0')} aria-label={`${noLeidas} sin leer`}>{noLeidas}</span>
+                  {insignia(to) > 0 ? (
+                    <span className={cls('ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-[#f04444] px-1 text-[10px] font-bold text-white', rail && 'lg:absolute lg:right-1.5 lg:top-1 lg:ml-0')} aria-label={`${insignia(to)} sin leer`}>{insignia(to)}</span>
                   ) : isActive && <ChevronRight className={cls('ml-auto h-4 w-4', rail && 'lg:hidden')} aria-hidden />}
                 </>
               )}

@@ -609,6 +609,14 @@ def decidir_corporativo(pedido: Pedido, decision: str, motivo: str | None, acept
     db.session.add(pago)
     asignar_folio(pago, "PAG")
     confirmar(pedido, motivo or "Aprobado")
+    # La orden aprobada llega a la distribuidora para que contacte a la sucursal (pago) y la surta.
+    # Llega a los roles globales y a los de cada centro de distribución que surte la orden.
+    cliente = pedido.cliente
+    aviso = (f"Orden aprobada {pedido.folio} de {cliente.razon_social or cliente.nombre} "
+             f"({sum(d.cantidad for d in pedido.detalles)} artículo(s)). Contacta a la sucursal para el pago.")
+    for sucursal_id in sorted({a.sucursal_id for a in pedido.asignaciones}) or [None]:
+        notificar_personal("orden.recibir", "orden_aprobada", "pedido", pedido.id, aviso, sucursal_id=sucursal_id,
+                           enlace=f"/admin/pedidos/{pedido.id}")
     auditar("pedido.aprobado", "pedido", pedido.id, despues={"sucursales": [a.sucursal_id for a in pedido.asignaciones]})
     db.session.commit()
     return pedido

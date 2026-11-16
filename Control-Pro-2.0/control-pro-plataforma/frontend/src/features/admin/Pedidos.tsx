@@ -5,6 +5,8 @@ import { AlertTriangle, Ban, Check, CheckCheck, ChevronRight, FileDown, FileSign
 import { claveIdempotencia, descargar, get, post } from '../../api/cliente';
 import type { Pagina, Pedido, PedidoResumen } from '../../api/tipos';
 import { useAuth } from '../../app/auth';
+import { esAprobador, useBasePanel } from '../../app/panel';
+import { BotonWhatsApp, ChatSolicitud } from '../colaboracion/Mensajes';
 import { Aviso, Boton, Campo, Cargando, Entrada, ErrorCaja, Estado, Modal, Paginacion, Selector, Tabla, Tarjeta, Td, Texto, useAviso } from '../../components/ui';
 import { cls, dinero, etiqueta, fechaHora, METODOS, mensajeError, PROBLEMAS_RECEPCION } from '../../lib/formato';
 import { Aparecer, EsqueletoLista, Palomita } from '../../components/movimiento';
@@ -58,11 +60,13 @@ export function Pedidos() {
 
 // ---------------------------------------------------------------- bandeja de solicitudes de sucursales
 
-const BANDEJA = [['en_revision', 'Por revisar'], ['devuelto', 'En corrección'], ['confirmado,en_preparacion', 'En surtido'],
+const ATENDIDAS = 'devuelto,confirmado,en_preparacion,parcialmente_enviado,enviado,parcialmente_entregado,entregado,cerrado,rechazado,cancelado';
+const BANDEJA = [['en_revision', 'Nuevas · por revisar'], [ATENDIDAS, 'Atendidas'], ['devuelto', 'En corrección'], ['confirmado,en_preparacion', 'En surtido'],
   ['parcialmente_enviado,enviado', 'En camino'], ['parcialmente_entregado,entregado', 'En recepción y entrega'], ['cerrado', 'Cerradas'],
   ['rechazado,cancelado', 'Rechazadas o canceladas'], ['', 'Todas']];
 
 export function Solicitudes() {
+  const base = useBasePanel();
   const [params, setParams] = useSearchParams();
   const estado = params.get('estado') ?? 'en_revision';
   const pagina = Number(params.get('pagina') || 1);
@@ -83,7 +87,7 @@ export function Solicitudes() {
           <ul className="divide-y divide-tinta-100">
             {q.data.items.map((p, i) => (
               <Aparecer como="li" orden={i} key={p.id}>
-                <Link to={`/admin/pedidos/${p.id}`} className="flex flex-wrap items-center gap-4 rounded-lg px-2 py-4 transition hover:bg-tinta-50/60">
+                <Link to={`${base}/pedidos/${p.id}`} className="flex flex-wrap items-center gap-4 rounded-lg px-2 py-4 transition hover:bg-tinta-50/60">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2"><span className="font-display font-bold">{p.folio}</span><Estado valor={p.estado} /></div>
                     <p className="text-sm font-semibold text-tinta-700">{p.cliente.nombre}</p>
@@ -131,7 +135,9 @@ function TrazabilidadArticulos({ p, onFirma }: { p: Pedido; onFirma: (entregaId:
 
 export function PedidoAdmin() {
   const { id } = useParams();
-  const { puede } = useAuth();
+  const { puede, usuario } = useAuth();
+  const base = useBasePanel();
+  const aprobador = esAprobador(usuario);
   const qc = useQueryClient();
   const avisar = useAviso();
   const q = useQuery({ queryKey: ['admin-pedido', id], queryFn: () => get<Pedido>(`/admin/pedidos/${id}`) });
@@ -229,7 +235,7 @@ export function PedidoAdmin() {
             )}
           </Tarjeta>
 
-          <Tarjeta titulo="Pagos y reembolsos">
+          {puede('pago.ver') && <Tarjeta titulo="Pagos y reembolsos">
             {!p.pagos.length ? <p className="text-sm text-tinta-400">Sin pagos registrados.</p> : (
               <Tabla columnas={['Folio', 'Método', 'Referencia', 'Monto', 'Estado', '']}>
                 {p.pagos.map((x) => (
@@ -241,7 +247,7 @@ export function PedidoAdmin() {
                 ))}
               </Tabla>
             )}
-          </Tarjeta>
+          </Tarjeta>}
 
           {!!p.paquetes.length && (
             <Tarjeta titulo="Paquetes">
@@ -270,18 +276,28 @@ export function PedidoAdmin() {
             <p className="text-sm text-tinta-500">{p.cliente.correo}<br />{p.cliente.telefono}</p>
             {p.direccion_envio && <p className="mt-3 text-sm"><b>Entrega:</b> {p.direccion_envio.calle} {p.direccion_envio.numero}, {p.direccion_envio.colonia}, {p.direccion_envio.ciudad}, {p.direccion_envio.estado} · CP {p.direccion_envio.cp}<br /><span className="text-tinta-400">Recibe {p.direccion_envio.destinatario} · {p.direccion_envio.telefono}</span></p>}
             {p.notas && <p className="mt-3 rounded-lg bg-tinta-50 p-2 text-xs">{p.notas}</p>}
-            {puede('cliente.ver') && <Link to={`/admin/clientes?q=${encodeURIComponent(p.cliente.correo)}`} className="mt-2 inline-block text-xs font-semibold text-menta-700">Ver cliente →</Link>}
+            {aprobador ? (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <Link to={`${base}/sucursales-cliente/${p.cliente.id}`} className="text-xs font-semibold text-menta-700">Ver sucursal y su padrón →</Link>
+                <BotonWhatsApp numero={p.cliente.telefono} texto={`Hola, te escribo sobre la solicitud ${p.folio}.`} className="ml-auto" />
+              </div>
+            ) : puede('cliente.ver') && <Link to={`/admin/clientes?q=${encodeURIComponent(p.cliente.correo)}`} className="mt-2 inline-block text-xs font-semibold text-menta-700">Ver cliente →</Link>}
           </Tarjeta>
+          {p.canal === 'corporativo' && aprobador && <ChatSolicitud key={`s-${p.id}`} pedidoId={p.id} tipo="sucursal" titulo="Conversación con la sucursal" />}
+          {p.canal === 'corporativo' && aprobador && !['borrador', 'en_revision', 'devuelto'].includes(p.estado) &&
+            <ChatSolicitud key={`d-${p.id}`} pedidoId={p.id} tipo="distribuidora" titulo="Conversación con la distribuidora" />}
+          {p.canal === 'corporativo' && !aprobador && puede('orden.recibir') &&
+            <ChatSolicitud key={`a-${p.id}`} pedidoId={p.id} tipo="distribuidora" titulo="Conversación con el aprobador" />}
           {!!p.incidencias?.length && (
             <Tarjeta titulo="Incidencias">
               {p.incidencias.map((i) => <div key={i.id} className="mb-2 rounded-lg p-3 text-sm ring-1 ring-tinta-100"><div className="flex justify-between"><b>{i.folio}</b><Estado valor={i.estado} /></div>
                 {(i.empleado || i.articulo) && <p className="text-xs font-semibold text-tinta-600">{[i.empleado?.nombre, i.articulo && `${i.articulo.nombre} (${i.articulo.talla})`].filter(Boolean).join(' · ')}</p>}
                 <p className="text-xs">{i.descripcion}</p></div>)}
-              <Link to="/admin/incidencias" className="text-xs font-semibold text-menta-700">Gestionar →</Link>
+              {puede('incidencia.gestionar') && <Link to="/admin/incidencias" className="text-xs font-semibold text-menta-700">Gestionar →</Link>}
             </Tarjeta>
           )}
           {!!p.devoluciones.length && (
-            <Tarjeta titulo="Devoluciones">{p.devoluciones.map((d) => <div key={d.id} className="mb-2 flex justify-between text-sm"><Link to="/admin/devoluciones" className="font-semibold hover:underline">{d.folio}</Link><Estado valor={d.estado} /></div>)}</Tarjeta>
+            <Tarjeta titulo="Devoluciones">{p.devoluciones.map((d) => <div key={d.id} className="mb-2 flex justify-between text-sm">{puede('devolucion.gestionar') ? <Link to="/admin/devoluciones" className="font-semibold hover:underline">{d.folio}</Link> : <span className="font-semibold">{d.folio}</span>}<Estado valor={d.estado} /></div>)}</Tarjeta>
           )}
           <Tarjeta titulo="Historial">
             <ol className="space-y-3 text-sm">

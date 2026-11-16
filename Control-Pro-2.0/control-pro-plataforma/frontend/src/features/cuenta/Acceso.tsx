@@ -38,7 +38,7 @@ function Marco({ titulo, sub, children }: { titulo: string; sub?: string; childr
 const destinoSeguro = (s: string | null, defecto: string) => (s && s.startsWith('/') && !s.startsWith('//') ? s : defecto);
 
 export function Entrar() {
-  const { entrarCliente } = useAuth();
+  const { entrarPortal } = useAuth();
   const { canalTienda } = useConfig();
   const nav = useNavigate();
   const [params] = useSearchParams();
@@ -49,8 +49,11 @@ export function Entrar() {
     const f = new FormData(e.currentTarget);
     setCargando(true); setError(null);
     try {
-      await entrarCliente(String(f.get('correo')), String(f.get('password')));
-      nav(destinoSeguro(params.get('siguiente'), '/cuenta'), { replace: true });
+      const r = await entrarPortal(String(f.get('correo')), String(f.get('password')));
+      // El aprobador corporativo entra por aquí mismo y va a su portal; las sucursales, al suyo.
+      const siguiente = params.get('siguiente');
+      if (r.tipo === 'usuario') nav(siguiente?.startsWith('/aprobador') ? siguiente : '/aprobador', { replace: true });
+      else nav(destinoSeguro(siguiente?.startsWith('/aprobador') ? null : siguiente, '/cuenta'), { replace: true });
     } catch (err) { setError(err); } finally { setCargando(false); }
   };
   return (

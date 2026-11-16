@@ -131,3 +131,18 @@ export type Carrito = {
   avisos: string[]; articulos: number; totales: Record<string, string>; envio_gratis_desde: string; costo_envio: string;
   reserva_horas: number;
 };
+
+/** Permiso de una sucursal para modificar su padrón de empleados (lo autoriza el aprobador). */
+export type PermisoPadron = {
+  id: number; estado: 'pendiente' | 'aprobado' | 'rechazado' | 'cancelado' | 'terminado' | 'vencido'; motivo: string; respuesta: string | null;
+  solicitado: string; resuelto_en: string | null; vigente_hasta: string | null; terminado_en: string | null; resuelto_por: string | null;
+  sucursal: { id: number; nombre: string; correo: string; zona: string | null };
+};
+export type EstadoPadron = { vigente: PermisoPadron | null; pendiente: PermisoPadron | null; historial: PermisoPadron[] };
+
+/** Conversación del aprobador con una sucursal o con la distribuidora. */
+export type Conversacion = {
+  id: number; tipo: 'sucursal' | 'distribuidora'; asunto: string; con: string; no_leidos: number; ultimo_mensaje_en: string | null;
+  pedido: { id: number; folio: string; estado: string } | null; sucursal: { id: number; nombre: string } | null; whatsapp: string | null;
+};
+export type MensajeChat = { id: number; texto: string; creado: string; propio: boolean; autor: string; rol: string };

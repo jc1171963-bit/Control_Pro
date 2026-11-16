@@ -2,13 +2,15 @@
  * Sucursales (cuentas cliente-empresa): el distribuidor las da de alta, edita sus datos y dirección, controla su acceso
  * y su contraseña. La sucursal solo administra a sus empleados.
  */
-import { FormEvent, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { FormEvent, useEffect, useState } from 'react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronRight, KeyRound, Lock, MapPin, Plus, Power, Search, Store, Unlock, Users } from 'lucide-react';
+import { ChevronRight, KeyRound, Lock, MapPin, MessagesSquare, Plus, Power, Search, Store, Unlock, Users } from 'lucide-react';
 import { get, post, put } from '../../api/cliente';
-import type { Direccion, Pagina, PedidoResumen } from '../../api/tipos';
+import type { Direccion, EstadoPadron, Pagina, PedidoResumen } from '../../api/tipos';
 import { useAuth } from '../../app/auth';
+import { BASE_APROBADOR, useBasePanel } from '../../app/panel';
+import { BotonWhatsApp } from '../colaboracion/Mensajes';
 import { Aviso, Boton, Campo, Entrada, ErrorCaja, Estado, Modal, Paginacion, Selector, Tarjeta, useAviso, Vacio } from '../../components/ui';
 import { Aparecer, EsqueletoLista } from '../../components/movimiento';
 import { cls, fecha, fechaHora } from '../../lib/formato';
@@ -99,13 +101,17 @@ function NuevaSucursal({ onCerrar }: { onCerrar: () => void }) {
 }
 
 export function SucursalesCliente() {
+  const base = useBasePanel();
   const { puede } = useAuth();
   const [texto, setTexto] = useState('');
-  const [buscar, setBuscar] = useState('');
+  const [params] = useSearchParams();
+  const [buscar, setBuscar] = useState(params.get('q') || '');
   const [activo, setActivo] = useState('1');
   const [pagina, setPagina] = useState(1);
   const [nueva, setNueva] = useState(false);
-  const [params] = useSearchParams();
+  // El buscador del encabezado del aprobador llega como ?q=; se aplica también si ya estás en esta página.
+  const qUrl = params.get('q');
+  useEffect(() => { if (qUrl !== null) { setBuscar(qUrl); setPagina(1); } }, [qUrl]);
   const [division, setDivision] = useState('');
   const [zona, setZona] = useState(params.get('zona') || '');
   const [estado, setEstado] = useState('');
@@ -161,7 +167,7 @@ export function SucursalesCliente() {
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {q.data.items.map((c, i) => (
               <Aparecer key={c.id} orden={i}>
-                <Link to={`/admin/sucursales-cliente/${c.id}`} className={cls('group block h-full rounded-2xl p-4 ring-1 transition hover:-translate-y-0.5 hover:shadow-suave', c.activo ? 'bg-white ring-tinta-100' : 'bg-tinta-50 ring-tinta-100 opacity-75')}>
+                <Link to={`${base}/sucursales-cliente/${c.id}`} className={cls('group block h-full rounded-2xl p-4 ring-1 transition hover:-translate-y-0.5 hover:shadow-suave', c.activo ? 'bg-white ring-tinta-100' : 'bg-tinta-50 ring-tinta-100 opacity-75')}>
                   <div className="flex items-start justify-between gap-2">
                     <span className="flex items-center gap-2"><span className="grid h-10 w-10 place-items-center rounded-xl bg-menta-50 text-menta-700"><Store className="h-5 w-5" /></span>
                       <span><span className="block font-display font-bold leading-tight">{c.razon_social || c.nombre}</span>
@@ -192,7 +198,36 @@ export function SucursalesCliente() {
   );
 }
 
+/** Permiso de padrón de la sucursal y acceso directo para escribirle (chat interno o WhatsApp). */
+function ContactoYPermiso({ c }: { c: CuentaSucursal }) {
+  const base = useBasePanel();
+  const nav = useNavigate();
+  const { puede } = useAuth();
+  const padron = useQuery({ queryKey: ['permiso-padron-sucursal', c.id], queryFn: () => get<EstadoPadron>(`/admin/cuentas-sucursal/${c.id}/permiso-padron`) });
+  const chat = useMutation({ mutationFn: () => post<{ id: number }>('/admin/conversaciones', { tipo: 'sucursal', cliente_id: c.id }),
+    onSuccess: (r) => nav(`${base}/mensajes?c=${r.id}`) });
+  const vigente = padron.data?.vigente, pendiente = padron.data?.pendiente;
+  return (
+    <Tarjeta titulo="Padrón y contacto">
+      <div className="space-y-3 text-sm">
+        {vigente ? <p className="rounded-xl bg-menta-50 p-3 text-menta-800"><b>Permiso vigente</b> para modificar el padrón hasta {fechaHora(vigente.vigente_hasta)}.</p>
+          : pendiente ? <p className="rounded-xl bg-amber-50 p-3 text-amber-900"><b>Pide permiso</b> para modificar su padrón: “{pendiente.motivo}”.</p>
+            : <p className="text-tinta-500">El padrón está bloqueado: la sucursal debe pedir permiso para hacer cambios.</p>}
+        {puede('permiso_padron.gestionar') && (vigente || pendiente) && <Link to={`${base}/permisos?estado=${pendiente ? 'pendiente' : 'vigente'}`} className="inline-block text-xs font-semibold text-menta-700">Ir a permisos →</Link>}
+        {base === BASE_APROBADOR && (
+          <div className="flex flex-wrap gap-2 border-t border-tinta-100 pt-3">
+            <Boton tam="sm" variante="secundario" icono={<MessagesSquare className="h-3.5 w-3.5" />} cargando={chat.isPending} onClick={() => chat.mutate()}>Escribir a la sucursal</Boton>
+            <BotonWhatsApp numero={c.telefono} texto={`Hola ${c.razon_social || c.nombre}, te escribe el aprobador corporativo.`} />
+          </div>
+        )}
+        <ErrorCaja error={chat.error} />
+      </div>
+    </Tarjeta>
+  );
+}
+
 export function SucursalCliente() {
+  const base = useBasePanel();
   const { id } = useParams();
   const { puede } = useAuth();
   const qc = useQueryClient();
@@ -225,7 +260,7 @@ export function SucursalCliente() {
   return (
     <>
       <Encabezado titulo={c.razon_social || c.nombre} sub={`Sucursal desde ${fecha(c.creado)} · último acceso ${c.ultimo_acceso ? fechaHora(c.ultimo_acceso) : 'nunca'}`}>
-        <Link to="/admin/sucursales-cliente" className="inline-flex h-10 items-center rounded-lg px-4 text-sm font-semibold ring-1 ring-tinta-200">Volver</Link>
+        <Link to={`${base}/sucursales-cliente`} className="inline-flex h-10 items-center rounded-lg px-4 text-sm font-semibold ring-1 ring-tinta-200">Volver</Link>
         {gestiona && <Boton variante={c.activo ? 'secundario' : 'menta'} icono={<Power className="h-4 w-4" />} onClick={() => setModal('estado')}>{c.activo ? 'Desactivar' : 'Activar'}</Boton>}
       </Encabezado>
       {!c.activo && <div className="mb-4"><Aviso tipo="alerta">Sucursal inactiva: no puede entrar al portal ni enviar solicitudes.</Aviso></div>}
@@ -248,7 +283,7 @@ export function SucursalCliente() {
               {c.direccion.referencias && !provisional(c) && <span className="block text-xs text-tinta-400">{c.direccion.referencias}</span>}</p>
               : <Aviso tipo="alerta">Sin dirección: la sucursal no puede crear solicitudes hasta que la registres.</Aviso>}
           </Tarjeta>
-          <Tarjeta titulo={<span className="flex items-center gap-2"><Users className="h-4 w-4" />Empleados ({c.empleados?.filter((e) => e.activo).length})</span>} sub="Los da de alta y edita la propia sucursal">
+          <Tarjeta titulo={<span className="flex items-center gap-2"><Users className="h-4 w-4" />Empleados ({c.empleados?.filter((e) => e.activo).length})</span>} sub="Los da de alta y edita la propia sucursal, con permiso del aprobador">
             {!c.empleados?.length ? <p className="text-sm text-tinta-400">La sucursal aún no registra empleados.</p> : (
               <div className="grid gap-2 sm:grid-cols-2">
                 {c.empleados.map((e) => (
@@ -263,7 +298,7 @@ export function SucursalCliente() {
             {!c.solicitudes_recientes?.length ? <p className="text-sm text-tinta-400">Sin solicitudes enviadas.</p> : (
               <ul className="divide-y divide-tinta-100">
                 {c.solicitudes_recientes.map((p) => (
-                  <li key={p.id}><Link to={`/admin/pedidos/${p.id}`} className="flex items-center justify-between gap-2 py-2 text-sm hover:text-menta-700">
+                  <li key={p.id}><Link to={`${base}/pedidos/${p.id}`} className="flex items-center justify-between gap-2 py-2 text-sm hover:text-menta-700">
                     <span><b>{p.folio}</b> · {fecha(p.creado)} · {p.articulos} prenda(s)</span><Estado valor={p.estado} /></Link></li>
                 ))}
               </ul>
@@ -271,6 +306,7 @@ export function SucursalCliente() {
           </Tarjeta>
         </div>
         <div className="space-y-5">
+          <ContactoYPermiso c={c} />
           <Tarjeta titulo="Acceso al portal">
             <ul className="space-y-2 text-sm">
               <li className="flex justify-between"><span className="text-tinta-500">Estado</span><span className="font-semibold">{c.activo ? 'Activa' : 'Inactiva'}</span></li>
@@ -283,7 +319,7 @@ export function SucursalCliente() {
                 {bloqueada(c) && <Boton variante="secundario" icono={<Unlock className="h-4 w-4" />} cargando={desbloquear.isPending} onClick={() => desbloquear.mutate()}>Desbloquear</Boton>}
               </div>
             )}
-            <p className="mt-3 text-xs text-tinta-400">La sucursal no puede cambiar su contraseña ni sus datos; solo administra a sus empleados.</p>
+            <p className="mt-3 text-xs text-tinta-400">La sucursal no puede cambiar su contraseña ni sus datos; solo administra a sus empleados (con permiso).</p>
           </Tarjeta>
           {c.zona && (
             <Tarjeta titulo="Responsables">

@@ -37,6 +37,14 @@ def login_cliente():
     return _respuesta_sesion("cliente", auth_service.login("cliente", d["correo"], d["password"]))
 
 
+@bp.post("/portal/login")
+def login_portal():
+    """Entrada única del portal Salud Digna: cuentas de sucursal y aprobador corporativo usan el mismo formulario."""
+    d = cargar(LoginSchema, cuerpo())
+    tipo = auth_service.tipo_portal(d["correo"])
+    return _respuesta_sesion(tipo, auth_service.login(tipo, d["correo"], d["password"]))
+
+
 @bp.post("/cliente/registro")
 def registro():
     d = cargar(RegistroSchema, cuerpo())

@@ -1,7 +1,8 @@
 """Rol aprobador: panel de indicadores, administración de cuentas de sucursal, edición de solicitudes con aviso a la
-sucursal, cancelación y seguimiento del envío. La sucursal solo administra a sus empleados."""
+sucursal y cancelación. El surtido y el envío los opera la distribuidora. La sucursal solo administra a sus empleados,
+con permiso del aprobador."""
 from .conftest import Api, clave, conciliado
-from .flujos import surtir_y_empacar
+from .flujos import almacen_de, surtir_y_empacar
 
 DIR = {"destinatario": "Recepción", "telefono": "4421112233", "calle": "Av. Universidad", "numero": "100",
        "colonia": "Centro", "ciudad": "Querétaro", "estado": "Querétaro", "cp": "76000"}
@@ -10,6 +11,12 @@ DIR = {"destinatario": "Recepción", "telefono": "4421112233", "calle": "Av. Uni
 def _var(como):
     prod = {p["sku_base"]: p for p in como("admin").get("/api/admin/productos?por_pagina=100").get_json()["items"]}
     return lambda sku_base, talla: next(v["id"] for v in prod[sku_base]["variantes"] if v["talla"] == talla)
+
+
+def con_permiso_padron(suc, aprob):
+    """La sucursal pide permiso para modificar su padrón y el aprobador lo autoriza."""
+    p = suc.post("/api/cuenta/permiso-padron", {"motivo": "Altas del nuevo turno"}).get_json()
+    assert aprob.post(f"/api/admin/permisos-padron/{p['id']}/decision", {"decision": "aprobado"}).status_code == 200
 
 
 def _solicitud(emp, partidas):
@@ -28,8 +35,12 @@ def test_sucursal_solo_administra_empleados(como, client):
     assert emp.post("/api/auth/password", {"actual": "ControlPro2026", "nueva": "OtraClave99"}).status_code == 403
     r = client.post("/api/auth/recuperar", json={"correo": "empresa@demo.mx", "tipo": "cliente"}).get_json()
     assert "token_desarrollo" not in r  # la contraseña de la sucursal la restablece el distribuidor
-    # Lo que sí puede: empleados
-    r = emp.post("/api/cuenta/empleados", {"numero": "3001", "nombre": "Nuevo Empleado", "puesto": "Enfermería"})
+    # Lo que sí puede: empleados, con un permiso vigente del aprobador
+    nuevo = {"numero": "3001", "nombre": "Nuevo Empleado", "puesto": "Enfermería"}
+    r = emp.post("/api/cuenta/empleados", nuevo)
+    assert r.status_code == 403 and r.get_json()["error"]["codigo"] == "permiso_padron_requerido"
+    con_permiso_padron(emp, como("aprobador"))
+    r = emp.post("/api/cuenta/empleados", nuevo)
     assert r.status_code == 201
     assert emp.put(f"/api/cuenta/empleados/{r.get_json()['id']}", {"numero": "3001", "nombre": "Nuevo Empleado", "puesto": "Staff"}).status_code == 200
     # Una solicitud enviada no la cancela la sucursal
@@ -90,14 +101,16 @@ def test_aprobador_edita_aprueba_y_da_seguimiento(como, app):
     notifs = emp.get("/api/cuenta/notificaciones").get_json()["items"]
     aviso = next(n for n in notifs if n["evento"].startswith("pedido_modificado"))
     assert "se quitó" in aviso["mensaje"] and "Sin existencia en talla M" in aviso["mensaje"]
-    # Aprueba y opera el envío completo desde su propia cuenta
+    # Aprueba; el surtido y el envío ya no son del aprobador sino de la distribuidora
     pedido = aprob.post(f"/api/admin/pedidos/{p['id']}/decision", {"decision": "aprobado"}).get_json()
     assert pedido["estado"] == "confirmado"
+    assert aprob.post(f"/api/admin/surtido/{pedido['asignaciones'][0]['id']}/iniciar").status_code == 403
     for asig in pedido["asignaciones"]:
-        paq = surtir_y_empacar(aprob, asig["id"])
-        assert aprob.post(f"/api/admin/paquetes/{paq}/despachar", {"paqueteria": "Castores", "guia": f"CAS-{paq}"}).status_code == 200
-        assert aprob.post(f"/api/admin/paquetes/{paq}/eventos", {"estado": "en_transito", "descripcion": "En ruta"}).status_code == 200
-        assert aprob.post(f"/api/admin/paquetes/{paq}/eventos", {"estado": "entregado", "descripcion": "Recibió recepción"}).status_code == 200
+        alm = almacen_de(como, asig["sucursal"]["nombre"])
+        paq = surtir_y_empacar(alm, asig["id"])
+        assert alm.post(f"/api/admin/paquetes/{paq}/despachar", {"paqueteria": "Castores", "guia": f"CAS-{paq}"}).status_code == 200
+        assert alm.post(f"/api/admin/paquetes/{paq}/eventos", {"estado": "en_transito", "descripcion": "En ruta"}).status_code == 200
+        assert alm.post(f"/api/admin/paquetes/{paq}/eventos", {"estado": "entregado", "descripcion": "Recibió recepción"}).status_code == 200
     eventos = {n["evento"].split("_")[0] + "_" + n["evento"].split("_")[1] for n in emp.get("/api/cuenta/notificaciones?por_pagina=50").get_json()["items"]}
     assert {"pedido_confirmado", "pedido_en", "paquete_preparado", "envio_en", "envio_entregado"} <= eventos
     # Panel de indicadores del aprobador
@@ -148,6 +161,7 @@ def test_carga_masiva_de_sucursales(app, como, client):
     tok = client.post("/api/auth/cliente/login", json={"correo": "torreon.plaza.triana@sucursal.controlpro.mx", "password": "ControlPro2026"}).get_json()["access_token"]
     suc = Api(client, tok)
     assert suc.get("/api/cuenta/resumen").get_json()["zona"]["gerente"] == "Ángel Alfonso Palacios López"
+    con_permiso_padron(suc, aprob)
     emp = suc.post("/api/cuenta/empleados", {"numero": "T-01", "nombre": "Laura Torres", "puesto": "Intendencia"}).get_json()
     var = _var(como)
     p = _solicitud(suc, [{"empleado_id": emp["id"], "variante_id": var("MAN-001", "Unitalla"), "cantidad": 2}])

@@ -439,3 +439,23 @@ class IncidenciaCambioSchema(Base):
     estado = fields.Str(load_default=None, allow_none=True, validate=OneOf(["abierta", "en_atencion", "resuelta", "cerrada"]))
     comentario = fields.Str(load_default=None, allow_none=True, validate=L(max=1000))
     responsable_id = fields.Int(load_default=None, allow_none=True)
+
+
+class PermisoPadronSolicitudSchema(Base):
+    motivo = fields.Str(required=True, validate=L(min=5, max=300))
+
+
+class PermisoPadronDecisionSchema(Base):
+    decision = fields.Str(required=True, validate=OneOf(["aprobado", "rechazado", "revocado"]))
+    respuesta = fields.Str(load_default=None, allow_none=True, validate=L(max=300))
+    horas = fields.Int(load_default=None, allow_none=True, validate=Range(min=1, max=168))
+
+
+class ConversacionSchema(Base):
+    tipo = fields.Str(load_default="sucursal", validate=OneOf(["sucursal", "distribuidora"]))
+    pedido_id = fields.Int(load_default=None, allow_none=True)
+    cliente_id = fields.Int(load_default=None, allow_none=True)
+
+
+class MensajeSchema(Base):
+    texto = fields.Str(required=True, validate=L(min=1, max=2000))

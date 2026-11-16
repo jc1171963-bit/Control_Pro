@@ -3,6 +3,7 @@ import { useConfig } from './config';
 import { useAuth } from './auth';
 import { Cargando } from '../components/ui';
 import LayoutPorRol from '../features/portal/LayoutPorRol';
+import { BASE_APROBADOR, enlacePanel, esAprobador } from './panel';
 
 function RequiereCliente({ empresa = false }: { empresa?: boolean }) {
   const { tipo, cliente, cargando } = useAuth();
@@ -14,10 +15,22 @@ function RequiereCliente({ empresa = false }: { empresa?: boolean }) {
 }
 
 function RequiereUsuario() {
-  const { tipo, cargando } = useAuth();
+  const { tipo, usuario, cargando } = useAuth();
   const loc = useLocation();
   if (cargando) return <Cargando />;
   if (tipo !== 'usuario') return <Navigate to={`/admin/entrar?siguiente=${encodeURIComponent(loc.pathname)}`} replace />;
+  // El aprobador corporativo ya no usa el panel interno: cualquier enlace /admin/... lo lleva a su portal.
+  if (esAprobador(usuario)) return <Navigate to={enlacePanel(loc.pathname, BASE_APROBADOR) + loc.search} replace />;
+  return <Outlet />;
+}
+
+/** Portal del aprobador corporativo (lado Salud Digna). Entra por /entrar, como las sucursales. */
+function RequiereAprobador() {
+  const { tipo, usuario, cargando } = useAuth();
+  const loc = useLocation();
+  if (cargando) return <Cargando />;
+  if (tipo === 'usuario' && !esAprobador(usuario)) return <Navigate to="/admin" replace />;
+  if (tipo !== 'usuario') return <Navigate to={`/entrar?siguiente=${encodeURIComponent(loc.pathname + loc.search)}`} replace />;
   return <Outlet />;
 }
 
@@ -71,6 +84,7 @@ export const router = createBrowserRouter([
                 element: <RequiereCliente empresa />,
                 children: [
                   { path: 'empleados', lazy: () => c(import('../features/cuenta/Corporativo'), 'Empleados') },
+                  { path: 'mensajes', lazy: () => c(import('../features/colaboracion/Mensajes')) },
                   { path: 'catalogo', lazy: () => c(import('../features/tienda/Catalogo')) },
                   { path: 'catalogo/:slug', lazy: () => c(import('../features/tienda/Producto')) },
                   { path: 'solicitudes/nueva', lazy: () => c(import('../features/cuenta/SolicitudCorporativa')) },
@@ -84,6 +98,27 @@ export const router = createBrowserRouter([
         ],
       },
       { path: '*', lazy: () => c(import('../features/tienda/NoEncontrado')) },
+    ],
+  },
+  {
+    path: BASE_APROBADOR,
+    element: <RequiereAprobador />,
+    children: [
+      {
+        lazy: () => c(import('../features/aprobador/AprobadorLayout')),
+        children: [
+          { index: true, lazy: () => c(import('../features/aprobador/Inicio')) },
+          { path: 'solicitudes', lazy: () => c(import('../features/admin/Pedidos'), 'Solicitudes') },
+          { path: 'pedidos/:id', lazy: () => c(import('../features/admin/Pedidos'), 'PedidoAdmin') },
+          { path: 'sucursales-cliente', lazy: () => c(import('../features/admin/SucursalesCliente'), 'SucursalesCliente') },
+          { path: 'sucursales-cliente/:id', lazy: () => c(import('../features/admin/SucursalesCliente'), 'SucursalCliente') },
+          { path: 'organizacion', lazy: () => c(import('../features/admin/Organizacion')) },
+          { path: 'permisos', lazy: () => c(import('../features/aprobador/Permisos')) },
+          { path: 'mensajes', lazy: () => c(import('../features/colaboracion/Mensajes')) },
+          { path: 'notificaciones', lazy: () => c(import('../features/admin/Sistema'), 'NotificacionesAdmin') },
+          { path: '*', element: <Navigate to={BASE_APROBADOR} replace /> },
+        ],
+      },
     ],
   },
   { path: '/admin/entrar', lazy: () => c(import('../features/admin/AdminAcceso'), 'AdminEntrar') },
@@ -118,6 +153,7 @@ export const router = createBrowserRouter([
           { path: 'usuarios', lazy: () => c(import('../features/admin/Sistema'), 'Usuarios') },
           { path: 'auditoria', lazy: () => c(import('../features/admin/Sistema'), 'Auditoria') },
           { path: 'notificaciones', lazy: () => c(import('../features/admin/Sistema'), 'NotificacionesAdmin') },
+          { path: 'mensajes', lazy: () => c(import('../features/colaboracion/Mensajes')) },
           { path: 'reportes', lazy: () => c(import('../features/admin/Reportes')) },
         ],
       },

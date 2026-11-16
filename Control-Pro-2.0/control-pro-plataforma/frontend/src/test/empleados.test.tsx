@@ -13,11 +13,18 @@ const EMP = [
 function ancho(es: boolean) {
   window.matchMedia = ((q: string) => ({ matches: es, media: q, addEventListener: () => {}, removeEventListener: () => {} })) as never;
 }
+const PERMISO = { id: 9, estado: 'aprobado', motivo: 'Altas del turno', respuesta: null, solicitado: '2026-11-13T10:00:00Z', resuelto_en: '2026-11-13T10:05:00Z',
+  vigente_hasta: '2099-01-01T00:00:00Z', terminado_en: null, resuelto_por: 'Aprobador', sucursal: { id: 1, nombre: 'Norte', correo: 'n@x.mx', zona: null } };
+/** La API simulada responde según la ruta: empleados y estado del permiso de padrón (vigente salvo que se indique). */
+function responder(empleados: unknown, vigente: unknown = PERMISO) {
+  vi.mocked(get).mockImplementation(async (ruta: string) => (ruta.startsWith('/cuenta/permiso-padron')
+    ? { vigente, pendiente: null, historial: vigente ? [vigente] : [] } : empleados) as never);
+}
 function montar() {
   return render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><Empleados /></QueryClientProvider>);
 }
 
-beforeEach(() => { vi.mocked(get).mockReset(); vi.mocked(put).mockReset().mockResolvedValue({} as never); vi.mocked(post).mockReset(); ancho(true); vi.mocked(get).mockResolvedValue(EMP as never); });
+beforeEach(() => { vi.mocked(get).mockReset(); vi.mocked(put).mockReset().mockResolvedValue({} as never); vi.mocked(post).mockReset(); ancho(true); responder(EMP); });
 
 describe('empleados del portal', () => {
   it('lista en tabla con su estado; en móvil, en tarjetas', async () => {
@@ -55,7 +62,7 @@ describe('empleados del portal', () => {
   });
 
   it('sin empleados invita a agregar; con error de la API lo muestra', async () => {
-    vi.mocked(get).mockResolvedValue([] as never);
+    responder([]);
     const { unmount } = montar();
     expect(await screen.findByText('Aún no hay empleados')).toBeInTheDocument();
     unmount();
@@ -75,5 +82,28 @@ describe('empleados del portal', () => {
     fireEvent.change(within(dlg).getByLabelText('Nombre completo'), { target: { value: 'Carla Soto' } });
     fireEvent.click(within(dlg).getByRole('button', { name: 'Guardar' }));
     await waitFor(() => expect(post).toHaveBeenCalledWith('/cuenta/empleados', expect.objectContaining({ numero: '300', nombre: 'Carla Soto', area: null, activo: true })));
+  });
+
+  it('sin permiso del aprobador el padrón queda bloqueado y se puede solicitar con un motivo', async () => {
+    responder(EMP, null);
+    vi.mocked(post).mockResolvedValue({} as never);
+    montar();
+    await screen.findByRole('table');
+    expect(await screen.findByText('Tu padrón está bloqueado')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Agregar/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Editar a Ángela Ruiz' })).toBeDisabled();
+    const pedir = screen.getByRole('button', { name: /Solicitar permiso/ });
+    expect(pedir).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Motivo del permiso'), { target: { value: 'Ingresa una enfermera' } });
+    fireEvent.click(pedir);
+    await waitFor(() => expect(post).toHaveBeenCalledWith('/cuenta/permiso-padron', { motivo: 'Ingresa una enfermera' }));
+  });
+
+  it('con permiso vigente muestra hasta cuándo y permite terminar los cambios', async () => {
+    vi.mocked(post).mockResolvedValue({} as never);
+    montar();
+    expect(await screen.findByText(/Puedes modificar tu padrón hasta/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Terminé mis cambios' }));
+    await waitFor(() => expect(post).toHaveBeenCalledWith('/cuenta/permiso-padron/9/cerrar'));
   });
 });

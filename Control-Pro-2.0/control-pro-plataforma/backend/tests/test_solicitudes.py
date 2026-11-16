@@ -24,10 +24,10 @@ def _empleados(emp):
 
 
 def test_tienda_oculta_por_configuracion(app, client, como):
-    assert client.get("/api/tienda/configuracion").get_json() == {"canal_tienda": True}
+    assert client.get("/api/tienda/configuracion").get_json()["canal_tienda"] is True
     app.config["CANAL_TIENDA"] = False
     try:
-        assert client.get("/api/tienda/configuracion").get_json() == {"canal_tienda": False}
+        assert client.get("/api/tienda/configuracion").get_json()["canal_tienda"] is False
         c = como("cliente")
         vid = _catalogo(como)("CAM-001", "M")
         r = c.post("/api/cuenta/carrito/items", {"variante_id": vid, "cantidad": 1})

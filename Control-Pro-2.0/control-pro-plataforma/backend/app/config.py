@@ -42,6 +42,12 @@ class Config:
     # de sucursales (canal corporativo); el código de la tienda se conserva.
     CANAL_TIENDA = _bool("CANAL_TIENDA", False)
 
+    # Números de WhatsApp para el botón de contacto directo (enlace wa.me). Vacío = no se muestra el botón.
+    WHATSAPP_APROBADOR = os.getenv("WHATSAPP_APROBADOR", "")
+    WHATSAPP_DISTRIBUIDORA = os.getenv("WHATSAPP_DISTRIBUIDORA", "")
+    # Horas que dura un permiso de padrón si el aprobador no indica otra cosa.
+    PERMISO_PADRON_HORAS = int(os.getenv("PERMISO_PADRON_HORAS", "24"))
+
     # Reglas de negocio configurables
     RESERVA_HORAS = int(os.getenv("RESERVA_HORAS", "24"))
     PERMITIR_DIVISION = _bool("PERMITIR_DIVISION", True)

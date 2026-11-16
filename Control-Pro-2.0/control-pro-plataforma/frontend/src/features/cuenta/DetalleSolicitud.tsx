@@ -12,6 +12,8 @@ import type { EntregaIndividual, Incidencia, Paquete, Pedido } from '../../api/t
 import { Aviso, Boton, Campo, Entrada, ErrorCaja, Estado, Firma, Modal, Selector, Tarjeta, Texto, useAviso } from '../../components/ui';
 import { Aparecer, Etapa, LineaProceso, Palomita } from '../../components/movimiento';
 import ComprobanteEntrega from './ComprobanteEntrega';
+import { useConfig } from '../../app/config';
+import { BotonWhatsApp, ChatSolicitud } from '../colaboracion/Mensajes';
 import { cls, etiqueta, fechaHora, PROBLEMAS_CONFORMIDAD, PROBLEMAS_RECEPCION, tipoIncidencia, TIPOS_INCIDENCIA } from '../../lib/formato';
 
 const LOGISTICA = ['confirmado', 'en_preparacion', 'parcialmente_enviado', 'enviado', 'parcialmente_entregado', 'entregado', 'cerrado'];
@@ -316,6 +318,12 @@ function TarjetaIncidencia({ i }: { i: Incidencia }) {
 
 // ---------------------------------------------------------------- vista principal
 
+function ContactoWhatsApp({ folio }: { folio: string }) {
+  const { whatsapp } = useConfig();
+  if (!whatsapp.aprobador) return null;
+  return <div className="flex justify-end"><BotonWhatsApp numero={whatsapp.aprobador} texto={`Hola, te escribo sobre la solicitud ${folio}.`} /></div>;
+}
+
 export default function DetalleSolicitud({ p }: { p: Pedido }) {
   const [params] = useSearchParams();
   const qc = useQueryClient();
@@ -479,6 +487,13 @@ export default function DetalleSolicitud({ p }: { p: Pedido }) {
           </ol>
         </Tarjeta>
       </div>
+
+      {p.estado !== 'borrador' && (
+        <div className="space-y-2">
+          <ChatSolicitud pedidoId={p.id} tipo="sucursal" titulo="Conversación con el aprobador" />
+          <ContactoWhatsApp folio={p.folio} />
+        </div>
+      )}
 
       <Modal abierto={!!recibir} titulo={`Recepción del paquete ${recibir?.folio || ''}`} onCerrar={() => setRecibir(null)} ancho="max-w-2xl">
         {recibir && <RecepcionPaquete pq={recibir} p={p} onCerrar={() => setRecibir(null)} />}

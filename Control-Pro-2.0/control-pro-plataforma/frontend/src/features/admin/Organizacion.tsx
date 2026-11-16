@@ -8,6 +8,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Mail, Phone, UserRound } from 'lucide-react';
 import { get, post, put } from '../../api/cliente';
 import { useAuth } from '../../app/auth';
+import { useBasePanel } from '../../app/panel';
 import { Boton, Campo, Entrada, ErrorCaja, Modal, Selector, Tarjeta, useAviso } from '../../components/ui';
 import { Aparecer, EsqueletoLista } from '../../components/movimiento';
 import { cls } from '../../lib/formato';
@@ -50,6 +51,7 @@ export function SelectorZona({ valor, name = 'zona_id' }: { valor?: number | nul
 type Editar = { tipo: 'division'; d: DivisionOrg } | { tipo: 'zona'; z: ZonaOrg | null; division_id: number | null };
 
 export default function OrganizacionPagina() {
+  const base = useBasePanel();
   const { puede } = useAuth();
   const qc = useQueryClient();
   const avisar = useAviso();
@@ -83,7 +85,7 @@ export default function OrganizacionPagina() {
                   {d.zonas.map((z) => (
                     <div key={z.id} className={cls('rounded-xl p-3 ring-1', z.vacante ? 'bg-amber-50/60 ring-amber-200' : 'ring-tinta-100')}>
                       <div className="mb-2 flex items-start justify-between gap-2">
-                        <Link to={`/admin/sucursales-cliente?zona=${z.id}`} className="font-display font-bold hover:text-menta-700">{z.nombre}</Link>
+                        <Link to={`${base}/sucursales-cliente?zona=${z.id}`} className="font-display font-bold hover:text-menta-700">{z.nombre}</Link>
                         <span className="text-xs text-tinta-400">{z.activas} sucursal(es)</span>
                       </div>
                       <Contacto compacto rol="Gerente de zona" nombre={z.gerente} correo={z.correo} telefono={z.telefono} />

@@ -8,11 +8,13 @@ from ..extensions import db
 from ..models import (AsignacionSurtido, Carrito, CarritoItem, Devolucion, Direccion, EmpleadoCorporativo,
                       EntregaIndividual, Favorito, Incidencia, Notificacion, Paquete, Pedido, Producto, Recepcion,
                       Variante)
-from ..schemas import (CantidadSchema, CarritoItemSchema, CheckoutSchema, ConformidadSchema, CorreccionCorporativaSchema,
+from ..schemas import (CantidadSchema, CarritoItemSchema, CheckoutSchema, ConformidadSchema, ConversacionSchema,
+                       CorreccionCorporativaSchema, MensajeSchema, PermisoPadronSolicitudSchema,
                        DevolucionSolicitudSchema, DireccionSchema, EmpleadoSchema, EntregaIndividualSchema,
                        GuiaRetornoSchema, IncidenciaSchema, MotivoSchema, PagoTransferenciaSchema,
                        PedidoCorporativoSchema, PerfilSchema, RecepcionSchema, cargar)
 from ..security.auth import requiere_cliente
+from ..services import colaboracion_service as col
 from ..services import devolucion_service as dev_srv
 from ..services import logistica_service as log_srv
 from ..services import pago_service as pago_srv
@@ -393,6 +395,7 @@ def _empleado(e):
 @bp.post("/empleados")
 @requiere_cliente(empresa=True)
 def crear_empleado():
+    col.exigir_permiso_padron(g.cliente)
     d = cargar(EmpleadoSchema, cuerpo())
     e = EmpleadoCorporativo(cliente_id=g.cliente.id, **d)
     db.session.add(e)
@@ -408,12 +411,73 @@ def editar_empleado(empleado_id):
     e = db.session.get(EmpleadoCorporativo, empleado_id)
     if not e or e.cliente_id != g.cliente.id:
         raise NoEncontrado("Empleado no encontrado.")
+    col.exigir_permiso_padron(g.cliente)
     d = cargar(EmpleadoSchema, cuerpo())
     for k, v in d.items():
         setattr(e, k, v)
     auditar("empleado.editar", "empleado", e.id, despues=d)
     db.session.commit()
     return jsonify(_empleado(e))
+
+
+# ---------------------------------------------------------------- permiso para modificar el padrón
+
+@bp.get("/permiso-padron")
+@requiere_cliente(empresa=True)
+def permiso_padron():
+    return jsonify(col.estado_padron(g.cliente.id))
+
+
+@bp.post("/permiso-padron")
+@requiere_cliente(empresa=True)
+def solicitar_permiso_padron():
+    d = cargar(PermisoPadronSolicitudSchema, cuerpo())
+    return jsonify(col.permiso_json(col.solicitar_permiso(g.cliente, d["motivo"]))), 201
+
+
+@bp.post("/permiso-padron/<int:permiso_id>/cerrar")
+@requiere_cliente(empresa=True)
+def cerrar_permiso_padron(permiso_id):
+    """Cancela la solicitud pendiente o da por terminados los cambios del permiso vigente."""
+    return jsonify(col.permiso_json(col.cerrar_por_sucursal(g.cliente, permiso_id)))
+
+
+# ---------------------------------------------------------------- mensajes con el aprobador
+
+@bp.get("/conversaciones")
+@requiere_cliente(empresa=True)
+def conversaciones():
+    return jsonify({"items": col.listar(cliente=g.cliente), "no_leidos": col.total_no_leidos(cliente=g.cliente)})
+
+
+@bp.get("/conversaciones/no-leidos")
+@requiere_cliente(empresa=True)
+def conversaciones_no_leidos():
+    return jsonify({"no_leidos": col.total_no_leidos(cliente=g.cliente)})
+
+
+@bp.post("/conversaciones")
+@requiere_cliente(empresa=True)
+def abrir_conversacion():
+    d = cargar(ConversacionSchema, cuerpo())
+    c = col.abrir("sucursal", d["pedido_id"], None, cliente=g.cliente)
+    return jsonify(col.conversacion_json(c, "contraparte"))
+
+
+@bp.get("/conversaciones/<int:conversacion_id>/mensajes")
+@requiere_cliente(empresa=True)
+def mensajes(conversacion_id):
+    c = col.obtener(conversacion_id, cliente=g.cliente)
+    return jsonify({"conversacion": col.conversacion_json(c, "contraparte"),
+                    "items": col.mensajes(c, cliente=g.cliente, despues=request.args.get("despues", type=int))})
+
+
+@bp.post("/conversaciones/<int:conversacion_id>/mensajes")
+@requiere_cliente(empresa=True)
+def enviar_mensaje(conversacion_id):
+    c = col.obtener(conversacion_id, cliente=g.cliente)
+    d = cargar(MensajeSchema, cuerpo())
+    return jsonify(col.mensaje_json(col.enviar(c, d["texto"], cliente=g.cliente), "contraparte")), 201
 
 
 @bp.get("/puestos-autorizados")

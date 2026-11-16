@@ -1,12 +1,12 @@
 import { FormEvent, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Pencil, Power, UserPlus } from 'lucide-react';
+import { Clock3, KeyRound, Lock, Pencil, Power, UserPlus } from 'lucide-react';
 import { get, post, put } from '../../api/cliente';
-import type { ProductoResumen } from '../../api/tipos';
+import type { EstadoPadron, ProductoResumen } from '../../api/tipos';
 import { Boton, Campo, Cargando, Entrada, ErrorCaja, Modal, Selector, Tarjeta, useAviso, Vacio } from '../../components/ui';
 import { useMediaQuery } from '../../components/useMediaQuery';
 import { PUESTOS } from '../../lib/catalogo';
-import { cls, mensajeError } from '../../lib/formato';
+import { cls, fechaHora, mensajeError } from '../../lib/formato';
 
 export type EmpleadoCorporativo = { id: number; numero: string; nombre: string; puesto: string; area: string | null; activo: boolean };
 type Empleado = EmpleadoCorporativo;
@@ -18,12 +18,62 @@ export function productoElegible(empleado: EmpleadoCorporativo | undefined, prod
 
 const normalizar = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
-/** Empleados de la empresa. El backend solo permite listar, crear y editar: no se elimina, se desactiva (activo=false). */
+/** Permiso del aprobador para modificar el padrón: pedirlo, verlo en revisión, saber hasta cuándo vale y cerrarlo. */
+export function PermisoPadronPanel({ estado }: { estado: EstadoPadron | undefined }) {
+  const qc = useQueryClient();
+  const avisar = useAviso();
+  const [motivo, setMotivo] = useState('');
+  const refrescar = () => qc.invalidateQueries({ queryKey: ['permiso-padron'] });
+  const pedir = useMutation({ mutationFn: () => post('/cuenta/permiso-padron', { motivo: motivo.trim() }),
+    onSuccess: () => { setMotivo(''); refrescar(); avisar('Solicitud enviada al aprobador.'); } });
+  const cerrar = useMutation({ mutationFn: (id: number) => post(`/cuenta/permiso-padron/${id}/cerrar`),
+    onSuccess: () => { refrescar(); avisar('Listo: tu padrón quedó bloqueado de nuevo.'); }, onError: (e) => avisar(mensajeError(e), 'error') });
+  if (!estado) return null;
+  const { vigente, pendiente } = estado;
+  const ultimo = estado.historial?.[0];
+  if (vigente) return (
+    <div className="vidrio flex flex-wrap items-center gap-3 rounded-2xl bg-white p-4">
+      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[#6be5b8a8] text-[#00664a]" aria-hidden><Clock3 className="h-5 w-5" /></span>
+      <div className="min-w-0 flex-1 text-sm"><p className="font-bold">Puedes modificar tu padrón hasta {fechaHora(vigente.vigente_hasta)}</p>
+        <p className="text-tinta-500">Autorizó {vigente.resuelto_por || 'el aprobador'}{vigente.respuesta ? `: “${vigente.respuesta}”` : ''}. Cuando termines, ciérralo.</p></div>
+      <Boton variante="secundario" cargando={cerrar.isPending} onClick={() => cerrar.mutate(vigente.id)}>Terminé mis cambios</Boton>
+    </div>
+  );
+  if (pendiente) return (
+    <div className="vidrio flex flex-wrap items-center gap-3 rounded-2xl bg-white p-4">
+      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[#ffdfad] text-[#8a5300]" aria-hidden><KeyRound className="h-5 w-5" /></span>
+      <div className="min-w-0 flex-1 text-sm"><p className="font-bold">Tu solicitud de permiso está en revisión</p>
+        <p className="text-tinta-500">“{pendiente.motivo}” · enviada {fechaHora(pendiente.solicitado)}. Te avisaremos cuando el aprobador responda.</p></div>
+      <Boton variante="fantasma" cargando={cerrar.isPending} onClick={() => cerrar.mutate(pendiente.id)}>Cancelar solicitud</Boton>
+    </div>
+  );
+  return (
+    <form className="vidrio rounded-2xl bg-white p-4" onSubmit={(e) => { e.preventDefault(); pedir.mutate(); }}>
+      <div className="flex items-start gap-3">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[#b5d9ff] text-[#0b4f86]" aria-hidden><Lock className="h-5 w-5" /></span>
+        <div className="text-sm"><p className="font-bold">Tu padrón está bloqueado</p>
+          <p className="text-tinta-500">Para agregar, editar o desactivar empleados pide permiso al aprobador e indica el motivo.</p>
+          {ultimo?.estado === 'rechazado' && <p className="mt-1 text-coral-700">Tu última solicitud fue rechazada: “{ultimo.respuesta}”.</p>}</div>
+      </div>
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+        <Entrada value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Ej. Ingresan dos enfermeras al turno vespertino" minLength={5} maxLength={300} required
+          aria-label="Motivo del permiso" className="flex-1" />
+        <Boton type="submit" icono={<KeyRound className="h-4 w-4" />} cargando={pedir.isPending} disabled={motivo.trim().length < 5}>Solicitar permiso</Boton>
+      </div>
+      <div className="mt-2"><ErrorCaja error={pedir.error} /></div>
+    </form>
+  );
+}
+
+/** Empleados de la empresa. El backend solo permite listar, crear y editar: no se elimina, se desactiva (activo=false).
+ * Para modificar el padrón la sucursal necesita un permiso vigente del aprobador. */
 export function Empleados() {
   const qc = useQueryClient();
   const avisar = useAviso();
   const ancho = useMediaQuery('(min-width: 768px)');
   const q = useQuery({ queryKey: ['empleados'], queryFn: () => get<Empleado[]>('/cuenta/empleados') });
+  const permiso = useQuery({ queryKey: ['permiso-padron'], queryFn: () => get<EstadoPadron>('/cuenta/permiso-padron'), refetchInterval: 60_000 });
+  const puedeEditar = !!permiso.data?.vigente;
   const [editar, setEditar] = useState<Empleado | 'nuevo' | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [busca, setBusca] = useState('');
@@ -50,15 +100,17 @@ export function Empleados() {
   const abrir = (v: Empleado | 'nuevo') => { setError(null); setEditar(v); };
   const acciones = (e: Empleado) => (
     <span className="flex flex-wrap justify-end gap-1.5">
-      <Boton tam="sm" variante="fantasma" icono={<Pencil className="h-3.5 w-3.5" />} onClick={() => abrir(e)} aria-label={`Editar a ${e.nombre}`}>Editar</Boton>
-      <Boton tam="sm" variante="secundario" icono={<Power className="h-3.5 w-3.5" />} disabled={alternar.isPending} onClick={() => alternar.mutate(e)}
+      <Boton tam="sm" variante="fantasma" icono={<Pencil className="h-3.5 w-3.5" />} disabled={!puedeEditar} onClick={() => abrir(e)} aria-label={`Editar a ${e.nombre}`}>Editar</Boton>
+      <Boton tam="sm" variante="secundario" icono={<Power className="h-3.5 w-3.5" />} disabled={alternar.isPending || !puedeEditar} onClick={() => alternar.mutate(e)}
         aria-label={`${e.activo ? 'Desactivar' : 'Activar'} a ${e.nombre}`}>{e.activo ? 'Desactivar' : 'Activar'}</Boton>
     </span>
   );
   const insignia = (e: Empleado) => <span className={cls('text-xs font-semibold', e.activo ? 'text-menta-700' : 'text-tinta-500')}>{e.activo ? 'Activo' : 'Inactivo'}</span>;
   return (
+    <div className="space-y-4">
+    <PermisoPadronPanel estado={permiso.data} />
     <Tarjeta titulo="Empleados" sub="Personas que reciben uniformes en las solicitudes. No se eliminan: se desactivan."
-      accion={<Boton icono={<UserPlus className="h-4 w-4" />} onClick={() => abrir('nuevo')}>Agregar</Boton>}>
+      accion={<Boton icono={<UserPlus className="h-4 w-4" />} disabled={!puedeEditar} title={puedeEditar ? undefined : 'Necesitas un permiso vigente del aprobador'} onClick={() => abrir('nuevo')}>Agregar</Boton>}>
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <label className="block w-full text-sm sm:max-w-xs"><span className="mb-1 block font-semibold text-tinta-800">Buscar</span>
           <Entrada value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Nombre, número, puesto o área" /></label>
@@ -106,5 +158,6 @@ export function Empleados() {
         </form>
       </Modal>
     </Tarjeta>
+    </div>
   );
 }

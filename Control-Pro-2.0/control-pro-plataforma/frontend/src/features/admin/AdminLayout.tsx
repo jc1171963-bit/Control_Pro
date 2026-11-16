@@ -2,12 +2,13 @@ import { useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, ArrowLeftRight, Bell, Boxes, ClipboardCheck, ClipboardList, CreditCard, FileBarChart, History,
-  Gauge, Inbox, Network, LayoutDashboard, LogOut, Menu, PackageOpen, Shirt, Store, Tag, Undo2, Users, UserSquare2, Warehouse, X } from 'lucide-react';
+  Gauge, Inbox, Network, LayoutDashboard, LogOut, Menu, MessagesSquare, PackageOpen, Shirt, Store, Tag, Undo2, Users, UserSquare2, Warehouse, X } from 'lucide-react';
 import { get } from '../../api/cliente';
 import type { Sucursal } from '../../api/tipos';
 import { useAuth } from '../../app/auth';
 import { cls } from '../../lib/formato';
 import { Marca } from '../tienda/TiendaLayout';
+import { useMensajesNoLeidos } from '../colaboracion/Mensajes';
 
 export function useSucursalesAdmin() {
   return useQuery({ queryKey: ['admin-sucursales'], queryFn: () => get<Sucursal[]>('/admin/sucursales'), staleTime: 120_000 });
@@ -15,7 +16,7 @@ export function useSucursalesAdmin() {
 
 const GRUPOS: { titulo: string; items: [string, string, any, string][] }[] = [
   { titulo: 'General', items: [['', 'Panel', LayoutDashboard, ''], ['indicadores', 'Indicadores de solicitudes', Gauge, 'reporte.ver'],
-    ['notificaciones', 'Notificaciones', Bell, '']] },
+    ['notificaciones', 'Notificaciones', Bell, ''], ['mensajes', 'Mensajes con el aprobador', MessagesSquare, 'orden.recibir']] },
   { titulo: 'Solicitudes', items: [['solicitudes', 'Solicitudes de sucursales', Inbox, 'pedido.ver'], ['sucursales-cliente', 'Sucursales', Store, 'cliente.ver'], ['organizacion', 'Divisiones y zonas', Network, 'cliente.ver'],
     ['pedidos', 'Todos los pedidos', ClipboardList, 'pedido.ver'], ['pagos', 'Pagos y reembolsos', CreditCard, 'pago.ver'], ['clientes', 'Clientes', UserSquare2, 'cliente.ver']] },
   { titulo: 'Operación', items: [['surtido', 'Surtido y envíos', PackageOpen, 'surtido.operar'], ['inventario', 'Inventario', Boxes, 'inventario.ver'],
@@ -31,6 +32,7 @@ export default function AdminLayout() {
   const [abierto, setAbierto] = useState(false);
   const loc = useLocation();
   const notif = useQuery({ queryKey: ['notif-admin', 'contador'], queryFn: () => get('/admin/notificaciones?por_pagina=1&no_leidas=1'), refetchInterval: 45_000 });
+  const mensajes = useMensajesNoLeidos(puede('orden.recibir'));
   const visibles = GRUPOS.map((g) => ({ ...g, items: g.items.filter(([, , , p]) => !p || puede(p)) })).filter((g) => g.items.length);
   const alcance = usuario?.rol.alcance_global ? 'Todas las sucursales' : usuario?.sucursales.map((s) => s.nombre).join(', ');
 
@@ -44,6 +46,7 @@ export default function AdminLayout() {
               className={({ isActive }) => cls('flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-semibold transition', isActive ? 'bg-menta-500 text-white' : 'text-tinta-200 hover:bg-white/5 hover:text-white')}>
               <Icono className="h-4 w-4" />{n}
               {to === 'notificaciones' && !!notif.data?.no_leidas && <span className="ml-auto rounded-full bg-coral-500 px-1.5 text-[10px] text-white">{notif.data.no_leidas}</span>}
+              {to === 'mensajes' && !!mensajes.data?.no_leidos && <span className="ml-auto rounded-full bg-coral-500 px-1.5 text-[10px] text-white">{mensajes.data.no_leidos}</span>}
             </NavLink>
           ))}
         </div>

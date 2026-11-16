@@ -66,7 +66,9 @@ def _visibles():
 @bp.get("/configuracion")
 def configuracion():
     """Opciones públicas del portal: con la tienda apagada no se muestran precios, carrito ni checkout."""
-    return jsonify({"canal_tienda": current_app.config["CANAL_TIENDA"]})
+    c = current_app.config
+    return jsonify({"canal_tienda": c["CANAL_TIENDA"],
+                    "whatsapp": {"aprobador": c["WHATSAPP_APROBADOR"] or None, "distribuidora": c["WHATSAPP_DISTRIBUIDORA"] or None}})
 
 
 @bp.get("/categorias")
