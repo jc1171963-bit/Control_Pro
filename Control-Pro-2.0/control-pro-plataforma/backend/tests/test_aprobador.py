@@ -2,7 +2,7 @@
 sucursal y cancelación. El surtido y el envío los opera la distribuidora. La sucursal solo administra a sus empleados,
 con permiso del aprobador."""
 from .conftest import Api, clave, conciliado
-from .flujos import almacen_de, surtir_y_empacar
+from .flujos import almacen_de, cobrar_credito, surtir_y_empacar
 
 DIR = {"destinatario": "Recepción", "telefono": "4421112233", "calle": "Av. Universidad", "numero": "100",
        "colonia": "Centro", "ciudad": "Querétaro", "estado": "Querétaro", "cp": "76000"}
@@ -105,6 +105,11 @@ def test_aprobador_edita_aprueba_y_da_seguimiento(como, app):
     pedido = aprob.post(f"/api/admin/pedidos/{p['id']}/decision", {"decision": "aprobado"}).get_json()
     assert pedido["estado"] == "confirmado"
     assert aprob.post(f"/api/admin/surtido/{pedido['asignaciones'][0]['id']}/iniciar").status_code == 403
+    # Aprobado no es pagado: el almacén no surte hasta que se cobra el crédito corporativo
+    asig0 = pedido["asignaciones"][0]
+    r = almacen_de(como, asig0["sucursal"]["nombre"]).post(f"/api/admin/surtido/{asig0['id']}/iniciar")
+    assert r.status_code == 409 and r.get_json()["error"]["codigo"] == "pago_pendiente"
+    cobrar_credito(como("finanzas"), pedido)
     for asig in pedido["asignaciones"]:
         alm = almacen_de(como, asig["sucursal"]["nombre"])
         paq = surtir_y_empacar(alm, asig["id"])
