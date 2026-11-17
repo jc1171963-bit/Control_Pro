@@ -10,7 +10,7 @@ type Tono = 'gris' | 'azul' | 'menta' | 'ambar' | 'coral' | 'violeta' | 'verde';
 
 export const ESTADOS: Record<string, [string, Tono]> = {
   // pedido / solicitud
-  borrador: ['Borrador', 'gris'], en_revision: ['En revisión', 'ambar'], devuelto: ['Devuelto para corrección', 'coral'], rechazado: ['Rechazado', 'coral'],
+  borrador: ['Borrador', 'gris'], en_revision: ['En revisión', 'ambar'], devuelto: ['Devuelto para corrección', 'coral'], rechazado: ['Rechazado', 'coral'], aprobado: ['Aprobado · por autorizar', 'ambar'],
   pendiente_pago: ['Pendiente de pago', 'ambar'], pago_en_revision: ['Pago en revisión', 'violeta'], confirmado: ['Confirmado', 'azul'],
   en_preparacion: ['En preparación', 'azul'], parcialmente_enviado: ['Parcialmente enviado', 'violeta'], enviado: ['Enviado', 'violeta'],
   parcialmente_entregado: ['Parcialmente entregado', 'menta'], entregado: ['Entregado', 'verde'], cerrado: ['Cerrado', 'gris'],

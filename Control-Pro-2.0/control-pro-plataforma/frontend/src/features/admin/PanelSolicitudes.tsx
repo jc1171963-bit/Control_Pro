@@ -26,7 +26,7 @@ type Panel = {
 
 const ETAPAS: [string, string, string, string][] = [
   ['por_revisar', 'Por revisar', 'bg-amber-400', 'en_revision'], ['en_correccion', 'En corrección', 'bg-coral-500', 'devuelto'],
-  ['en_surtido', 'En surtido', 'bg-sky-500', 'confirmado,en_preparacion'], ['en_camino', 'En camino', 'bg-violet-500', 'parcialmente_enviado,enviado'],
+  ['por_autorizar', 'Por autorizar', 'bg-amber-400', 'aprobado'], ['en_surtido', 'En surtido', 'bg-sky-500', 'confirmado,en_preparacion'], ['en_camino', 'En camino', 'bg-violet-500', 'parcialmente_enviado,enviado'],
   ['en_entrega', 'En recepción y entrega', 'bg-menta-500', 'parcialmente_entregado,entregado'], ['cerradas', 'Cerradas', 'bg-tinta-400', 'cerrado'],
   ['rechazadas_canceladas', 'Rechazadas o canceladas', 'bg-tinta-200', 'rechazado,cancelado'],
 ];

@@ -18,7 +18,7 @@ from .util import cuerpo, pagina
 
 bp = Blueprint("admin_sucursales", __name__, url_prefix="/api/admin/cuentas-sucursal")
 
-EN_CURSO = ("en_revision", "devuelto", "confirmado", "en_preparacion", "parcialmente_enviado", "enviado",
+EN_CURSO = ("en_revision", "devuelto", "aprobado", "confirmado", "en_preparacion", "parcialmente_enviado", "enviado",
             "parcialmente_entregado", "entregado")
 
 
