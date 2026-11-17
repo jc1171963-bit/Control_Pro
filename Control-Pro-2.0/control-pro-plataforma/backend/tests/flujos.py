@@ -32,12 +32,11 @@ def pagar_y_validar(cliente, finanzas, pedido_id):
     return pago_id
 
 
-def cobrar_credito(finanzas, pedido):
-    """Valida el crédito corporativo del pedido aprobado: sin pago confirmado no se surte."""
-    credito = next(x for x in pedido["pagos"] if x["metodo"] == "credito_corporativo")
-    r = finanzas.post(f"/api/admin/pagos/{credito['id']}/validar", {"nota": "FACT-CRED-01"})
-    assert r.status_code == 200, r.get_json()
-    return credito
+def autorizar(admin, pedido):
+    """La distribuidora autoriza el pedido corporativo aprobado (ya cobrado fuera del sistema): queda listo para surtir."""
+    r = admin.post(f"/api/admin/pedidos/{pedido['id']}/autorizar", {"nota": "Cobro recibido"})
+    assert r.status_code == 200 and r.get_json()["estado"] == "confirmado", r.get_json()
+    return r.get_json()
 
 
 def surtir_y_empacar(almacen, asignacion_id):

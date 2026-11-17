@@ -79,7 +79,7 @@ def dashboard(desde=None, hasta=None, sucursal_id=None) -> dict:
         "periodo": {"desde": ini.date().isoformat(), "hasta": fin.date().isoformat()},
         "pedidos": {
             "recibidos": sum(por_estado.values()),
-            "pendientes": sum(por_estado.get(k, 0) for k in ("en_revision", "devuelto", "pendiente_pago", "pago_en_revision")),
+            "pendientes": sum(por_estado.get(k, 0) for k in ("en_revision", "devuelto", "aprobado", "pendiente_pago", "pago_en_revision")),
             "por_surtir": por_estado.get("confirmado", 0),
             "en_preparacion": por_estado.get("en_preparacion", 0),
             "en_camino": por_estado.get("parcialmente_enviado", 0) + por_estado.get("enviado", 0),
@@ -173,7 +173,7 @@ def comparativa_sucursales(desde=None, hasta=None) -> list[dict]:
 
 
 ETAPAS_SOLICITUD = {
-    "por_revisar": ("en_revision",), "en_correccion": ("devuelto",), "en_surtido": ("confirmado", "en_preparacion"),
+    "por_revisar": ("en_revision",), "en_correccion": ("devuelto",), "por_autorizar": ("aprobado",), "en_surtido": ("confirmado", "en_preparacion"),
     "en_camino": ("parcialmente_enviado", "enviado"), "en_entrega": ("parcialmente_entregado", "entregado"),
     "cerradas": ("cerrado",), "rechazadas_canceladas": ("rechazado", "cancelado", "expirado"),
 }

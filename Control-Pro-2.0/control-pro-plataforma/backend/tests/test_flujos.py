@@ -3,7 +3,7 @@ canal corporativo con aprobación, recepción y entregas individuales, cierre y 
 import base64
 
 from .conftest import clave, conciliado, fijar_existencia, inventario, sucursal_id
-from .flujos import almacen_de, cobrar_credito, comprar_envio, comprar_recoger, pagar_y_validar, surtir_y_empacar
+from .flujos import almacen_de, autorizar, comprar_envio, comprar_recoger, pagar_y_validar, surtir_y_empacar
 
 FIRMA = "data:image/png;base64," + base64.b64encode(b"\x89PNG\r\n\x1a\n" + b"0" * 300).decode()
 
@@ -140,7 +140,7 @@ def test_cancelar_tras_despacho_no_procede(como, app):
 
 def test_canal_corporativo_completo(como, app):
     emp = como("empresa")
-    aprob, fin = como("aprobador"), como("finanzas")
+    aprob = como("aprobador")
     empleados = {e["nombre"]: e["id"] for e in emp.get("/api/cuenta/empleados").get_json()}
     prod = {p["sku_base"]: p for p in como("admin").get("/api/admin/productos?por_pagina=100").get_json()["items"]}
     var = lambda sku_base, talla: next(v["id"] for v in prod[sku_base]["variantes"] if v["talla"] == talla)
@@ -165,11 +165,9 @@ def test_canal_corporativo_completo(como, app):
     assert r.status_code == 200 and r.get_json()["estado"] == "en_revision"
     assert aprob.post(f"/api/admin/pedidos/{p['id']}/decision", {"decision": "aprobado"}).status_code == 409  # excepción sin aceptar
     r = aprob.post(f"/api/admin/pedidos/{p['id']}/decision", {"decision": "aprobado", "aceptar_excepciones": True})
-    assert r.status_code == 200 and r.get_json()["estado"] == "confirmado"
-    pedido = r.get_json()
-    credito = pedido["pagos"][0]
-    assert credito["metodo"] == "credito_corporativo" and credito["estado"] == "pendiente"
-    cobrar_credito(fin, pedido)  # sin pago confirmado no se surte
+    assert r.status_code == 200 and r.get_json()["estado"] == "aprobado"
+    assert r.get_json()["pagos"] == []  # el cobro se hace fuera del sistema
+    pedido = autorizar(como("admin"), r.get_json())
 
     # Surtido y entrega de cada asignación
     for asig in pedido["asignaciones"]:
@@ -198,8 +196,7 @@ def test_canal_corporativo_completo(como, app):
     assert aten.post(f"/api/admin/pedidos/{p['id']}/cerrar", {}).status_code == 409  # incidencia abierta
     inc = next(i for i in aten.get("/api/admin/incidencias").get_json()["items"] if i["tipo"] == "entrega_incompleta")
     aten.patch(f"/api/admin/incidencias/{inc['id']}", {"estado": "resuelta", "comentario": "Pieza repuesta en sitio"})
-    # El crédito ya se cobró antes de surtir: validarlo otra vez se rechaza
-    assert fin.post(f"/api/admin/pagos/{credito['id']}/validar", {"nota": "FACT-CRED-01"}).status_code == 409
+    # El corporativo se cierra sin pagos registrados: el cobro lo confirmó la autorización
     r = aten.post(f"/api/admin/pedidos/{p['id']}/cerrar", {})
     assert r.status_code == 200, r.get_json()
     assert conciliado(app)

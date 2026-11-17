@@ -79,7 +79,9 @@ def test_orden_aprobada_llega_a_la_distribuidora(como):
         orden = next(n for n in avisos if n["evento"] == "orden_aprobada")
         assert p["folio"] in orden["mensaje"] and orden["enlace"] == f"/admin/pedidos/{p['id']}"
     assert not any(n["evento"] == "orden_aprobada" for n in aprob.get("/api/admin/notificaciones").get_json()["items"])
-    assert any(n["evento"] == "pedido_confirmado" for n in suc.get("/api/cuenta/notificaciones").get_json()["items"])
+    # La sucursal sabe que está aprobada, no confirmada: falta la autorización de la distribuidora
+    eventos = {n["evento"] for n in suc.get("/api/cuenta/notificaciones").get_json()["items"]}
+    assert "pedido_aprobado" in eventos and "pedido_confirmado" not in eventos
 
 
 def test_chat_entre_aprobador_sucursal_y_distribuidora(como, client):

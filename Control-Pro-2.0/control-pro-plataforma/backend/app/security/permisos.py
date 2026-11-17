@@ -16,6 +16,7 @@ PERMISOS = {
     "transferencia.operar": "Enviar y recibir transferencias",
     "pedido.ver": "Consultar pedidos",
     "pedido.aprobar": "Aprobar, rechazar o devolver pedidos corporativos",
+    "pedido.autorizar": "Autorizar el surtido de pedidos corporativos aprobados, una vez cobrados",
     "pedido.cancelar": "Cancelar pedidos antes del despacho",
     "pedido.cerrar": "Cerrar pedidos conciliados",
     "surtido.operar": "Surtir, empacar, despachar y registrar eventos de envío",

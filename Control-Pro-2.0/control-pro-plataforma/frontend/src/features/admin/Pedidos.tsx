@@ -141,7 +141,7 @@ export function PedidoAdmin() {
   const qc = useQueryClient();
   const avisar = useAviso();
   const q = useQuery({ queryKey: ['admin-pedido', id], queryFn: () => get<Pedido>(`/admin/pedidos/${id}`) });
-  const [modal, setModal] = useState<'aprobar' | 'devuelto' | 'rechazado' | 'cancelar' | 'cerrar' | 'efectivo' | 'incidencia' | null>(null);
+  const [modal, setModal] = useState<'aprobar' | 'autorizar' | 'devuelto' | 'rechazado' | 'cancelar' | 'cerrar' | 'efectivo' | 'incidencia' | null>(null);
   const [texto, setTexto] = useState('');
   const [aceptar, setAceptar] = useState(false);
   const [clave, setClave] = useState(() => claveIdempotencia('efectivo'));
@@ -153,6 +153,7 @@ export function PedidoAdmin() {
     mutationFn: async () => {
       switch (modal) {
         case 'aprobar': return post(`/admin/pedidos/${id}/decision`, { decision: 'aprobado', motivo: texto || null, aceptar_excepciones: aceptar });
+        case 'autorizar': return post(`/admin/pedidos/${id}/autorizar`, { nota: texto || null });
         case 'devuelto': case 'rechazado': return post(`/admin/pedidos/${id}/decision`, { decision: modal, motivo: texto });
         case 'cancelar': return post(`/admin/pedidos/${id}/cancelar`, { motivo: texto });
         case 'cerrar': return post(`/admin/pedidos/${id}/cerrar`, { nota: texto || null });
@@ -169,7 +170,7 @@ export function PedidoAdmin() {
   if (!q.data) return <ErrorCaja error={q.error} />;
   const p = q.data;
   const excepciones = p.detalles.some((d) => d.excepcion);
-  const titulos: Record<string, string> = { aprobar: 'Aprobar pedido', devuelto: 'Devolver para corrección', rechazado: 'Rechazar pedido', cancelar: 'Cancelar pedido', cerrar: 'Cerrar pedido', efectivo: 'Registrar cobro en efectivo', incidencia: 'Registrar incidencia' };
+  const titulos: Record<string, string> = { aprobar: 'Aprobar pedido', autorizar: 'Autorizar pedido para surtir', devuelto: 'Devolver para corrección', rechazado: 'Rechazar pedido', cancelar: 'Cancelar pedido', cerrar: 'Cerrar pedido', efectivo: 'Registrar cobro en efectivo', incidencia: 'Registrar incidencia' };
   const requiereTexto = ['devuelto', 'rechazado', 'cancelar', 'incidencia'].includes(modal || '');
 
   return (
@@ -182,9 +183,10 @@ export function PedidoAdmin() {
           <Boton variante="secundario" icono={<Undo2 className="h-4 w-4" />} onClick={() => setModal('devuelto')}>Devolver</Boton>
           <Boton variante="peligro" icono={<X className="h-4 w-4" />} onClick={() => setModal('rechazado')}>Rechazar</Boton>
         </>}
+        {p.estado === 'aprobado' && puede('pedido.autorizar') && <Boton variante="menta" icono={<Check className="h-4 w-4" />} onClick={() => setModal('autorizar')}>Autorizar</Boton>}
         {p.estado === 'pendiente_pago' && p.metodo_pago === 'efectivo' && puede('pago.registrar_efectivo') && <Boton variante="menta" onClick={() => setModal('efectivo')}>Cobrar {dinero(p.saldo)} en efectivo</Boton>}
         {p.estado === 'entregado' && puede('pedido.cerrar') && <Boton icono={<CheckCheck className="h-4 w-4" />} onClick={() => setModal('cerrar')}>Cerrar pedido</Boton>}
-        {['en_revision', 'devuelto', 'pendiente_pago', 'pago_en_revision', 'confirmado', 'en_preparacion'].includes(p.estado) && puede('pedido.cancelar') &&
+        {['en_revision', 'devuelto', 'aprobado', 'pendiente_pago', 'pago_en_revision', 'confirmado', 'en_preparacion'].includes(p.estado) && puede('pedido.cancelar') &&
           <Boton variante="fantasma" icono={<Ban className="h-4 w-4" />} onClick={() => setModal('cancelar')}>Cancelar</Boton>}
         {puede('incidencia.gestionar') && <Boton variante="fantasma" onClick={() => setModal('incidencia')}>Incidencia</Boton>}
       </Encabezado>
@@ -312,9 +314,10 @@ export function PedidoAdmin() {
       <Modal abierto={!!modal} titulo={modal ? titulos[modal] : ''} onCerrar={() => setModal(null)}>
         <div className="space-y-4">
           {modal === 'aprobar' && <>
-            <p className="text-sm text-tinta-500">Al aprobar se asignan sucursales y se aparta el inventario. Si no hay existencias suficientes, la aprobación no procede.</p>
+            <p className="text-sm text-tinta-500">Al aprobar se asignan sucursales y se aparta el inventario mientras la distribuidora cobra y autoriza; si no lo autoriza a tiempo, la reserva vence. Si no hay existencias suficientes, la aprobación no procede.</p>
             {excepciones && <label className="flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-900"><input type="checkbox" checked={aceptar} onChange={(e) => setAceptar(e.target.checked)} className="mt-1" />Autorizo las excepciones por puesto incluidas en este pedido.</label>}
           </>}
+          {modal === 'autorizar' && <Aviso>Confirma que ya cobraste esta solicitud a la sucursal. Al autorizarla se confirma y se avisa al almacén para surtirla.{p.reserva_expira ? ` La reserva vence el ${fechaHora(p.reserva_expira)}` : ''}</Aviso>}
           {modal === 'efectivo' && <Aviso>Confirma que recibiste {dinero(p.saldo)} en efectivo. El cobro queda registrado a tu nombre y confirma el pedido.</Aviso>}
           {modal === 'cerrar' && <p className="text-sm text-tinta-500">Solo se cierra si no hay incidencias abiertas, devoluciones en trámite, reembolsos pendientes ni entregas individuales pendientes.</p>}
           {modal === 'incidencia' && <Campo etiqueta="Tipo"><Selector value={tipoInc} onChange={(e) => setTipoInc(e.target.value)}>

@@ -71,6 +71,15 @@ def decidir(pedido_id):
     return jsonify(serial.pedido(p, interno=True))
 
 
+@bp.post("/pedidos/<int:pedido_id>/autorizar")
+@requiere_usuario("pedido.autorizar")
+def autorizar(pedido_id):
+    d = cargar(NotaSchema, cuerpo())
+    p = _pedido(pedido_id, bloquear=True)
+    ped.autorizar_corporativo(p, d.get("nota"))
+    return jsonify(serial.pedido(p, interno=True))
+
+
 @bp.put("/pedidos/<int:pedido_id>/partidas")
 @requiere_usuario("pedido.aprobar")
 def editar_partidas(pedido_id):
@@ -119,7 +128,7 @@ def asignaciones():
     estado = request.args.get("estado", "activas")
     if estado == "activas":
         q = q.where(AsignacionSurtido.estado.in_(["pendiente", "en_surtido", "empacada", "despachada"]),
-                    Pedido.estado.notin_(["pendiente_pago", "pago_en_revision", "cancelado", "expirado"]))
+                    Pedido.estado.notin_(["aprobado", "pendiente_pago", "pago_en_revision", "cancelado", "expirado"]))
     elif estado != "todas":
         q = q.where(AsignacionSurtido.estado == estado)
     return jsonify(paginar(q, *pagina(), lambda a: serial.asignacion(a, con_pedido=True)))

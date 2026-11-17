@@ -50,6 +50,8 @@ class Config:
 
     # Reglas de negocio configurables
     RESERVA_HORAS = int(os.getenv("RESERVA_HORAS", "24"))
+    # Pedido corporativo aprobado: plazo para que la distribuidora cobre (fuera del sistema) y lo autorice.
+    CORPORATIVO_RESERVA_HORAS = int(os.getenv("CORPORATIVO_RESERVA_HORAS", "72"))
     PERMITIR_DIVISION = _bool("PERMITIR_DIVISION", True)
     IVA_TASA = Decimal(os.getenv("IVA_TASA", "0.16"))  # los precios ya incluyen IVA
     COSTO_ENVIO = Decimal(os.getenv("COSTO_ENVIO", "150.00"))
