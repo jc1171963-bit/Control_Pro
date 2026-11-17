@@ -3,7 +3,7 @@ canal corporativo con aprobación, recepción y entregas individuales, cierre y 
 import base64
 
 from .conftest import clave, conciliado, fijar_existencia, inventario, sucursal_id
-from .flujos import almacen_de, comprar_envio, comprar_recoger, pagar_y_validar, surtir_y_empacar
+from .flujos import almacen_de, cobrar_credito, comprar_envio, comprar_recoger, pagar_y_validar, surtir_y_empacar
 
 FIRMA = "data:image/png;base64," + base64.b64encode(b"\x89PNG\r\n\x1a\n" + b"0" * 300).decode()
 
@@ -169,6 +169,7 @@ def test_canal_corporativo_completo(como, app):
     pedido = r.get_json()
     credito = pedido["pagos"][0]
     assert credito["metodo"] == "credito_corporativo" and credito["estado"] == "pendiente"
+    cobrar_credito(fin, pedido)  # sin pago confirmado no se surte
 
     # Surtido y entrega de cada asignación
     for asig in pedido["asignaciones"]:
@@ -197,8 +198,8 @@ def test_canal_corporativo_completo(como, app):
     assert aten.post(f"/api/admin/pedidos/{p['id']}/cerrar", {}).status_code == 409  # incidencia abierta
     inc = next(i for i in aten.get("/api/admin/incidencias").get_json()["items"] if i["tipo"] == "entrega_incompleta")
     aten.patch(f"/api/admin/incidencias/{inc['id']}", {"estado": "resuelta", "comentario": "Pieza repuesta en sitio"})
-    # Cobro del crédito corporativo
-    assert fin.post(f"/api/admin/pagos/{credito['id']}/validar", {"nota": "FACT-CRED-01"}).status_code == 200
+    # El crédito ya se cobró antes de surtir: validarlo otra vez se rechaza
+    assert fin.post(f"/api/admin/pagos/{credito['id']}/validar", {"nota": "FACT-CRED-01"}).status_code == 409
     r = aten.post(f"/api/admin/pedidos/{p['id']}/cerrar", {})
     assert r.status_code == 200, r.get_json()
     assert conciliado(app)

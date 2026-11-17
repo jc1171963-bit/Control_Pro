@@ -48,6 +48,13 @@ def iniciar_surtido(a: AsignacionSurtido):
     if pedido.estado not in ACTIVOS:
         raise TransicionInvalida("El pedido no está confirmado; no puede surtirse.",
                                  detalles={"estado_pedido": pedido.estado})
+    if pedido.canal == "corporativo":
+        # La aprobación del aprobador no habilita el surtido: falta cobrar el pedido (tienda ya llega pagada).
+        from .pago_service import saldo
+        pendiente = saldo(pedido)
+        if pendiente > 0:
+            raise TransicionInvalida("El pago de este pedido corporativo aún no está confirmado; no puede surtirse.",
+                                     detalles={"saldo": str(pendiente)}, codigo="pago_pendiente")
     if a.estado != "pendiente":
         raise TransicionInvalida("El surtido de esta asignación ya inició.")
     invs = inv_srv.bloquear_varios([(a.sucursal_id, d.pedido_detalle.variante_id) for d in a.detalles])

@@ -9,7 +9,7 @@ from sqlalchemy.exc import DBAPIError
 from app.extensions import db
 
 from .conftest import clave, conciliado
-from .flujos import almacen_de, surtir_y_empacar
+from .flujos import almacen_de, cobrar_credito, surtir_y_empacar
 
 FIRMA = "data:image/png;base64," + base64.b64encode(b"\x89PNG\r\n\x1a\n" + b"0" * 300).decode()
 
@@ -89,6 +89,7 @@ def test_recepcion_por_articulo_entrega_y_conformidad(app, como):
     p = emp.post("/api/cuenta/pedidos-corporativos", {"modalidad": "envio", "direccion_id": dir_emp, "partidas": partidas,
                                                       "clave_idempotencia": clave()}).get_json()
     pedido = aprob.post(f"/api/admin/pedidos/{p['id']}/decision", {"decision": "aprobado"}).get_json()
+    cobrar_credito(como("finanzas"), pedido)
     for asig in pedido["asignaciones"]:
         alm = almacen_de(como, asig["sucursal"]["nombre"])
         paq = surtir_y_empacar(alm, asig["id"])
