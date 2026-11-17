@@ -2,10 +2,11 @@
 distribuidora y conversa con sucursales y distribuidora."""
 from datetime import timedelta
 
-from sqlalchemy import update
+from sqlalchemy import select, update
 
 from app.extensions import db
-from app.models import PermisoPadron, ahora
+from app.models import PermisoPadron, Rol, ahora
+from app.security.permisos import sincronizar_roles
 
 from .conftest import PASSWORD, Api
 from .test_aprobador import _solicitud, _var
@@ -116,3 +117,23 @@ def test_chat_entre_aprobador_sucursal_y_distribuidora(como, client):
     tok = client.post("/api/auth/cliente/login", json={"correo": "empresa@demo.mx", "password": PASSWORD}).get_json()["access_token"]
     assert Api(client, tok).get(f"/api/cuenta/conversaciones/{d['id']}/mensajes").status_code == 404
     assert como("auditor").get("/api/admin/conversaciones").status_code == 403
+
+
+def test_rol_desincronizado_se_repara_con_seed_roles(app, como):
+    """Causa raíz (17-nov): la base no tenía permiso_padron.gestionar en el rol aprobador porque no se ejecutó seed-roles."""
+    suc, aprob = como("empresa"), como("aprobador")
+    p = suc.post("/api/cuenta/permiso-padron", {"motivo": "Altas del nuevo turno"}).get_json()
+    with app.app_context():
+        rol = db.session.scalars(select(Rol).filter_by(codigo="aprobador")).one()
+        rol.permisos = [x for x in rol.permisos if x.codigo != "permiso_padron.gestionar"]
+        db.session.commit()
+    r = aprob.get("/api/admin/permisos-padron?estado=pendiente")
+    assert r.status_code == 403 and r.get_json()["error"]["detalles"]["requiere"] == ["permiso_padron.gestionar"]
+    with app.app_context():
+        sincronizar_roles(db)
+    # Mismo token: los permisos se leen de la base en cada petición
+    assert aprob.get("/api/admin/permisos-padron?estado=pendiente").status_code == 200
+    assert aprob.post(f"/api/admin/permisos-padron/{p['id']}/decision", {"decision": "aprobado"}).status_code == 200
+    # Sin privilegios de más: el aprobador no administra usuarios y la sucursal no decide permisos
+    assert aprob.get("/api/admin/usuarios").status_code == 403
+    assert suc.post(f"/api/admin/permisos-padron/{p['id']}/decision", {"decision": "rechazado", "respuesta": "x"}).status_code == 403

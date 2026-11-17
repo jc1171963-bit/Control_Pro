@@ -47,6 +47,18 @@ npm run dev                                           # http://localhost:5173 (p
 
 Para producción usa `flask --app wsgi crear-admin` en lugar de `seed-demo`.
 
+**Después de cada `git pull`** (en `backend/`, con el entorno activado):
+
+```bash
+flask --app wsgi db upgrade     # aplica migraciones nuevas
+flask --app wsgi seed-roles     # sincroniza permisos y roles con app/security/permisos.py
+```
+
+Las migraciones no insertan permisos: si `permisos.py` agrega uno y no se ejecuta `seed-roles`, los usuarios reciben
+"No tienes permiso… Requiere permiso: …" aunque el código se lo asigne. `seed-roles` no duplica, no borra usuarios ni
+cambia contraseñas; deja cada rol con exactamente los permisos del código. Los cambios aplican en la siguiente petición,
+sin cerrar sesión (los permisos se leen de la base en cada petición). Ver [docs/auditoria-permisos-aprobador-padron.md](docs/auditoria-permisos-aprobador-padron.md).
+
 Imágenes del catálogo (fotos de stock versionadas, SVG generados y cómo agregar fotos): [docs/imagenes-catalogo.md](docs/imagenes-catalogo.md).
 
 ### Cuentas de prueba (solo con `seed-demo`; contraseña `ControlPro2026`)
