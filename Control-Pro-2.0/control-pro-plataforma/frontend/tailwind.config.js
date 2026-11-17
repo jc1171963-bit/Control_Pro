@@ -41,6 +41,8 @@ export default {
           '100%': { transform: 'translate3d(-18px,18px,0) rotate(12deg) scale(.94)' },
         },
         destello: { '0%': { transform: 'translateX(-100%)' }, '55%,100%': { transform: 'translateX(100%)' } },
+        // Acercamiento lento de las fotos de producto mientras se muestran (galería en movimiento).
+        kenburns: { '0%': { transform: 'scale(1) translate(0,0)' }, '100%': { transform: 'scale(1.09) translate(-1.5%,-1%)' } },
       },
       animation: {
         aparecer: 'aparecer .45s cubic-bezier(.2,.8,.2,1) both',
@@ -55,6 +57,7 @@ export default {
         flotar: 'flotar 18s ease-in-out infinite alternate',
         deriva: 'deriva 17s ease-in-out infinite alternate',
         destello: 'destello 8s ease-in-out infinite',
+        kenburns: 'kenburns 4.6s ease-out both',
       },
     },
   },

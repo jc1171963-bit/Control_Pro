@@ -21,7 +21,7 @@ FIRMAS = {
     "webp": [b"RIFF"], "pdf": [b"%PDF"],
 }
 MIMES = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "webp": "image/webp", "pdf": "application/pdf",
-         "svg": "image/svg+xml"}
+         "svg": "image/svg+xml", "mp4": "video/mp4"}  # mp4: clips de producto (solo lectura; no se aceptan como subida)
 
 
 def _guardar(carpeta: str, permitidas: set[str]) -> str:

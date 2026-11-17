@@ -44,6 +44,14 @@ def registrar_comandos(app):
         click.echo(f"Divisiones: {r['divisiones']}. Zonas: {r['zonas']}. Sucursales creadas: {r['creadas']}, ya existían: "
                    f"{r['existentes']}. Direcciones reales aplicadas: {r['direcciones_reales']}.")
 
+    @app.cli.command("cargar-fotos")
+    def cargar_fotos():
+        """Asigna a cada producto sus fotografías y video ilustrativos de stock (seeds/fotos_stock). Se puede repetir."""
+        from seeds.cargar_fotos import cargar
+        r = cargar()
+        click.echo(f"Productos con fotos: {r['productos']}. Fotos: {r['fotos']}. Videos: {r['videos']}."
+                   + (f" SKU sin producto: {', '.join(r['sin_producto'])}." if r["sin_producto"] else ""))
+
     @app.cli.command("expirar-reservas")
     def expirar():
         """Expira pedidos sin pago dentro del plazo. Programar cada 15 minutos (cron o systemd timer)."""

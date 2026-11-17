@@ -67,35 +67,48 @@ const detalle = (giros: unknown[]) => ({ id: 4, slug: 'polo-corporativa-pique', 
   imagenes: [{ url: '/api/archivos/publicos/polo-corporativa-pique-0.svg', alt: 'Polo color Azul' }, { url: '/api/archivos/publicos/polo-corporativa-pique-1.svg', alt: 'Polo color Verde' }] });
 
 describe('galería del detalle', () => {
-  it('con fotogramas 360° y foto de stock abre en la foto y alterna con el giro', async () => {
-    const frames = Array.from({ length: 8 }, (_, k) => `/api/archivos/publicos/polo-corporativa-pique-0-giro-0${k}.svg`);
-    vi.mocked(get).mockResolvedValue(detalle([{ color: 'Azul', frames }]) as never);
+  const STOCK = [
+    { url: '/api/archivos/publicos/stock-POL-001-1.webp', alt: 'Polo · vista 1 (foto ilustrativa)', credito: 'Foto: Ana · Pixabay (https://pixabay.com/1)' },
+    { url: '/api/archivos/publicos/stock-POL-001-2.webp', alt: 'Polo · vista 2 (foto ilustrativa)', credito: 'Foto: Luis · Pixabay (https://pixabay.com/2)' },
+  ];
+
+  it('abre en la primera foto con su crédito y ofrece las demás vistas, el video y el giro 360°', async () => {
+    const frames = Array.from({ length: 8 }, (_, k) => `/api/archivos/publicos/giro-${k}.webp`);
+    vi.mocked(get).mockResolvedValue({ ...detalle([{ color: 'Azul', frames }]), imagenes: STOCK,
+      video: { url: '/api/archivos/publicos/stock-video-1.mp4', credito: 'Video: Eva · Pixabay (https://pixabay.com/v)' } } as never);
     montar(<Producto />, '/producto/polo-corporativa-pique', '/producto/:slug');
-    // Margen de espera: con toda la suite en paralelo, la primera carga de la ficha puede tardar más de 1 s.
-    const giro = await screen.findByRole('button', { name: 'Vista 360°' }, { timeout: 3000 });
-    // Las dos ilustraciones del seed resuelven a la misma foto ilustrativa: una sola miniatura, activa al abrir.
-    const foto = screen.getByRole('button', { name: 'Fotografía' });
-    await waitFor(() => expect(foto).toHaveAttribute('aria-pressed', 'true'));
-    expect(giro).toHaveAttribute('aria-pressed', 'false');
+    const primera = await screen.findByRole('button', { name: 'Fotografía 1' }, { timeout: 3000 });
+    expect(primera).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText('Imagen ilustrativa')).toBeInTheDocument();
-    expect(document.querySelector('img[src="/assets/products/polo-corporativa-pique.webp"]')).not.toBeNull();
+    expect(screen.getByText('Foto: Ana · Pixabay (https://pixabay.com/1)')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Fotografía 2' }));
+    expect(await screen.findByText('Foto: Luis · Pixabay (https://pixabay.com/2)')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Video' }));
+    await waitFor(() => expect(document.querySelector('video[src="/api/archivos/publicos/stock-video-1.mp4"]')).not.toBeNull());
+    expect(screen.getByText('Video ilustrativo')).toBeInTheDocument();
+    const giro = screen.getByRole('button', { name: 'Vista 360°' });
     fireEvent.click(giro);
     await waitFor(() => expect(giro).toHaveAttribute('aria-pressed', 'true'));
   });
 
-  it('con fotogramas 360° y sin foto de stock abre en el giro', async () => {
-    const frames = Array.from({ length: 8 }, (_, k) => `/api/archivos/publicos/pantalon-cargo-negro-0-giro-0${k}.svg`);
-    vi.mocked(get).mockResolvedValue({ ...detalle([{ color: 'Azul', frames }]), imagenes: [{ url: '/api/archivos/publicos/pantalon-cargo-negro-0.svg', alt: 'Pantalón' }] } as never);
-    montar(<Producto />, '/producto/pantalon-cargo-negro', '/producto/:slug');
-    const giro = await screen.findByRole('button', { name: 'Vista 360°' }, { timeout: 3000 });
-    await waitFor(() => expect(giro).toHaveAttribute('aria-pressed', 'true'));
+  it('las flechas recorren las vistas y el cambio automático se puede pausar', async () => {
+    vi.mocked(get).mockResolvedValue({ ...detalle([]), imagenes: STOCK } as never);
+    montar(<Producto />, '/producto/polo-corporativa-pique', '/producto/:slug');
+    await screen.findByRole('button', { name: 'Fotografía 1' }, { timeout: 3000 });
+    fireEvent.click(screen.getByRole('button', { name: 'Vista siguiente' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Fotografía 2' })).toHaveAttribute('aria-pressed', 'true'));
+    fireEvent.click(screen.getByRole('button', { name: 'Vista siguiente' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Fotografía 1' })).toHaveAttribute('aria-pressed', 'true'));
+    fireEvent.click(screen.getByRole('button', { name: /Pausar el cambio automático/ }));
+    expect(screen.getByRole('button', { name: /Reproducir el cambio automático/ })).toBeInTheDocument();
   });
 
-  it('sin fotogramas no inventa un giro ni repite miniaturas', async () => {
-    vi.mocked(get).mockResolvedValue(detalle([]) as never);
+  it('con una sola foto y sin video ni giro no muestra miniaturas ni controles', async () => {
+    vi.mocked(get).mockResolvedValue({ ...detalle([]), imagenes: [STOCK[0]] } as never);
     montar(<Producto />, '/producto/polo-corporativa-pique', '/producto/:slug');
     await screen.findByText('Imagen ilustrativa', undefined, { timeout: 3000 });
     expect(screen.queryByRole('button', { name: 'Vista 360°' })).toBeNull();
-    expect(screen.queryByRole('group', { name: 'Vistas del producto' })).toBeNull();
+    expect(screen.queryByRole('group', { name: 'Miniaturas' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Vista siguiente' })).toBeNull();
   });
 });

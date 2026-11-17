@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ArrowUpRight, ImageOff, Rotate3d } from 'lucide-react';
+import { ArrowUpRight, ImageOff, PlayCircle, Rotate3d } from 'lucide-react';
 import type { ProductoResumen } from '../../api/tipos';
 import { useConfig } from '../../app/config';
 import { useContextoCatalogo } from './contextoCatalogo';
@@ -30,6 +30,9 @@ export default function ProductoCard({ p, orden = 0 }: { p: ProductoResumen; ord
       className="group flex animate-aparecer flex-col rounded-[1.4rem] bg-white p-2 shadow-sm ring-1 ring-lurima-100 transition duration-300 hover:-translate-y-1 hover:shadow-suave hover:ring-lurima-200">
       <div className="relative aspect-square overflow-hidden rounded-2xl bg-gradient-to-br from-lurima-50 to-lurima-100">
         <ImagenProducto src={p.imagen} alt={p.nombre} className="transition duration-700 ease-out group-hover:scale-[1.05]" />
+        {/* Como en las tiendas de ropa: al pasar el cursor aparece otra vista del producto. */}
+        {p.imagen_alterna && <ImagenProducto src={p.imagen_alterna} alt="" className="absolute inset-0 opacity-0 transition duration-700 ease-out group-hover:scale-[1.05] group-hover:opacity-100" />}
+        {p.video && <span className="absolute bottom-2.5 right-2.5 grid h-7 w-7 place-items-center rounded-full bg-white/95 text-lurima-800 shadow-sm" title="Incluye video" aria-label="Incluye video"><PlayCircle className="h-4 w-4" aria-hidden /></span>}
         <div className="absolute left-2.5 top-2.5 flex flex-col items-start gap-1">
           <span className="max-w-full truncate rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-bold text-lurima-800 shadow-sm backdrop-blur">{p.categoria.nombre}</span>
           {tienda && p.en_promocion && <span className="rounded-full bg-coral-600 px-2 py-0.5 text-[11px] font-bold text-white">Promoción</span>}

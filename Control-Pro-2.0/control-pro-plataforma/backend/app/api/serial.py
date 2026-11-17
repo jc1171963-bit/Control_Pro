@@ -61,6 +61,9 @@ def producto_resumen(p, precios=None, existencias=None):
     return {"id": p.id, "slug": p.slug, "nombre": p.nombre, "sku_base": p.sku_base,
             "categoria": {"id": p.categoria.id, "nombre": p.categoria.nombre, "slug": p.categoria.slug},
             "imagen": p.imagenes[0].url if p.imagenes else None, "destacado": p.destacado,
+            # Segunda vista para el efecto al pasar el cursor en las tarjetas del catálogo (como en tiendas de ropa).
+            "imagen_alterna": p.imagenes[1].url if len(p.imagenes) > 1 else None,
+            "ilustrativa": bool(p.imagenes and p.imagenes[0].credito), "video": p.video_url,
             "precio_desde": m(min(finales)) if finales else None, "precio_base_desde": m(min(base)) if base else None,
             "tallas": sorted({v.talla for v in variantes}, key=_orden_talla),
             "colores": sorted({(v.color, v.color_hex) for v in variantes}),
@@ -84,7 +87,8 @@ def _orden_talla(t: str):
 def producto_detalle(p, precios=None, existencias=None, por_sucursal=None):
     d = producto_resumen(p, precios, existencias)
     d.update({"descripcion": p.descripcion, "material": p.material, "cuidados": p.cuidados, "activo": p.activo,
-              "imagenes": [{"url": i.url, "alt": i.alt} for i in p.imagenes],
+              "imagenes": [{"url": i.url, "alt": i.alt, "credito": i.credito} for i in p.imagenes],
+              "video": {"url": p.video_url, "credito": p.video_credito} if p.video_url else None,
               "giros": [{"color": g.color, "frames": g.frames} for g in p.giros],
               "puestos": sorted(pp.puesto for pp in p.puestos),
               "sucursales_deshabilitadas": sorted(ps.sucursal_id for ps in p.sucursales if not ps.habilitado),

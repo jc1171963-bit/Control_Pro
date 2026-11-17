@@ -44,7 +44,8 @@ class Config:
 
     # Números de WhatsApp para el botón de contacto directo (enlace wa.me). Vacío = no se muestra el botón.
     WHATSAPP_APROBADOR = os.getenv("WHATSAPP_APROBADOR", "")
-    WHATSAPP_DISTRIBUIDORA = os.getenv("WHATSAPP_DISTRIBUIDORA", "")
+    # Línea de la distribuidora para acordar cotización y precios con el aprobador.
+    WHATSAPP_DISTRIBUIDORA = os.getenv("WHATSAPP_DISTRIBUIDORA", "7291320001")
     # Horas que dura un permiso de padrón si el aprobador no indica otra cosa.
     PERMISO_PADRON_HORAS = int(os.getenv("PERMISO_PADRON_HORAS", "24"))
 

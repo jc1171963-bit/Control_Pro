@@ -24,12 +24,15 @@ export type ProductoResumen = {
   id: number; slug: string; nombre: string; sku_base: string; categoria: { id: number; nombre: string; slug: string };
   imagen: string | null; destacado: boolean; precio_desde: string | null; precio_base_desde: string | null;
   tallas: string[]; colores: [string, string][]; disponible: number | null; en_promocion?: boolean; giro_360?: boolean;
+  /** Segunda vista (al pasar el cursor), si la foto es de stock y si hay video del producto. */
+  imagen_alterna?: string | null; ilustrativa?: boolean; video?: string | null;
 };
 /** Secuencia de fotos para la vista 360° de un color (null = todos los colores). */
 export type Giro360 = { color: string | null; frames: string[] };
 export type ProductoDetalle = ProductoResumen & {
   descripcion: string; material: string | null; cuidados: string | null; activo: boolean;
-  imagenes: { url: string; alt: string }[]; puestos: string[]; sucursales_deshabilitadas: number[];
+  imagenes: { url: string; alt: string; credito?: string | null }[]; puestos: string[]; sucursales_deshabilitadas: number[];
+  video?: { url: string; credito: string | null } | null;
   giros: Giro360[];
   variantes: VarianteT[];
   disponibilidad_sucursal?: { sucursal_id: number; sucursal: string; permite_recoger: boolean; variantes: Record<string, number> }[];

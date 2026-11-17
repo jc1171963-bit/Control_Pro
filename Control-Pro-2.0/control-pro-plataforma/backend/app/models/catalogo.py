@@ -40,6 +40,9 @@ class Producto(ConFechas, db.Model):
     categoria_id: Mapped[int] = mapped_column(ForeignKey("categoria.id"), index=True)
     destacado: Mapped[bool] = mapped_column(Boolean, default=False)
     activo: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Clip corto (mp4, en bucle y sin sonido) que muestra la prenda en movimiento; con su crédito si es de stock.
+    video_url: Mapped[str | None] = mapped_column(String(300))
+    video_credito: Mapped[str | None] = mapped_column(String(200))
 
     categoria = relationship("Categoria", lazy="joined")
     variantes = relationship("Variante", back_populates="producto", order_by="Variante.id", lazy="selectin")
@@ -61,6 +64,8 @@ class ProductoImagen(db.Model):
     url: Mapped[str] = mapped_column(String(300))
     orden: Mapped[int] = mapped_column(Integer, default=0)
     alt: Mapped[str] = mapped_column(String(160), default="")
+    # Autor y fuente cuando la foto es de un banco de imágenes (ilustrativa). Nulo = foto propia del producto.
+    credito: Mapped[str | None] = mapped_column(String(200))
 
 
 class ProductoGiro(db.Model):

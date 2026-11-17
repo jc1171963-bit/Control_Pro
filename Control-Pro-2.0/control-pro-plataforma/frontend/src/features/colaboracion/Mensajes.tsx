@@ -77,7 +77,9 @@ export function Hilo({ conversacionId, alto = 'h-[55vh]' }: { conversacionId: nu
             <p className="truncate font-display font-bold">{c.con}</p>
             <p className="text-xs text-tinta-500">{c.asunto}{c.pedido && <> · <Estadito estado={c.pedido.estado} /></>}</p>
           </div>
-          <BotonWhatsApp numero={c.whatsapp} texto={`Hola, te escribo por Control Pro sobre: ${c.asunto}.`} />
+          <BotonWhatsApp numero={c.whatsapp} texto={c.tipo === 'distribuidora' && c.con === 'Distribuidora'
+            ? `Hola, te escribe el aprobador corporativo para acordar la cotización y los precios de: ${c.asunto}.`
+            : `Hola, te escribo por Control Pro sobre: ${c.asunto}.`} />
         </div>
       )}
       <div className={cls('min-h-0 flex-1 space-y-2 overflow-y-auto pr-1', alto)} aria-live="polite">

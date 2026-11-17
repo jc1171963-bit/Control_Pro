@@ -1,0 +1,1199 @@
+{
+ "productos": {
+  "BAT-002": {
+   "fotos": [
+    {
+     "archivo": "BAT-002-1.webp",
+     "pixabay_id": 5997504,
+     "credito": "Foto: saniusman89 · Pixabay (https://pixabay.com/photos/doctor-stethoscope-man-professional-5997504/)"
+    },
+    {
+     "archivo": "BAT-002-2.webp",
+     "pixabay_id": 5997500,
+     "credito": "Foto: saniusman89 · Pixabay (https://pixabay.com/photos/doctor-stethoscope-man-professional-5997500/)"
+    },
+    {
+     "archivo": "BAT-002-3.webp",
+     "pixabay_id": 216990,
+     "credito": "Foto: PublicDomainPictures · Pixabay (https://pixabay.com/photos/man-woman-coat-people-laboratory-216990/)"
+    },
+    {
+     "archivo": "BAT-002-4.webp",
+     "pixabay_id": 6497490,
+     "credito": "Foto: orzalaga · Pixabay (https://pixabay.com/photos/stethoscope-doctor-nurse-hospital-6497490/)"
+    }
+   ],
+   "video": {
+    "archivo": "video-49809.mp4",
+    "pixabay_id": 49809,
+    "credito": "Video: Hassas_Arts · Pixabay (https://pixabay.com/videos/id-49809/)"
+   }
+  },
+  "QUI-003": {
+   "fotos": [
+    {
+     "archivo": "QUI-003-1.webp",
+     "pixabay_id": 9609467,
+     "credito": "Foto: Daniil_Kondrashin · Pixabay (https://pixabay.com/photos/doctor-nurse-hospital-physician-9609467/)"
+    },
+    {
+     "archivo": "QUI-003-2.webp",
+     "pixabay_id": 9609466,
+     "credito": "Foto: Daniil_Kondrashin · Pixabay (https://pixabay.com/photos/doctor-nurse-hospital-physician-9609466/)"
+    },
+    {
+     "archivo": "QUI-003-3.webp",
+     "pixabay_id": 9609465,
+     "credito": "Foto: Daniil_Kondrashin · Pixabay (https://pixabay.com/photos/doctor-nurse-hospital-physician-9609465/)"
+    }
+   ],
+   "video": {
+    "archivo": "video-378726.mp4",
+    "pixabay_id": 378726,
+    "credito": "Video: SkinClinicISB · Pixabay (https://pixabay.com/videos/id-378726/)"
+   }
+  },
+  "CAM-001": {
+   "fotos": [
+    {
+     "archivo": "CAM-001-1.webp",
+     "pixabay_id": 2082272,
+     "credito": "Foto: Anestiev · Pixabay (https://pixabay.com/photos/boy-fashion-model-young-people-2082272/)"
+    },
+    {
+     "archivo": "CAM-001-2.webp",
+     "pixabay_id": 2082271,
+     "credito": "Foto: Anestiev · Pixabay (https://pixabay.com/photos/boy-fashion-model-young-people-2082271/)"
+    },
+    {
+     "archivo": "CAM-001-3.webp",
+     "pixabay_id": 2082270,
+     "credito": "Foto: Anestiev · Pixabay (https://pixabay.com/photos/boy-fashion-model-young-people-2082270/)"
+    },
+    {
+     "archivo": "CAM-001-4.webp",
+     "pixabay_id": 6839054,
+     "credito": "Foto: OleksandrPidvalnyi · Pixabay (https://pixabay.com/photos/man-portrait-profile-male-6839054/)"
+    }
+   ],
+   "video": {
+    "archivo": "video-199623.mp4",
+    "pixabay_id": 199623,
+    "credito": "Video: MujtabaAhemad · Pixabay (https://pixabay.com/videos/id-199623/)"
+   }
+  },
+  "CAM-002": {
+   "fotos": [
+    {
+     "archivo": "CAM-002-1.webp",
+     "pixabay_id": 9079574,
+     "credito": "Foto: ernestflowerss · Pixabay (https://pixabay.com/photos/men-attractive-portrait-beauty-job-9079574/)"
+    },
+    {
+     "archivo": "CAM-002-2.webp",
+     "pixabay_id": 3740340,
+     "credito": "Foto: Engin_Akyurt · Pixabay (https://pixabay.com/photos/shirt-white-back-male-model-3740340/)"
+    },
+    {
+     "archivo": "CAM-002-3.webp",
+     "pixabay_id": 2947548,
+     "credito": "Foto: renzonovoa1 · Pixabay (https://pixabay.com/photos/shirt-men-white-fashion-2947548/)"
+    },
+    {
+     "archivo": "CAM-002-4.webp",
+     "pixabay_id": 1236049,
+     "credito": "Foto: princemahlo · Pixabay (https://pixabay.com/photos/bussiness-man-analytic-office-1236049/)"
+    }
+   ],
+   "video": {
+    "archivo": "video-199623.mp4",
+    "pixabay_id": 199623,
+    "credito": "Video: MujtabaAhemad · Pixabay (https://pixabay.com/videos/id-199623/)"
+   }
+  },
+  "CHM-001": {
+   "fotos": [
+    {
+     "archivo": "CHM-001-1.webp",
+     "pixabay_id": 6079789,
+     "credito": "Foto: Sunriseforever · Pixabay (https://pixabay.com/photos/man-model-portrait-fashion-6079789/)"
+    },
+    {
+     "archivo": "CHM-001-2.webp",
+     "pixabay_id": 6079786,
+     "credito": "Foto: Sunriseforever · Pixabay (https://pixabay.com/photos/man-model-portrait-fashion-6079786/)"
+    },
+    {
+     "archivo": "CHM-001-3.webp",
+     "pixabay_id": 1867417,
+     "credito": "Foto: Pexels · Pixabay (https://pixabay.com/photos/photographer-man-camera-beach-sea-1867417/)"
+    },
+    {
+     "archivo": "CHM-001-4.webp",
+     "pixabay_id": 926510,
+     "credito": "Foto: StockSnap · Pixabay (https://pixabay.com/photos/suit-buttons-blazer-jacket-fashion-926510/)"
+    }
+   ],
+   "video": {
+    "archivo": "video-282995.mp4",
+    "pixabay_id": 282995,
+    "credito": "Video: Matthias_Groeneveld · Pixabay (https://pixabay.com/videos/id-282995/)"
+   }
+  },
+  "GUA-001": {
+   "fotos": [
+    {
+     "archivo": "GUA-001-1.webp",
+     "pixabay_id": 2518377,
+     "credito": "Foto: 5827444 · Pixabay (https://pixabay.com/photos/gardening-agriculture-grass-plant-2518377/)"
+    },
+    {
+     "archivo": "GUA-001-2.webp",
+     "pixabay_id": 6795426,
+     "credito": "Foto: Mariakray · Pixabay (https://pixabay.com/photos/woman-florist-gardener-apron-6795426/)"
+    },
+    {
+     "archivo": "GUA-001-3.webp",
+     "pixabay_id": 4832750,
+     "credito": "Foto: chulmin1700 · Pixabay (https://pixabay.com/photos/gloves-red-color-farm-fear-4832750/)"
+    },
+    {
+     "archivo": "GUA-001-4.webp",
+     "pixabay_id": 6795431,
+     "credito": "Foto: Mariakray · Pixabay (https://pixabay.com/photos/woman-florist-gardener-apron-6795431/)"
+    }
+   ],
+   "video": {
+    "archivo": "video-6594.mp4",
+    "pixabay_id": 6594,
+    "credito": "Video: mrganso · Pixabay (https://pixabay.com/videos/id-6594/)"
+   }
+  },
+  "GUA-002": {
+   "fotos": [
+    {
+     "archivo": "GUA-002-1.webp",
+     "pixabay_id": 332172,
+     "credito": "Foto: cocoparisienne · Pixabay (https://pixabay.com/photos/gloves-glove-gardening-gloves-332172/)"
+    },
+    {
+     "archivo": "GUA-002-2.webp",
+     "pixabay_id": 16344,
+     "credito": "Foto: Hans · Pixabay (https://pixabay.com/photos/gloves-working-gloves-work-16344/)"
+    },
+    {
+     "archivo": "GUA-002-3.webp",
+     "pixabay_id": 6582297,
+     "credito": "Foto: bepart64 · Pixabay (https://pixabay.com/photos/concrete-blocks-construction-work-6582297/)"
+    },
+    {
+     "archivo": "GUA-002-4.webp",
+     "pixabay_id": 2759487,
+     "credito": "Foto: whitesession · Pixabay (https://pixabay.com/photos/woman-portrait-business-woman-2759487/)"
+    }
+   ],
+   "video": {
+    "archivo": "video-348897.mp4",
+    "pixabay_id": 348897,
+    "credito": "Video: Matias_Luge · Pixabay (https://pixabay.com/videos/id-348897/)"
+   }
+  },
+  "BLU-002": {
+   "fotos": [
+    {
+     "archivo": "BLU-002-1.webp",
+     "pixabay_id": 2362136,
+     "credito": "Foto: RobinHiggins · Pixabay (https://pixabay.com/photos/smiling-corporate-lady-executive-2362136/)"
+    },
+    {
+     "archivo": "BLU-002-2.webp",
+     "pixabay_id": 3082826,
+     "credito": "Foto: RobinHiggins · Pixabay (https://pixabay.com/photos/behind-back-head-back-of-head-3082826/)"
+    },
+    {
+     "archivo": "BLU-002-3.webp",
+     "pixabay_id": 2681503,
+     "credito": "Foto: RobinHiggins · Pixabay (https://pixabay.com/photos/idea-finger-point-creative-person-2681503/)"
+    },
+    {
+     "archivo": "BLU-002-4.webp",
+     "pixabay_id": 3061652,
+     "credito": "Foto: RobinHiggins · Pixabay (https://pixabay.com/photos/young-people-woman-isolated-3061652/)"
+    }
+   ]
+  },
+  "BOT-001": {
+   "fotos": [
+    {
+     "archivo": "BOT-001-1.webp",
+     "pixabay_id": 2790714,
+     "credito": "Foto: pen_ash · Pixabay (https://pixabay.com/photos/gumboots-mud-dirt-wet-rainboots-2790714/)"
+    },
+    {
+     "archivo": "BOT-001-2.webp",
+     "pixabay_id": 52414,
+     "credito": "Foto: JamesDeMers · Pixabay (https://pixabay.com/photos/boots-rubber-galoshes-waders-52414/)"
+    },
+    {
+     "archivo": "BOT-001-3.webp",
+     "pixabay_id": 1650989,
+     "credito": "Foto: MemoryCatcher · Pixabay (https://pixabay.com/photos/seat-funny-gumboot-silly-joke-1650989/)"
+    },
+    {
+     "archivo": "BOT-001-4.webp",
+     "pixabay_id": 5480421,
+     "credito": "Foto: wal_172619 · Pixabay (https://pixabay.com/photos/rain-rubber-boots-puddle-wet-fun-5480421/)"
+    }
+   ],
+   "video": {
+    "archivo": "video-189591.mp4",
+    "pixabay_id": 189591,
+    "credito": "Video: AlexanderRaw · Pixabay (https://pixabay.com/videos/id-189591/)"
+   }
+  },
+  "CAM-003": {
+   "fotos": [
+    {
+     "archivo": "CAM-003-1.webp",
+     "pixabay_id": 1146793,
+     "credito": "Foto: berndbitzer · Pixabay (https://pixabay.com/photos/black-scarf-relaxed-jeans-1146793/)"
+    },
+    {
+     "archivo": "CAM-003-2.webp",
+     "pixabay_id": 2650677,
+     "credito": "Foto: Engin_Akyurt · Pixabay (https://pixabay.com/photos/shirt-blue-male-person-adult-2650677/)"
+    },
+    {
+     "archivo": "CAM-003-3.webp",
+     "pixabay_id": 2590795,
+     "credito": "Foto: StockSnap · Pixabay (https://pixabay.com/photos/guy-man-fashion-clothing-backpack-2590795/)"
+    }
+   ]
+  },
+  "CAM-004": {
+   "fotos": [
+    {
+     "archivo": "CAM-004-1.webp",
+     "pixabay_id": 1281282,
+     "credito": "Foto: brenkee · Pixabay (https://pixabay.com/photos/young-man-portrait-beard-young-man-1281282/)"
+    },
+    {
+     "archivo": "CAM-004-2.webp",
+     "pixabay_id": 2558273,
+     "credito": "Foto: StockSnap · Pixabay (https://pixabay.com/photos/black-and-white-monochrome-people-2558273/)"
+    },
+    {
+     "archivo": "CAM-004-3.webp",
+     "pixabay_id": 4917258,
+     "credito": "Foto: Virat_Maurya · Pixabay (https://pixabay.com/photos/indian-male-asian-portrait-young-4917258/)"
+    }
+   ],
+   "video": {
+    "archivo": "video-199623.mp4",
+    "pixabay_id": 199623,
+    "credito": "Video: MujtabaAhemad · Pixabay (https://pixabay.com/videos/id-199623/)"
+   }
+  },
+  "CHM-002": {
+   "fotos": [
+    {
+     "archivo": "CHM-002-1.webp",
+     "pixabay_id": 1732522,
+     "credito": "Foto: Anemone123 · Pixabay (https://pixabay.com/photos/blindfold-blind-hair-girl-woman-1732522/)"
+    },
+    {
+     "archivo": "CHM-002-2.webp",
+     "pixabay_id": 6878657,
+     "credito": "Foto: Sunriseforever · Pixabay (https://pixabay.com/photos/woman-snow-winter-portrait-forest-6878657/)"
+    },
+    {
+     "archivo": "CHM-002-3.webp",
+     "pixabay_id": 8319446,
+     "credito": "Foto: Surprising_Media · Pixabay (https://pixabay.com/photos/woman-tall-young-blond-sunglasses-8319446/)"
+    },
+    {
+     "archivo": "CHM-002-4.webp",
+     "pixabay_id": 10104742,
+     "credito": "Foto: Edwin_Mijares · Pixabay (https://pixabay.com/photos/woman-outdoor-young-portrait-10104742/)"
+    }
+   ]
+  },
+  "TEN-001": {
+   "fotos": [
+    {
+     "archivo": "TEN-001-1.webp",
+     "pixabay_id": 994005,
+     "credito": "Foto: succo · Pixabay (https://pixabay.com/photos/accident-injury-danger-nail-shoe-994005/)"
+    },
+    {
+     "archivo": "TEN-001-2.webp",
+     "pixabay_id": 994006,
+     "credito": "Foto: succo · Pixabay (https://pixabay.com/photos/accident-injury-danger-nail-shoe-994006/)"
+    },
+    {
+     "archivo": "TEN-001-3.webp",
+     "pixabay_id": 4884270,
+     "credito": "Foto: Tho-Ge · Pixabay (https://pixabay.com/photos/vietnam-saigon-shoe-shiner-4884270/)"
+    }
+   ],
+   "video": {
+    "archivo": "video-189591.mp4",
+    "pixabay_id": 189591,
+    "credito": "Video: AlexanderRaw · Pixabay (https://pixabay.com/videos/id-189591/)"
+   }
+  },
+  "PAN-001": {
+   "fotos": [
+    {
+     "archivo": "PAN-001-1.webp",
+     "pixabay_id": 3740350,
+     "credito": "Foto: Engin_Akyurt · Pixabay (https://pixabay.com/photos/male-pants-fashion-leg-shoes-3740350/)"
+    },
+    {
+     "archivo": "PAN-001-2.webp",
+     "pixabay_id": 3740366,
+     "credito": "Foto: Engin_Akyurt · Pixabay (https://pixabay.com/photos/male-pants-fashion-leg-shoes-3740366/)"
+    },
+    {
+     "archivo": "PAN-001-3.webp",
+     "pixabay_id": 3740367,
+     "credito": "Foto: Engin_Akyurt · Pixabay (https://pixabay.com/photos/male-pants-fashion-leg-shoes-3740367/)"
+    },
+    {
+     "archivo": "PAN-001-4.webp",
+     "pixabay_id": 8406044,
+     "credito": "Foto: melbinjacob · Pixabay (https://pixabay.com/photos/woman-model-adult-brunette-fashion-8406044/)"
+    }
+   ],
+   "video": {
+    "archivo": "video-348897.mp4",
+    "pixabay_id": 348897,
+    "credito": "Video: Matias_Luge · Pixabay (https://pixabay.com/videos/id-348897/)"
+   }
+  },
+  "PLA-001": {
+   "fotos": [
+    {
+     "archivo": "PLA-001-1.webp",
+     "pixabay_id": 19305,
+     "credito": "Foto: PublicDomainPictures · Pixabay (https://pixabay.com/photos/beautiful-cheerful-cute-excited-19305/)"
+    },
+    {
+     "archivo": "PLA-001-2.webp",
+     "pixabay_id": 19086,
+     "credito": "Foto: PublicDomainPictures · Pixabay (https://pixabay.com/photos/afraid-dread-emotion-expression-19086/)"
+    },
+    {
+     "archivo": "PLA-001-3.webp",
+     "pixabay_id": 936731,
+     "credito": "Foto: feelian · Pixabay (https://pixabay.com/photos/beautiful-image-asia-china-cat-936731/)"
+    }
+   ],
+   "video": {
+    "archivo": "video-76621.mp4",
+    "pixabay_id": 76621,
+    "credito": "Video: KIMDAEJEUNG · Pixabay (https://pixabay.com/videos/id-76621/)"
+   }
+  },
+  "QUI-001": {
+   "fotos": [
+    {
+     "archivo": "QUI-001-1.webp",
+     "pixabay_id": 2722941,
+     "credito": "Foto: whitesession · Pixabay (https://pixabay.com/photos/doctor-op-medicine-operation-2722941/)"
+    },
+    {
+     "archivo": "QUI-001-2.webp",
+     "pixabay_id": 5707722,
+     "credito": "Foto: Sammy-Sander · Pixabay (https://pixabay.com/photos/doctor-surgeon-hospital-surgery-5707722/)"
+    },
+    {
+     "archivo": "QUI-001-3.webp",
+     "pixabay_id": 1807541,
+     "credito": "Foto: sasint · Pixabay (https://pixabay.com/photos/surgery-hospital-1807541/)"
+    },
+    {
+     "archivo": "QUI-001-4.webp",
+     "pixabay_id": 1822458,
+     "credito": "Foto: sasint · Pixabay (https://pixabay.com/photos/surgery-hospital-doctor-care-1822458/)"
+    }
+   ],
+   "video": {
+    "archivo": "video-52094.mp4",
+    "pixabay_id": 52094,
+    "credito": "Video: 18519691 · Pixabay (https://pixabay.com/videos/id-52094/)"
+   }
+  },
+  "SUE-001": {
+   "fotos": [
+    {
+     "archivo": "SUE-001-1.webp",
+     "pixabay_id": 601562,
+     "credito": "Foto: stokpic · Pixabay (https://pixabay.com/photos/fashion-shooting-guy-man-male-601562/)"
+    },
+    {
+     "archivo": "SUE-001-2.webp",
+     "pixabay_id": 601563,
+     "credito": "Foto: stokpic · Pixabay (https://pixabay.com/photos/fashion-shooting-guy-man-male-601563/)"
+    },
+    {
+     "archivo": "SUE-001-3.webp",
+     "pixabay_id": 3183680,
+     "credito": "Foto: Hifen · Pixabay (https://pixabay.com/photos/fashion-male-every-day-beautiful-3183680/)"
+    },
+    {
+     "archivo": "SUE-001-4.webp",
+     "pixabay_id": 7695738,
+     "credito": "Foto: salmanbutt8999 · Pixabay (https://pixabay.com/photos/man-model-smile-casual-beanie-7695738/)"
+    }
+   ]
+  },
+  "SUE-002": {
+   "fotos": [
+    {
+     "archivo": "SUE-002-1.webp",
+     "pixabay_id": 3054364,
+     "credito": "Foto: Gromovataya · Pixabay (https://pixabay.com/photos/woman-portrait-young-young-woman-3054364/)"
+    },
+    {
+     "archivo": "SUE-002-2.webp",
+     "pixabay_id": 10544992,
+     "credito": "Foto: Feygrace · Pixabay (https://pixabay.com/photos/young-woman-portrait-smiling-10544992/)"
+    },
+    {
+     "archivo": "SUE-002-3.webp",
+     "pixabay_id": 1623087,
+     "credito": "Foto: 3179289 · Pixabay (https://pixabay.com/photos/fashion-woman-clothing-female-1623087/)"
+    },
+    {
+     "archivo": "SUE-002-4.webp",
+     "pixabay_id": 6962860,
+     "credito": "Foto: Engin_Akyurt · Pixabay (https://pixabay.com/photos/woman-sweater-sad-depressed-stress-6962860/)"
+    }
+   ]
+  },
+  "BAT-001": {
+   "fotos": [
+    {
+     "archivo": "BAT-001-1.webp",
+     "pixabay_id": 2019420,
+     "credito": "Foto: voltamax · Pixabay (https://pixabay.com/photos/nurse-medicine-doctor-hospital-2019420/)"
+    },
+    {
+     "archivo": "BAT-001-2.webp",
+     "pixabay_id": 2141808,
+     "credito": "Foto: voltamax · Pixabay (https://pixabay.com/photos/woman-doctor-surgeon-physician-2141808/)"
+    },
+    {
+     "archivo": "BAT-001-3.webp",
+     "pixabay_id": 7582098,
+     "credito": "Foto: u_ys074yedl6 · Pixabay (https://pixabay.com/photos/test-tubes-laboratory-medical-7582098/)"
+    },
+    {
+     "archivo": "BAT-001-4.webp",
+     "pixabay_id": 10267183,
+     "credito": "Foto: Daniil_Kondrashin · Pixabay (https://pixabay.com/photos/doctor-woman-stethoscope-healthcare-10267183/)"
+    }
+   ],
+   "video": {
+    "archivo": "video-49808.mp4",
+    "pixabay_id": 49808,
+    "credito": "Video: Hassas_Arts · Pixabay (https://pixabay.com/videos/id-49808/)"
+   }
+  },
+  "BAT-003": {
+   "fotos": [
+    {
+     "archivo": "BAT-003-1.webp",
+     "pixabay_id": 5321347,
+     "credito": "Foto: outsideclick · Pixabay (https://pixabay.com/photos/woman-doctor-woman-doctor-medical-5321347/)"
+    },
+    {
+     "archivo": "BAT-003-2.webp",
+     "pixabay_id": 5321351,
+     "credito": "Foto: outsideclick · Pixabay (https://pixabay.com/photos/woman-doctor-woman-doctor-medical-5321351/)"
+    },
+    {
+     "archivo": "BAT-003-3.webp",
+     "pixabay_id": 1191671,
+     "credito": "Foto: Diana73 · Pixabay (https://pixabay.com/photos/dentist-doctor-1191671/)"
+    },
+    {
+     "archivo": "BAT-003-4.webp",
+     "pixabay_id": 7261805,
+     "credito": "Foto: u_9p7tw4noz0 · Pixabay (https://pixabay.com/photos/medicine-doctor-oncology-crayfish-7261805/)"
+    }
+   ],
+   "video": {
+    "archivo": "video-49814.mp4",
+    "pixabay_id": 49814,
+    "credito": "Video: Hassas_Arts · Pixabay (https://pixabay.com/videos/id-49814/)"
+   }
+  },
+  "BLU-003": {
+   "fotos": [
+    {
+     "archivo": "BLU-003-1.webp",
+     "pixabay_id": 3435863,
+     "credito": "Foto: Icons8_team · Pixabay (https://pixabay.com/photos/cryptocurrency-bitcoin-finance-3435863/)"
+    },
+    {
+     "archivo": "BLU-003-2.webp",
+     "pixabay_id": 5895173,
+     "credito": "Foto: dealmeidar60 · Pixabay (https://pixabay.com/photos/woman-model-businesswoman-portrait-5895173/)"
+    },
+    {
+     "archivo": "BLU-003-3.webp",
+     "pixabay_id": 6823526,
+     "credito": "Foto: chermitove · Pixabay (https://pixabay.com/photos/woman-model-portrait-pose-style-6823526/)"
+    }
+   ]
+  },
+  "BLU-004": {
+   "fotos": [
+    {
+     "archivo": "BLU-004-1.webp",
+     "pixabay_id": 4390055,
+     "credito": "Foto: gdhllz · Pixabay (https://pixabay.com/photos/woman-model-portrait-pose-style-4390055/)"
+    },
+    {
+     "archivo": "BLU-004-2.webp",
+     "pixabay_id": 10501994,
+     "credito": "Foto: u_43zoe6thn4 · Pixabay (https://pixabay.com/photos/woman-lazy-afternoon-window-light-10501994/)"
+    },
+    {
+     "archivo": "BLU-004-3.webp",
+     "pixabay_id": 2945540,
+     "credito": "Foto: simonovamasha · Pixabay (https://pixabay.com/photos/photo-photos-retro-old-camera-2945540/)"
+    }
+   ]
+  },
+  "BOT-002": {
+   "fotos": [
+    {
+     "archivo": "BOT-002-1.webp",
+     "pixabay_id": 400903,
+     "credito": "Foto: B_Me · Pixabay (https://pixabay.com/photos/army-boots-worn-leather-black-400903/)"
+    },
+    {
+     "archivo": "BOT-002-2.webp",
+     "pixabay_id": 2270860,
+     "credito": "Foto: Photorama · Pixabay (https://pixabay.com/photos/boots-shoes-dr-martens-design-2270860/)"
+    },
+    {
+     "archivo": "BOT-002-3.webp",
+     "pixabay_id": 3999844,
+     "credito": "Foto: NickyPe · Pixabay (https://pixabay.com/photos/shoes-boots-black-belt-belt-buckle-3999844/)"
+    },
+    {
+     "archivo": "BOT-002-4.webp",
+     "pixabay_id": 5515135,
+     "credito": "Foto: gershoots · Pixabay (https://pixabay.com/photos/fashion-boots-shoes-footwear-5515135/)"
+    }
+   ],
+   "video": {
+    "archivo": "video-189591.mp4",
+    "pixabay_id": 189591,
+    "credito": "Video: AlexanderRaw · Pixabay (https://pixabay.com/videos/id-189591/)"
+   }
+  },
+  "BOT-003": {
+   "fotos": [
+    {
+     "archivo": "BOT-003-1.webp",
+     "pixabay_id": 889816,
+     "credito": "Foto: stevepb · Pixabay (https://pixabay.com/photos/work-boots-footwear-protection-889816/)"
+    },
+    {
+     "archivo": "BOT-003-2.webp",
+     "pixabay_id": 4133817,
+     "credito": "Foto: pen_ash · Pixabay (https://pixabay.com/photos/work-boots-boots-shoes-footwear-4133817/)"
+    },
+    {
+     "archivo": "BOT-003-3.webp",
+     "pixabay_id": 3699719,
+     "credito": "Foto: pen_ash · Pixabay (https://pixabay.com/photos/boots-hiking-boots-work-boots-3699719/)"
+    },
+    {
+     "archivo": "BOT-003-4.webp",
+     "pixabay_id": 3648141,
+     "credito": "Foto: angelsharum · Pixabay (https://pixabay.com/photos/boots-grass-brown-outdoors-summer-3648141/)"
+    }
+   ],
+   "video": {
+    "archivo": "video-189591.mp4",
+    "pixabay_id": 189591,
+    "credito": "Video: AlexanderRaw · Pixabay (https://pixabay.com/videos/id-189591/)"
+   }
+  },
+  "CAM-005": {
+   "fotos": [
+    {
+     "archivo": "CAM-005-1.webp",
+     "pixabay_id": 1129024,
+     "credito": "Foto: lauradbusiness0 · Pixabay (https://pixabay.com/photos/african-happy-couple-smiling-1129024/)"
+    },
+    {
+     "archivo": "CAM-005-2.webp",
+     "pixabay_id": 1252995,
+     "credito": "Foto: 1866946 · Pixabay (https://pixabay.com/photos/face-beauty-studio-seductive-1252995/)"
+    },
+    {
+     "archivo": "CAM-005-3.webp",
+     "pixabay_id": 6995454,
+     "credito": "Foto: Arturo_Anez · Pixabay (https://pixabay.com/photos/young-man-eyeglasses-fashion-6995454/)"
+    }
+   ]
+  },
+  "CAM-006": {
+   "fotos": [
+    {
+     "archivo": "CAM-006-1.webp",
+     "pixabay_id": 4792226,
+     "credito": "Foto: Engin_Akyurt · Pixabay (https://pixabay.com/photos/male-shirt-fashion-design-fit-4792226/)"
+    },
+    {
+     "archivo": "CAM-006-2.webp",
+     "pixabay_id": 923969,
+     "credito": "Foto: StockSnap · Pixabay (https://pixabay.com/photos/bowtie-dress-shirt-cufflinks-923969/)"
+    },
+    {
+     "archivo": "CAM-006-3.webp",
+     "pixabay_id": 5901612,
+     "credito": "Foto: Lucfier · Pixabay (https://pixabay.com/photos/man-model-asian-portrait-asian-man-5901612/)"
+    },
+    {
+     "archivo": "CAM-006-4.webp",
+     "pixabay_id": 1868750,
+     "credito": "Foto: Pexels · Pixabay (https://pixabay.com/photos/adult-bald-beard-corporate-1868750/)"
+    }
+   ],
+   "video": {
+    "archivo": "video-199623.mp4",
+    "pixabay_id": 199623,
+    "credito": "Video: MujtabaAhemad · Pixabay (https://pixabay.com/videos/id-199623/)"
+   }
+  },
+  "CAM-007": {
+   "fotos": [
+    {
+     "archivo": "CAM-007-1.webp",
+     "pixabay_id": 2792505,
+     "credito": "Foto: theharpreetbatish · Pixabay (https://pixabay.com/photos/man-portrait-photography-people-2792505/)"
+    },
+    {
+     "archivo": "CAM-007-2.webp",
+     "pixabay_id": 7878080,
+     "credito": "Foto: Gulsher91 · Pixabay (https://pixabay.com/photos/man-model-thinker-beard-fashion-7878080/)"
+    },
+    {
+     "archivo": "CAM-007-3.webp",
+     "pixabay_id": 410328,
+     "credito": "Foto: JESHOOTS-com · Pixabay (https://pixabay.com/photos/waiting-wristwatch-man-watch-410328/)"
+    }
+   ]
+  },
+  "CAM-008": {
+   "fotos": [
+    {
+     "archivo": "CAM-008-1.webp",
+     "pixabay_id": 2911332,
+     "credito": "Foto: RoyalAnwar · Pixabay (https://pixabay.com/photos/model-businessman-corporate-2911332/)"
+    },
+    {
+     "archivo": "CAM-008-2.webp",
+     "pixabay_id": 2970936,
+     "credito": "Foto: Awaix_Mughal · Pixabay (https://pixabay.com/photos/stylish-boy-fashion-mans-fashion-2970936/)"
+    },
+    {
+     "archivo": "CAM-008-3.webp",
+     "pixabay_id": 3179826,
+     "credito": "Foto: Awaix_Mughal · Pixabay (https://pixabay.com/photos/man-outdoors-adult-portrait-nature-3179826/)"
+    },
+    {
+     "archivo": "CAM-008-4.webp",
+     "pixabay_id": 8319479,
+     "credito": "Foto: ernestflowerss · Pixabay (https://pixabay.com/photos/white-clothes-fashion-clothing-8319479/)"
+    }
+   ],
+   "video": {
+    "archivo": "video-348897.mp4",
+    "pixabay_id": 348897,
+    "credito": "Video: Matias_Luge · Pixabay (https://pixabay.com/videos/id-348897/)"
+   }
+  },
+  "POL-003": {
+   "fotos": [
+    {
+     "archivo": "POL-003-1.webp",
+     "pixabay_id": 3139292,
+     "credito": "Foto: Hifen · Pixabay (https://pixabay.com/photos/fashion-male-every-day-beautiful-3139292/)"
+    },
+    {
+     "archivo": "POL-003-2.webp",
+     "pixabay_id": 4440381,
+     "credito": "Foto: andrey_braynsk · Pixabay (https://pixabay.com/photos/young-couple-love-story-courtship-4440381/)"
+    },
+    {
+     "archivo": "POL-003-3.webp",
+     "pixabay_id": 3172988,
+     "credito": "Foto: Hifen · Pixabay (https://pixabay.com/photos/male-fashion-model-every-day-young-3172988/)"
+    }
+   ]
+  },
+  "CHA-001": {
+   "fotos": [
+    {
+     "archivo": "CHA-001-1.webp",
+     "pixabay_id": 6027492,
+     "credito": "Foto: crown-sathees · Pixabay (https://pixabay.com/photos/men-model-portrait-tattooed-man-6027492/)"
+    },
+    {
+     "archivo": "CHA-001-2.webp",
+     "pixabay_id": 5907470,
+     "credito": "Foto: いそかず · Pixabay (https://pixabay.com/photos/man-model-performer-style-stylish-5907470/)"
+    },
+    {
+     "archivo": "CHA-001-3.webp",
+     "pixabay_id": 1399344,
+     "credito": "Foto: Evro-photography · Pixabay (https://pixabay.com/photos/fashion-male-beautiful-man-car-1399344/)"
+    },
+    {
+     "archivo": "CHA-001-4.webp",
+     "pixabay_id": 1025432,
+     "credito": "Foto: natashamariecan · Pixabay (https://pixabay.com/photos/black-vest-fashion-male-shirt-1025432/)"
+    }
+   ]
+  },
+  "CHA-002": {
+   "fotos": [
+    {
+     "archivo": "CHA-002-1.webp",
+     "pixabay_id": 6995757,
+     "credito": "Foto: medialeads · Pixabay (https://pixabay.com/photos/man-wedding-formal-attire-handsome-6995757/)"
+    },
+    {
+     "archivo": "CHA-002-2.webp",
+     "pixabay_id": 3354450,
+     "credito": "Foto: allannyima · Pixabay (https://pixabay.com/photos/people-adult-man-portrait-umbrella-3354450/)"
+    },
+    {
+     "archivo": "CHA-002-3.webp",
+     "pixabay_id": 7983097,
+     "credito": "Foto: Florcopolettiwedding · Pixabay (https://pixabay.com/photos/groom-men-wedding-costume-fashion-7983097/)"
+    },
+    {
+     "archivo": "CHA-002-4.webp",
+     "pixabay_id": 2911322,
+     "credito": "Foto: RoyalAnwar · Pixabay (https://pixabay.com/photos/model-businessman-corporate-2911322/)"
+    }
+   ],
+   "video": {
+    "archivo": "video-199623.mp4",
+    "pixabay_id": 199623,
+    "credito": "Video: MujtabaAhemad · Pixabay (https://pixabay.com/videos/id-199623/)"
+   }
+  },
+  "QUI-002": {
+   "fotos": [
+    {
+     "archivo": "QUI-002-1.webp",
+     "pixabay_id": 2761702,
+     "credito": "Foto: ArtsyBee · Pixabay (https://pixabay.com/photos/doctor-medical-stethoscope-blue-2761702/)"
+    },
+    {
+     "archivo": "QUI-002-2.webp",
+     "pixabay_id": 4967171,
+     "credito": "Foto: Dimhou · Pixabay (https://pixabay.com/photos/nurse-man-male-spray-medicine-4967171/)"
+    },
+    {
+     "archivo": "QUI-002-3.webp",
+     "pixabay_id": 540597,
+     "credito": "Foto: Stefan_Schranz · Pixabay (https://pixabay.com/photos/operation-operating-room-doctor-540597/)"
+    },
+    {
+     "archivo": "QUI-002-4.webp",
+     "pixabay_id": 2761701,
+     "credito": "Foto: ArtsyBee · Pixabay (https://pixabay.com/photos/doctor-medical-blue-heart-rate-2761701/)"
+    }
+   ],
+   "video": {
+    "archivo": "video-378726.mp4",
+    "pixabay_id": 378726,
+    "credito": "Video: SkinClinicISB · Pixabay (https://pixabay.com/videos/id-378726/)"
+   }
+  },
+  "FAJ-001": {
+   "fotos": [
+    {
+     "archivo": "FAJ-001-1.webp",
+     "pixabay_id": 1636392,
+     "credito": "Foto: voltamax · Pixabay (https://pixabay.com/photos/stevedore-industrial-security-1636392/)"
+    },
+    {
+     "archivo": "FAJ-001-2.webp",
+     "pixabay_id": 1227099,
+     "credito": "Foto: aniset · Pixabay (https://pixabay.com/photos/class-practice-retractable-shelves-1227099/)"
+    },
+    {
+     "archivo": "FAJ-001-3.webp",
+     "pixabay_id": 9483157,
+     "credito": "Foto: constructionestimate · Pixabay (https://pixabay.com/photos/truckload-freight-services-9483157/)"
+    },
+    {
+     "archivo": "FAJ-001-4.webp",
+     "pixabay_id": 5619201,
+     "credito": "Foto: tianya1223 · Pixabay (https://pixabay.com/photos/store-stacks-shelves-stock-5619201/)"
+    }
+   ],
+   "video": {
+    "archivo": "video-154950.mp4",
+    "pixabay_id": 154950,
+    "credito": "Video: AlexKopeykin · Pixabay (https://pixabay.com/videos/id-154950/)"
+   }
+  },
+  "MAS-001": {
+   "fotos": [
+    {
+     "archivo": "MAS-001-1.webp",
+     "pixabay_id": 1358813,
+     "credito": "Foto: whitedaemon · Pixabay (https://pixabay.com/photos/young-woman-model-portrait-the-park-1358813/)"
+    },
+    {
+     "archivo": "MAS-001-2.webp",
+     "pixabay_id": 5394334,
+     "credito": "Foto: Sunriseforever · Pixabay (https://pixabay.com/photos/train-young-woman-vintage-railway-5394334/)"
+    },
+    {
+     "archivo": "MAS-001-3.webp",
+     "pixabay_id": 7197053,
+     "credito": "Foto: Sunriseforever · Pixabay (https://pixabay.com/photos/moscow-city-view-panorama-area-7197053/)"
+    },
+    {
+     "archivo": "MAS-001-4.webp",
+     "pixabay_id": 2605521,
+     "credito": "Foto: Engin_Akyurt · Pixabay (https://pixabay.com/photos/hijab-head-cover-hair-scarf-woman-2605521/)"
+    }
+   ]
+  },
+  "MAS-002": {
+   "fotos": [
+    {
+     "archivo": "MAS-002-1.webp",
+     "pixabay_id": 9886304,
+     "credito": "Foto: Sunriseforever · Pixabay (https://pixabay.com/photos/woman-style-street-photo-9886304/)"
+    },
+    {
+     "archivo": "MAS-002-2.webp",
+     "pixabay_id": 912378,
+     "credito": "Foto: Olichel · Pixabay (https://pixabay.com/photos/lady-young-woman-close-up-eyes-912378/)"
+    },
+    {
+     "archivo": "MAS-002-3.webp",
+     "pixabay_id": 9886297,
+     "credito": "Foto: Sunriseforever · Pixabay (https://pixabay.com/photos/woman-style-street-photo-9886297/)"
+    },
+    {
+     "archivo": "MAS-002-4.webp",
+     "pixabay_id": 890814,
+     "credito": "Foto: dietmaha · Pixabay (https://pixabay.com/photos/red-fashion-clothing-clothes-890814/)"
+    }
+   ]
+  },
+  "MAS-003": {
+   "fotos": [
+    {
+     "archivo": "MAS-003-1.webp",
+     "pixabay_id": 1525629,
+     "credito": "Foto: Bessi · Pixabay (https://pixabay.com/photos/model-eyes-knitwear-knitted-1525629/)"
+    },
+    {
+     "archivo": "MAS-003-2.webp",
+     "pixabay_id": 6242563,
+     "credito": "Foto: TieuBaoTruong · Pixabay (https://pixabay.com/photos/fashion-woman-vietnamese-asian-6242563/)"
+    },
+    {
+     "archivo": "MAS-003-3.webp",
+     "pixabay_id": 2605526,
+     "credito": "Foto: StockSnap · Pixabay (https://pixabay.com/photos/girl-eyes-green-eyes-eyesight-2605526/)"
+    }
+   ]
+  },
+  "PIN-001": {
+   "fotos": [
+    {
+     "archivo": "PIN-001-1.webp",
+     "pixabay_id": 4599845,
+     "credito": "Foto: elsimage · Pixabay (https://pixabay.com/photos/black-businessman-black-professional-4599845/)"
+    },
+    {
+     "archivo": "PIN-001-2.webp",
+     "pixabay_id": 4599847,
+     "credito": "Foto: elsimage · Pixabay (https://pixabay.com/photos/black-businessman-male-men-man-4599847/)"
+    },
+    {
+     "archivo": "PIN-001-3.webp",
+     "pixabay_id": 4943154,
+     "credito": "Foto: va703b · Pixabay (https://pixabay.com/photos/gift-charms-pins-4943154/)"
+    }
+   ]
+  },
+  "QUI-005": {
+   "fotos": [
+    {
+     "archivo": "QUI-005-1.webp",
+     "pixabay_id": 5765027,
+     "credito": "Foto: mathekame · Pixabay (https://pixabay.com/photos/hospital-doctor-medical-nurse-5765027/)"
+    },
+    {
+     "archivo": "QUI-005-2.webp",
+     "pixabay_id": 7569766,
+     "credito": "Foto: soteradigitalhealth · Pixabay (https://pixabay.com/photos/visi-mobile-vital-signs-monitor-7569766/)"
+    },
+    {
+     "archivo": "QUI-005-3.webp",
+     "pixabay_id": 6805786,
+     "credito": "Foto: orionhospital2021 · Pixabay (https://pixabay.com/photos/hospital-nurse-checkup-patient-6805786/)"
+    },
+    {
+     "archivo": "QUI-005-4.webp",
+     "pixabay_id": 5051144,
+     "credito": "Foto: AhmadArdity · Pixabay (https://pixabay.com/photos/medical-operation-surgery-doctor-5051144/)"
+    }
+   ],
+   "video": {
+    "archivo": "video-378726.mp4",
+    "pixabay_id": 378726,
+    "credito": "Video: SkinClinicISB · Pixabay (https://pixabay.com/videos/id-378726/)"
+   }
+  },
+  "ZAP-001": {
+   "fotos": [
+    {
+     "archivo": "ZAP-001-1.webp",
+     "pixabay_id": 7288666,
+     "credito": "Foto: dhila2021 · Pixabay (https://pixabay.com/photos/boot-shoe-foot-wear-lace-leather-7288666/)"
+    },
+    {
+     "archivo": "ZAP-001-2.webp",
+     "pixabay_id": 433797,
+     "credito": "Foto: sferrario1968 · Pixabay (https://pixabay.com/photos/shoes-safety-shoes-safety-433797/)"
+    },
+    {
+     "archivo": "ZAP-001-3.webp",
+     "pixabay_id": 1284463,
+     "credito": "Foto: Pexels · Pixabay (https://pixabay.com/photos/necktie-leather-shoes-fashion-style-1284463/)"
+    },
+    {
+     "archivo": "ZAP-001-4.webp",
+     "pixabay_id": 9948751,
+     "credito": "Foto: Frantisek_Krejci · Pixabay (https://pixabay.com/photos/worn-leather-boots-heavy-darkness-9948751/)"
+    }
+   ],
+   "video": {
+    "archivo": "video-189591.mp4",
+    "pixabay_id": 189591,
+    "credito": "Video: AlexanderRaw · Pixabay (https://pixabay.com/videos/id-189591/)"
+   }
+  },
+  "POL-005": {
+   "fotos": [
+    {
+     "archivo": "POL-005-1.webp",
+     "pixabay_id": 4871643,
+     "credito": "Foto: OneOldNovelist · Pixabay (https://pixabay.com/photos/man-smile-people-masculine-face-4871643/)"
+    },
+    {
+     "archivo": "POL-005-2.webp",
+     "pixabay_id": 7573213,
+     "credito": "Foto: ernestflowerss · Pixabay (https://pixabay.com/photos/model-portrait-street-city-male-7573213/)"
+    }
+   ]
+  },
+  "BLU-001": {
+   "fotos": [
+    {
+     "archivo": "BLU-001-1.webp",
+     "pixabay_id": 4940070,
+     "credito": "Foto: Toan_Le · Pixabay (https://pixabay.com/photos/vietnam-cute-girl-beautiful-camera-4940070/)"
+    }
+   ]
+  },
+  "POL-001": {
+   "fotos": [
+    {
+     "archivo": "POL-001-1.webp",
+     "pixabay_id": 4215813,
+     "credito": "Foto: Fredy_Martinez_Photograph · Pixabay (https://pixabay.com/photos/young-women-portrait-person-girl-4215813/)"
+    },
+    {
+     "archivo": "POL-001-2.webp",
+     "pixabay_id": 3641895,
+     "credito": "Foto: oliverkwok · Pixabay (https://pixabay.com/photos/girl-lovely-woman-people-portrait-3641895/)"
+    },
+    {
+     "archivo": "POL-001-3.webp",
+     "pixabay_id": 3176022,
+     "credito": "Foto: wilhel123 · Pixabay (https://pixabay.com/photos/summer-people-a-nature-outdoors-3176022/)"
+    }
+   ]
+  },
+  "POL-002": {
+   "fotos": [
+    {
+     "archivo": "POL-002-1.webp",
+     "pixabay_id": 3137044,
+     "credito": "Foto: Hifen · Pixabay (https://pixabay.com/photos/male-beautiful-every-day-young-3137044/)"
+    },
+    {
+     "archivo": "POL-002-2.webp",
+     "pixabay_id": 1763665,
+     "credito": "Foto: Hoang95 · Pixabay (https://pixabay.com/photos/pretty-male-man-young-cap-light-1763665/)"
+    }
+   ]
+  },
+  "POL-004": {
+   "fotos": [
+    {
+     "archivo": "POL-004-1.webp",
+     "pixabay_id": 1335663,
+     "credito": "Foto: DayronV · Pixabay (https://pixabay.com/photos/girl-woman-lady-female-young-1335663/)"
+    },
+    {
+     "archivo": "POL-004-2.webp",
+     "pixabay_id": 5149664,
+     "credito": "Foto: thuanvo · Pixabay (https://pixabay.com/photos/photographer-girl-photography-5149664/)"
+    }
+   ]
+  },
+  "PLA-002": {
+   "fotos": [
+    {
+     "archivo": "PLA-002-1.webp",
+     "pixabay_id": 1851571,
+     "credito": "Foto: Pexels · Pixabay (https://pixabay.com/photos/adult-casual-caucasian-glasses-1851571/)"
+    },
+    {
+     "archivo": "PLA-002-2.webp",
+     "pixabay_id": 3137044,
+     "credito": "Foto: Hifen · Pixabay (https://pixabay.com/photos/male-beautiful-every-day-young-3137044/)"
+    },
+    {
+     "archivo": "PLA-002-3.webp",
+     "pixabay_id": 3352878,
+     "credito": "Foto: Michelle-Maria · Pixabay (https://pixabay.com/photos/people-person-man-young-outdoors-3352878/)"
+    }
+   ]
+  },
+  "QUI-004": {
+   "fotos": [
+    {
+     "archivo": "QUI-004-1.webp",
+     "pixabay_id": 10177812,
+     "credito": "Foto: u_6inp0xwmz2 · Pixabay (https://pixabay.com/photos/diploma-of-nursing-adelaide-10177812/)"
+    },
+    {
+     "archivo": "QUI-004-2.webp",
+     "pixabay_id": 5402915,
+     "credito": "Foto: DrGreenthamb · Pixabay (https://pixabay.com/photos/treatment-help-care-medic-medicine-5402915/)"
+    }
+   ],
+   "video": {
+    "archivo": "video-52094.mp4",
+    "pixabay_id": 52094,
+    "credito": "Video: 18519691 · Pixabay (https://pixabay.com/videos/id-52094/)"
+   }
+  },
+  "FIL-001": {
+   "fotos": [
+    {
+     "archivo": "FIL-001-1.webp",
+     "pixabay_id": 5295644,
+     "credito": "Foto: medical_photos · Pixabay (https://pixabay.com/photos/surgeon-man-black-gloves-doctor-5295644/)"
+    },
+    {
+     "archivo": "FIL-001-2.webp",
+     "pixabay_id": 10544988,
+     "credito": "Foto: Feygrace · Pixabay (https://pixabay.com/photos/doctor-woman-stethoscope-lab-coat-10544988/)"
+    }
+   ],
+   "video": {
+    "archivo": "video-378726.mp4",
+    "pixabay_id": 378726,
+    "credito": "Video: SkinClinicISB · Pixabay (https://pixabay.com/videos/id-378726/)"
+   }
+  },
+  "MAN-001": {
+   "fotos": [
+    {
+     "archivo": "MAN-001-1.webp",
+     "pixabay_id": 10430861,
+     "credito": "Foto: Vilkasss · Pixabay (https://pixabay.com/photos/bakery-baking-dough-kitchen-woman-10430861/)"
+    },
+    {
+     "archivo": "MAN-001-2.webp",
+     "pixabay_id": 635241,
+     "credito": "Foto: JillWellington · Pixabay (https://pixabay.com/photos/apple-pie-woman-holding-pie-fall-635241/)"
+    },
+    {
+     "archivo": "MAN-001-3.webp",
+     "pixabay_id": 2000142,
+     "credito": "Foto: JillWellington · Pixabay (https://pixabay.com/photos/baking-cookies-cookie-decorating-2000142/)"
+    }
+   ]
+  },
+  "MAN-002": {
+   "fotos": [
+    {
+     "archivo": "MAN-002-1.webp",
+     "pixabay_id": 3694125,
+     "credito": "Foto: JillWellington · Pixabay (https://pixabay.com/photos/aprons-vintage-clothesline-colorful-3694125/)"
+    },
+    {
+     "archivo": "MAN-002-2.webp",
+     "pixabay_id": 890880,
+     "credito": "Foto: 752910 · Pixabay (https://pixabay.com/photos/man-cook-smoking-cigarette-male-890880/)"
+    },
+    {
+     "archivo": "MAN-002-3.webp",
+     "pixabay_id": 4282016,
+     "credito": "Foto: guillermomuro00 · Pixabay (https://pixabay.com/photos/platting-chef-food-fine-dining-4282016/)"
+    }
+   ]
+  },
+  "MAN-003": {
+   "fotos": [
+    {
+     "archivo": "MAN-003-1.webp",
+     "pixabay_id": 6197867,
+     "credito": "Foto: 20926038 · Pixabay (https://pixabay.com/photos/barista-coffee-preparation-pouring-6197867/)"
+    },
+    {
+     "archivo": "MAN-003-2.webp",
+     "pixabay_id": 4672332,
+     "credito": "Foto: This_is_Engineering · Pixabay (https://pixabay.com/photos/shoes-factory-man-workshop-labor-4672332/)"
+    },
+    {
+     "archivo": "MAN-003-3.webp",
+     "pixabay_id": 2592338,
+     "credito": "Foto: StockSnap · Pixabay (https://pixabay.com/photos/people-man-bartender-restaurant-2592338/)"
+    }
+   ]
+  }
+ },
+ "licencia": "Pixabay Content License (https://pixabay.com/service/license-summary/): uso comercial gratuito sin atribución obligatoria. Imágenes ILUSTRATIVAS: no son fotografías de los productos reales.",
+ "videos": {
+  "49809": "Video: Hassas_Arts · Pixabay (https://pixabay.com/videos/id-49809/)",
+  "378726": "Video: SkinClinicISB · Pixabay (https://pixabay.com/videos/id-378726/)",
+  "199623": "Video: MujtabaAhemad · Pixabay (https://pixabay.com/videos/id-199623/)",
+  "282995": "Video: Matthias_Groeneveld · Pixabay (https://pixabay.com/videos/id-282995/)",
+  "6594": "Video: mrganso · Pixabay (https://pixabay.com/videos/id-6594/)",
+  "348897": "Video: Matias_Luge · Pixabay (https://pixabay.com/videos/id-348897/)",
+  "189591": "Video: AlexanderRaw · Pixabay (https://pixabay.com/videos/id-189591/)",
+  "76621": "Video: KIMDAEJEUNG · Pixabay (https://pixabay.com/videos/id-76621/)",
+  "52094": "Video: 18519691 · Pixabay (https://pixabay.com/videos/id-52094/)",
+  "49808": "Video: Hassas_Arts · Pixabay (https://pixabay.com/videos/id-49808/)",
+  "49814": "Video: Hassas_Arts · Pixabay (https://pixabay.com/videos/id-49814/)",
+  "154950": "Video: AlexKopeykin · Pixabay (https://pixabay.com/videos/id-154950/)"
+ }
+}

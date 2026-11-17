@@ -5,6 +5,7 @@ import { AlertTriangle, Ban, Check, CheckCheck, ChevronRight, FileDown, FileSign
 import { claveIdempotencia, descargar, get, post } from '../../api/cliente';
 import type { Pagina, Pedido, PedidoResumen } from '../../api/tipos';
 import { useAuth } from '../../app/auth';
+import { useConfig } from '../../app/config';
 import { esAprobador, useBasePanel } from '../../app/panel';
 import { BotonWhatsApp, ChatSolicitud } from '../colaboracion/Mensajes';
 import { Aviso, Boton, Campo, Cargando, Entrada, ErrorCaja, Estado, Modal, Paginacion, Selector, Tabla, Tarjeta, Td, Texto, useAviso } from '../../components/ui';
@@ -102,6 +103,18 @@ export function Solicitudes() {
         {q.data && <Paginacion pagina={q.data.pagina} paginas={q.data.paginas} total={q.data.total} onCambio={(p) => set('pagina', String(p))} />}
       </Tarjeta>
     </>
+  );
+}
+
+/** El aprobador acuerda cotización y precios con la distribuidora por WhatsApp (número configurado en el backend). */
+function CotizacionWhatsApp({ folio }: { folio: string }) {
+  const { whatsapp } = useConfig();
+  if (!whatsapp.distribuidora) return null;
+  return (
+    <Tarjeta titulo="Cotización y precios" sub="Acuérdalos directamente con la distribuidora">
+      <BotonWhatsApp numero={whatsapp.distribuidora} className="w-full justify-center"
+        texto={`Hola, te escribe el aprobador corporativo para acordar la cotización y los precios de la solicitud ${folio}.`} />
+    </Tarjeta>
   );
 }
 
@@ -283,6 +296,7 @@ export function PedidoAdmin() {
               </div>
             ) : puede('cliente.ver') && <Link to={`/admin/clientes?q=${encodeURIComponent(p.cliente.correo)}`} className="mt-2 inline-block text-xs font-semibold text-menta-700">Ver cliente →</Link>}
           </Tarjeta>
+          {p.canal === 'corporativo' && aprobador && <CotizacionWhatsApp folio={p.folio} />}
           {p.canal === 'corporativo' && aprobador && <ChatSolicitud key={`s-${p.id}`} pedidoId={p.id} tipo="sucursal" titulo="Conversación con la sucursal" />}
           {p.canal === 'corporativo' && aprobador && !['borrador', 'en_revision', 'devuelto'].includes(p.estado) &&
             <ChatSolicitud key={`d-${p.id}`} pedidoId={p.id} tipo="distribuidora" titulo="Conversación con la distribuidora" />}

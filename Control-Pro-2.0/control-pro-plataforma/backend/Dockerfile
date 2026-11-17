@@ -13,4 +13,4 @@ EXPOSE 5000
 # Aplica migraciones y arranca Gunicorn.
 # Con CARGAR_DATOS_DEMO=true también carga el catálogo de la demo (solo si la base está vacía) y las sucursales
 # (se puede repetir sin duplicar). Úsalo en un servidor de pruebas compartido, nunca en producción real.
-CMD ["sh", "-c", "flask --app wsgi db upgrade && flask --app wsgi seed-roles && if [ \"$CARGAR_DATOS_DEMO\" = \"true\" ]; then flask --app wsgi seed-demo && flask --app wsgi cargar-sucursales; fi && gunicorn -w 4 -b 0.0.0.0:5000 --access-logfile - wsgi:app"]
+CMD ["sh", "-c", "flask --app wsgi db upgrade && flask --app wsgi seed-roles && if [ \"$CARGAR_DATOS_DEMO\" = \"true\" ]; then flask --app wsgi seed-demo && flask --app wsgi cargar-sucursales && flask --app wsgi cargar-fotos; fi && gunicorn -w 4 -b 0.0.0.0:5000 --access-logfile - wsgi:app"]

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, ClipboardPlus, Heart, Rotate3d, ShoppingBag, Store, Truck } from 'lucide-react';
+import { Check, ClipboardPlus, Heart, ShoppingBag, Store, Truck } from 'lucide-react';
 import { del, get, post, put } from '../../api/cliente';
 import type { ProductoDetalle, ProductoResumen, VarianteT } from '../../api/tipos';
 import { useAuth } from '../../app/auth';
@@ -14,11 +14,11 @@ import SelectorVariante, { useSeleccionVariante } from '../../components/Selecto
 import { agregarAlBorrador, elegible, PuestosAutorizados } from '../../lib/solicitud';
 import type { EmpleadoCorporativo } from '../cuenta/Corporativo';
 import { Aviso, Boton, Cargando, ErrorCaja, Selector, Texto, useAviso } from '../../components/ui';
-import Visor360 from '../../components/Visor360';
+import GaleriaProducto from '../../components/GaleriaProducto';
 import { cls, dinero, mensajeError } from '../../lib/formato';
 import { fotoIlustrativa } from '../../lib/fotosIlustrativas';
 import { useContextoCatalogo } from './contextoCatalogo';
-import ProductoCard, { ImagenProducto } from './ProductoCard';
+import ProductoCard from './ProductoCard';
 
 /** Portal de sucursal: el artículo se agrega al borrador de solicitud, asignado a un empleado. */
 function AgregarASolicitud({ p, variante, color }: { p: ProductoDetalle; variante: VarianteT | undefined; color: string }) {
@@ -96,15 +96,9 @@ export default function Producto() {
   const p = q.data;
   const { colores, color, elegirColor, talla, setTalla, delColor, variante } = useSeleccionVariante(p?.variantes);
   const [cantidad, setCantidad] = useState(1);
-  // Vista principal: '360' (giro del color elegido) o el índice de una foto.
-  const [vista, setVista] = useState<'360' | number>(0);
+  // Giro 360° del color elegido (si hay fotogramas reales); la galería lo muestra como una vista más.
   const giro = useMemo(() => p?.giros.find((g) => g.color === color) ?? p?.giros.find((g) => g.color === null), [p, color]);
-  useEffect(() => {
-    const i = Math.max(0, colores.findIndex(([c]) => c === color));
-    setTalla(''); setCantidad(1);
-    // La foto de stock va primero: el giro del seed son siluetas generadas y queda como miniatura.
-    setVista(giro && !fotoIlustrativa(p?.imagenes[i]?.url) ? '360' : i);
-  }, [color, colores, giro]);
+  useEffect(() => { setTalla(''); setCantidad(1); }, [color]);
 
   const esFav = !!favs.data?.some((f) => f.id === p?.id);
 
@@ -122,48 +116,16 @@ export default function Producto() {
   if (q.error || !p) return <div className="contenedor py-10"><ErrorCaja error={q.error} /></div>;
 
   const requiereSesion = () => nav(`/entrar?siguiente=${encodeURIComponent(loc.pathname)}`);
-  const enGiro = vista === '360' && !!giro;
-  const principal = p.imagenes[typeof vista === 'number' ? vista : Math.max(0, colores.findIndex(([c]) => c === color))]?.url || p.imagen;
   const resuelta = (u: string | null | undefined) => fotoIlustrativa(u) ?? u;
-  const fotos = p.imagenes.filter((im, i, todas) => todas.findIndex((x) => resuelta(x.url) === resuelta(im.url)) === i);
 
   return (
     <div className="contenedor py-8">
       <nav aria-label="Ruta de navegación" className="mb-5 text-xs text-tinta-500"><Link to={rutaCatalogo} className="hover:text-lurima-900">Catálogo</Link> / <Link to={`${rutaCatalogo}?categoria=${p.categoria.slug}`} className="hover:text-lurima-900">{p.categoria.nombre}</Link> / <span className="text-lurima-800">{p.nombre}</span></nav>
       <div className="grid gap-10 lg:grid-cols-2">
         <div className="lg:sticky lg:top-32 lg:self-start">
-          <div className="relative aspect-square overflow-hidden rounded-[2rem] bg-gradient-to-br from-lurima-50 to-lurima-100 ring-1 ring-lurima-100">
-            {/* La clave cambia con la vista y la imagen resuelta: el cambio entra con un fundido suave (sin animación si se pide reducir movimiento). */}
-            <div key={enGiro ? `giro-${giro!.frames[0]}` : resuelta(principal) ?? 'sin'} className="h-full w-full animate-aparecer">
-              {enGiro ? <Visor360 frames={giro!.frames} alt={`${p.nombre} ${color}`} />
-                : <ImagenProducto src={principal} alt={p.imagenes[vista as number]?.alt || p.nombre} />}
-            </div>
-            {!enGiro && fotoIlustrativa(principal) && (
-              <span className="absolute bottom-3 left-3 rounded-full bg-white/95 px-3 py-1 text-xs font-semibold text-tinta-700 shadow-sm">Imagen ilustrativa</span>
-            )}
-          </div>
-          {/* Miniaturas: el giro 360° (si la API trae fotogramas) y una por fotografía distinta; las ilustrativas no se repiten. */}
-          {(giro || fotos.length > 1) && (
-            <div className="mt-3 flex flex-wrap gap-3" role="group" aria-label="Vistas del producto">
-              {giro && (
-                <button type="button" onClick={() => setVista('360')} aria-label="Vista 360°" aria-pressed={enGiro}
-                  className={cls('relative h-20 w-20 overflow-hidden rounded-xl bg-white ring-2 transition', enGiro ? 'ring-lurima-600' : 'ring-lurima-100 hover:ring-lurima-300')}>
-                  <img src={giro.frames[0]} alt="" className="h-full w-full object-cover opacity-50" />
-                  <span className="absolute inset-0 grid place-items-center text-xs font-extrabold text-lurima-900"><span className="flex flex-col items-center"><Rotate3d className="h-5 w-5 text-bienestar-600" aria-hidden />360°</span></span>
-                </button>
-              )}
-              {fotos.map((im, n) => {
-                const activa = !enGiro && resuelta(im.url) === resuelta(principal);
-                return (
-                  <button key={im.url} type="button" aria-pressed={activa} onClick={() => setVista(p.imagenes.indexOf(im))} aria-label={fotos.length > 1 ? `Fotografía ${n + 1}` : 'Fotografía'}
-                    className={cls('relative h-20 w-20 overflow-hidden rounded-xl ring-2 transition', activa ? 'ring-lurima-600' : 'ring-lurima-100 hover:ring-lurima-300')}>
-                    <ImagenProducto src={im.url} alt="" />
-                    {giro && <span className="absolute inset-x-0 bottom-0 bg-lurima-950/70 py-0.5 text-center text-[10px] font-bold text-white" aria-hidden>Foto</span>}
-                  </button>
-                );
-              })}
-            </div>
-          )}
+          {/* Fotos (las ilustrativas de stock antiguas se resuelven igual), video y 360° en una sola galería en movimiento. */}
+          <GaleriaProducto nombre={p.nombre} video={p.video} giro={giro}
+            fotos={p.imagenes.map((im) => ({ ...im, url: resuelta(im.url)! })).filter((im, i, todas) => todas.findIndex((x) => x.url === im.url) === i)} />
         </div>
 
         <div>
@@ -193,8 +155,9 @@ export default function Producto() {
               icono={<Heart className={cls('h-5 w-5', esFav && 'fill-coral-500 text-coral-500')} />} />
           </div> : <AgregarASolicitud p={p} variante={variante} color={color} />}
 
-          <div className="mt-8 rounded-2xl bg-white p-5 ring-1 ring-lurima-100">
-            <p className="mb-3 flex items-center gap-2 font-display font-bold text-lurima-900"><Store className="h-4 w-4 text-bienestar-600" />{tienda ? 'Disponibilidad por sucursal' : 'Disponibilidad en almacenes'} {variante ? `· talla ${variante.talla}` : ''}</p>
+          {/* Solo la tienda en línea muestra existencias por sucursal: el canal corporativo surte una sola distribuidora. */}
+          {tienda && <div className="mt-8 rounded-2xl bg-white p-5 ring-1 ring-lurima-100">
+            <p className="mb-3 flex items-center gap-2 font-display font-bold text-lurima-900"><Store className="h-4 w-4 text-bienestar-600" />Disponibilidad por sucursal {variante ? `· talla ${variante.talla}` : ''}</p>
             <ul className="divide-y divide-lurima-100 text-sm">
               {p.disponibilidad_sucursal?.map((s) => {
                 const n = variante ? s.variantes[String(variante.id)] || 0 : delColor.reduce((a, v) => a + (s.variantes[String(v.id)] || 0), 0);
@@ -208,8 +171,8 @@ export default function Producto() {
                 );
               })}
             </ul>
-            <p className="mt-3 flex items-start gap-2 text-xs text-tinta-500"><Truck className="mt-0.5 h-3.5 w-3.5" />{tienda ? 'Envío a domicilio desde la sucursal de tu zona, o recoge sin costo.' : 'Se surte desde el almacén más cercano a tu sucursal; cada paquete lleva su propia guía.'}</p>
-          </div>
+            <p className="mt-3 flex items-start gap-2 text-xs text-tinta-500"><Truck className="mt-0.5 h-3.5 w-3.5" />Envío a domicilio desde la sucursal de tu zona, o recoge sin costo.</p>
+          </div>}
           <dl className="mt-6 grid grid-cols-2 gap-4 text-sm">
             {p.material && <div><dt className="text-tinta-500">Material</dt><dd className="font-semibold">{p.material}</dd></div>}
             {p.cuidados && <div><dt className="text-tinta-500">Cuidados</dt><dd className="font-semibold">{p.cuidados}</dd></div>}
