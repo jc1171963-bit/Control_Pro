@@ -31,8 +31,8 @@ function etapasSolicitud(p: Pedido): Etapa[] {
   const rechazada = ['rechazado', 'cancelado'].includes(p.estado);
   return [
     { clave: 'sol', titulo: 'Solicitud', detalle: p.estado === 'borrador' ? 'Borrador' : 'Enviada', estado: p.estado === 'borrador' ? 'actual' : 'hecha' },
-    { clave: 'rev', titulo: 'Revisión', detalle: rechazada ? etiqueta(p.estado) : p.estado === 'devuelto' ? 'Requiere corrección' : n >= 0 ? 'Aprobada' : p.estado === 'en_revision' ? 'En revisión' : '',
-      estado: rechazada || p.estado === 'devuelto' ? 'alerta' : n >= 0 ? 'hecha' : p.estado === 'en_revision' ? 'actual' : 'pendiente' },
+    { clave: 'rev', titulo: 'Revisión', detalle: rechazada ? etiqueta(p.estado) : p.estado === 'devuelto' ? 'Requiere corrección' : p.estado === 'aprobado' ? 'Aprobada · falta autorización' : n >= 0 ? 'Aprobada' : p.estado === 'en_revision' ? 'En revisión' : '',
+      estado: rechazada || p.estado === 'devuelto' ? 'alerta' : n >= 0 || p.estado === 'aprobado' ? 'hecha' : p.estado === 'en_revision' ? 'actual' : 'pendiente' },
     { clave: 'sur', titulo: 'Surtido', detalle: n === 0 ? 'Pendiente de surtir' : n === 1 ? 'En preparación' : n > 1 ? 'Preparado' : '',
       estado: n > 1 ? 'hecha' : n >= 0 ? 'actual' : 'pendiente' },
     { clave: 'env', titulo: 'Envío', detalle: paquetes ? `${enRuta} de ${paquetes} paquete(s)` : '', estado: paquetes && enRuta === paquetes ? 'hecha' : enRuta ? 'actual' : 'pendiente' },
@@ -67,6 +67,8 @@ export function proximoPaso(p: Pedido): Siguiente {
     case 'devuelto': return { tono: 'alerta', titulo: 'Corrige y reenvía la solicitud', texto: motivo ? `Observación del distribuidor: ${motivo}` : 'El distribuidor la devolvió para corrección.' };
     case 'rechazado': return { tono: 'fin', titulo: 'Solicitud rechazada', texto: motivo ? `Motivo: ${motivo}` : 'El distribuidor rechazó la solicitud.' };
     case 'cancelado': return { tono: 'fin', titulo: 'Solicitud cancelada', texto: 'Esta solicitud ya no avanza.' };
+    case 'aprobado': return { tono: 'espera', titulo: 'Aprobada: pendiente de autorización de la distribuidora', texto: 'La distribuidora se pondrá en contacto para el pago. En cuanto la autorice, el almacén preparará tu pedido.' };
+    case 'expirado': return { tono: 'fin', titulo: 'Solicitud vencida', texto: 'No se autorizó dentro del plazo y se liberó el inventario. Envía una nueva solicitud si aún la necesitas.' };
   }
   if (porRecibir) return { tono: 'accion', titulo: `Registra la recepción de ${porRecibir} paquete(s)`, texto: 'Ya llegaron a tu sucursal. Confirma lo que recibiste, artículo por artículo, antes de entregarlo a cada empleado.', ir: 'paquetes' };
   if (porEntregar) return { tono: 'accion', titulo: `Entrega los artículos a ${porEntregar} empleado(s)`, texto: 'Los paquetes ya están en tu sucursal. Registra cada entrega con la firma del empleado.', ir: 'empleados' };

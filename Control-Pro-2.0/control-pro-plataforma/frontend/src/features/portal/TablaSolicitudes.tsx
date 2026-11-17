@@ -6,7 +6,7 @@ import { useMediaQuery } from '../../components/useMediaQuery';
 import { cls, fecha } from '../../lib/formato';
 
 /** Estados filtrables de una solicitud. El backend filtra por igualdad exacta (no acepta listas), por eso es uno a la vez. */
-export const ESTADOS_SOLICITUD = ['borrador', 'en_revision', 'devuelto', 'confirmado', 'en_preparacion', 'parcialmente_enviado', 'enviado',
+export const ESTADOS_SOLICITUD = ['borrador', 'en_revision', 'devuelto', 'aprobado', 'confirmado', 'en_preparacion', 'parcialmente_enviado', 'enviado',
   'parcialmente_entregado', 'entregado', 'cerrado', 'rechazado', 'cancelado'];
 
 const destino = (p: PedidoResumen) => (p.estado === 'borrador' ? `/cuenta/solicitudes/${p.id}/editar` : `/cuenta/pedidos/${p.id}`);

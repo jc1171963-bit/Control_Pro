@@ -2,7 +2,7 @@
 sucursal y cancelación. El surtido y el envío los opera la distribuidora. La sucursal solo administra a sus empleados,
 con permiso del aprobador."""
 from .conftest import Api, clave, conciliado
-from .flujos import almacen_de, surtir_y_empacar
+from .flujos import almacen_de, autorizar, surtir_y_empacar
 
 DIR = {"destinatario": "Recepción", "telefono": "4421112233", "calle": "Av. Universidad", "numero": "100",
        "colonia": "Centro", "ciudad": "Querétaro", "estado": "Querétaro", "cp": "76000"}
@@ -103,8 +103,13 @@ def test_aprobador_edita_aprueba_y_da_seguimiento(como, app):
     assert "se quitó" in aviso["mensaje"] and "Sin existencia en talla M" in aviso["mensaje"]
     # Aprueba; el surtido y el envío ya no son del aprobador sino de la distribuidora
     pedido = aprob.post(f"/api/admin/pedidos/{p['id']}/decision", {"decision": "aprobado"}).get_json()
-    assert pedido["estado"] == "confirmado"
+    assert pedido["estado"] == "aprobado"
     assert aprob.post(f"/api/admin/surtido/{pedido['asignaciones'][0]['id']}/iniciar").status_code == 403
+    # Aprobado no es autorizado: el almacén no surte hasta que la distribuidora autoriza
+    asig0 = pedido["asignaciones"][0]
+    r = almacen_de(como, asig0["sucursal"]["nombre"]).post(f"/api/admin/surtido/{asig0['id']}/iniciar")
+    assert r.status_code == 409 and r.get_json()["error"]["codigo"] == "autorizacion_pendiente"
+    autorizar(como("admin"), pedido)
     for asig in pedido["asignaciones"]:
         alm = almacen_de(como, asig["sucursal"]["nombre"])
         paq = surtir_y_empacar(alm, asig["id"])
@@ -166,4 +171,4 @@ def test_carga_masiva_de_sucursales(app, como, client):
     var = _var(como)
     p = _solicitud(suc, [{"empleado_id": emp["id"], "variante_id": var("MAN-001", "Unitalla"), "cantidad": 2}])
     assert p["estado"] == "en_revision"
-    assert aprob.post(f"/api/admin/pedidos/{p['id']}/decision", {"decision": "aprobado"}).get_json()["estado"] == "confirmado"
+    assert aprob.post(f"/api/admin/pedidos/{p['id']}/decision", {"decision": "aprobado"}).get_json()["estado"] == "aprobado"

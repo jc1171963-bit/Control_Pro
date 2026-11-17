@@ -32,6 +32,13 @@ def pagar_y_validar(cliente, finanzas, pedido_id):
     return pago_id
 
 
+def autorizar(admin, pedido):
+    """La distribuidora autoriza el pedido corporativo aprobado (ya cobrado fuera del sistema): queda listo para surtir."""
+    r = admin.post(f"/api/admin/pedidos/{pedido['id']}/autorizar", {"nota": "Cobro recibido"})
+    assert r.status_code == 200 and r.get_json()["estado"] == "confirmado", r.get_json()
+    return r.get_json()
+
+
 def surtir_y_empacar(almacen, asignacion_id):
     r = almacen.post(f"/api/admin/surtido/{asignacion_id}/iniciar")
     assert r.status_code == 200, r.get_json()

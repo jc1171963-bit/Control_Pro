@@ -535,7 +535,7 @@ def resumen():
     mis_paquetes = select(Paquete.id).join(AsignacionSurtido).where(AsignacionSurtido.pedido_id.in_(mis))
     filas_entrega = db.session.execute(select(EntregaIndividual.estado, EntregaIndividual.conformidad_en)
                                        .where(EntregaIndividual.paquete_id.in_(mis_paquetes))).all()
-    en_proceso = ("confirmado", "en_preparacion", "parcialmente_enviado", "enviado", "parcialmente_entregado")
+    en_proceso = ("aprobado", "confirmado", "en_preparacion", "parcialmente_enviado", "enviado", "parcialmente_entregado")
     return jsonify({
         "solicitudes": {
             "borradores": por_estado.get("borrador", 0), "en_revision": por_estado.get("en_revision", 0),

@@ -20,8 +20,10 @@ from .precios import precio_con_descuento, promociones_vigentes, totales
 
 TRANSICIONES_PEDIDO = {
     "borrador": {"en_revision", "cancelado"},
-    "en_revision": {"devuelto", "rechazado", "confirmado", "cancelado"},
+    # Corporativo: el aprobador aprueba y solo la autorización de la distribuidora lo confirma (y lo libera al surtido).
+    "en_revision": {"devuelto", "rechazado", "aprobado", "cancelado"},
     "devuelto": {"en_revision", "cancelado"},
+    "aprobado": {"confirmado", "cancelado", "expirado"},
     "pendiente_pago": {"pago_en_revision", "confirmado", "cancelado", "expirado"},
     "pago_en_revision": {"pendiente_pago", "confirmado", "cancelado"},
     "confirmado": {"en_preparacion", "cancelado"},
@@ -33,11 +35,12 @@ TRANSICIONES_PEDIDO = {
 }
 RANGO_LOGISTICO = {"confirmado": 0, "en_preparacion": 1, "parcialmente_enviado": 2, "enviado": 3,
                    "parcialmente_entregado": 4, "entregado": 5}
-CANCELABLE_CLIENTE = {"borrador", "en_revision", "devuelto", "pendiente_pago", "pago_en_revision", "confirmado"}
+CANCELABLE_CLIENTE = {"borrador", "en_revision", "devuelto", "aprobado", "pendiente_pago", "pago_en_revision", "confirmado"}
 CANCELABLE_PERSONAL = CANCELABLE_CLIENTE | {"en_preparacion"}
 
 ETIQUETAS = {
     "borrador": "en borrador", "en_revision": "en revisión", "devuelto": "devuelto para corrección", "rechazado": "rechazado",
+    "aprobado": "aprobado; pendiente de autorización de la distribuidora",
     "pendiente_pago": "pendiente de pago", "pago_en_revision": "con pago en revisión", "confirmado": "confirmado",
     "en_preparacion": "en preparación", "parcialmente_enviado": "parcialmente enviado", "enviado": "enviado",
     "parcialmente_entregado": "parcialmente entregado", "entregado": "entregado", "cerrado": "cerrado",
@@ -263,7 +266,8 @@ def checkout(cliente: Cliente, modalidad: str, metodo_pago: str, clave: str, dir
 
 
 def confirmar(pedido: Pedido, motivo: str):
-    """Pago confirmado o aprobación corporativa: las reservas dejan de expirar y se avisa a las sucursales."""
+    """Pago confirmado (tienda) o autorización de la distribuidora (corporativo): las reservas dejan de expirar y se
+    avisa a los centros de distribución que surten."""
     transicionar(pedido, "confirmado", motivo)
     pedido.confirmado_en = ahora()
     pedido.reserva_expira = None
@@ -333,19 +337,27 @@ def cancelar(pedido: Pedido, motivo: str, por_cliente: bool):
 
 
 def expirar_reservas() -> int:
-    """Expira pedidos de tienda sin pago registrado dentro del plazo. Seguro de ejecutar en paralelo."""
-    ids = db.session.scalars(select(Pedido.id).where(Pedido.estado == "pendiente_pago",
+    """Expira, al vencer su reserva, los pedidos de tienda sin pago registrado y los corporativos aprobados sin
+    autorización de la distribuidora. Seguro de ejecutar en paralelo."""
+    por_expirar = ("pendiente_pago", "aprobado")
+    ids = db.session.scalars(select(Pedido.id).where(Pedido.estado.in_(por_expirar),
                                                      Pedido.reserva_expira < ahora())).all()
     n = 0
     for pid in ids:
         p = bloquear_pedido(pid)
-        if p.estado != "pendiente_pago" or not p.reserva_expira or p.reserva_expira >= ahora():
+        if p.estado not in por_expirar or not p.reserva_expira or p.reserva_expira >= ahora():
             db.session.rollback()
             continue
         _liberar_inventario(p, "expirada")
         for d in p.detalles:
             d.cantidad_cancelada = d.cantidad
-        transicionar(p, "expirado", "Reserva vencida sin pago registrado")
+        if p.estado == "aprobado":
+            transicionar(p, "expirado", "Reserva vencida sin autorización de la distribuidora; envía una nueva solicitud")
+            notificar_personal("orden.recibir", "orden_expirada", "pedido", p.id,
+                               f"La orden {p.folio} expiró sin autorización; se liberó su inventario.",
+                               enlace=f"/admin/pedidos/{p.id}")
+        else:
+            transicionar(p, "expirado", "Reserva vencida sin pago registrado")
         auditar("pedido.expirar", "pedido", p.id)
         db.session.commit()
         n += 1
@@ -603,21 +615,38 @@ def decidir_corporativo(pedido: Pedido, decision: str, motivo: str | None, acept
     cp = (pedido.direccion_envio or {}).get("cp")
     sucursales = ranking_sucursales(cp, pedido.sucursal_recoger_id)
     division = current_app.config["PERMITIR_DIVISION"] and pedido.modalidad == "envio"
-    asignar_y_reservar(pedido, sucursales, division, None)
+    # El inventario queda reservado mientras la distribuidora cobra (fuera del sistema) y autoriza; al vencer se libera.
+    expira = ahora() + timedelta(hours=current_app.config["CORPORATIVO_RESERVA_HORAS"])
+    asignar_y_reservar(pedido, sucursales, division, expira)
+    pedido.reserva_expira = expira
     db.session.add(Aprobacion(pedido_id=pedido.id, decision="aprobado", motivo=motivo, usuario_id=usuario_id))
-    pago = Pago(pedido_id=pedido.id, metodo="credito_corporativo", estado="pendiente", monto=pedido.total)
-    db.session.add(pago)
-    asignar_folio(pago, "PAG")
-    confirmar(pedido, motivo or "Aprobado")
-    # La orden aprobada llega a la distribuidora para que contacte a la sucursal (pago) y la surta.
-    # Llega a los roles globales y a los de cada centro de distribución que surte la orden.
+    transicionar(pedido, "aprobado", motivo or "Aprobado")
+    # La orden aprobada llega a la distribuidora para que cobre a la sucursal y la autorice; todavía no se surte.
+    # Llega a los roles globales y a los de cada centro de distribución que surtirá la orden.
     cliente = pedido.cliente
     aviso = (f"Orden aprobada {pedido.folio} de {cliente.razon_social or cliente.nombre} "
-             f"({sum(d.cantidad for d in pedido.detalles)} artículo(s)). Contacta a la sucursal para el pago.")
+             f"({sum(d.cantidad for d in pedido.detalles)} artículo(s)). Cobra a la sucursal y autorízala para surtir.")
     for sucursal_id in sorted({a.sucursal_id for a in pedido.asignaciones}) or [None]:
         notificar_personal("orden.recibir", "orden_aprobada", "pedido", pedido.id, aviso, sucursal_id=sucursal_id,
                            enlace=f"/admin/pedidos/{pedido.id}")
     auditar("pedido.aprobado", "pedido", pedido.id, despues={"sucursales": [a.sucursal_id for a in pedido.asignaciones]})
+    db.session.commit()
+    return pedido
+
+
+def autorizar_corporativo(pedido: Pedido, nota: str | None = None):
+    """La distribuidora confirma que ya cobró (el cobro no se registra en el sistema) y libera el pedido al surtido."""
+    if pedido.canal != "corporativo":
+        raise AppError("Solo los pedidos corporativos se autorizan.")
+    if pedido.estado != "aprobado":
+        raise TransicionInvalida("Solo se autorizan pedidos aprobados pendientes de autorización.",
+                                 detalles={"estado": pedido.estado})
+    if pedido.reserva_expira and pedido.reserva_expira < ahora():
+        raise TransicionInvalida("La reserva de inventario venció; la sucursal debe enviar una nueva solicitud.",
+                                 codigo="reserva_vencida")
+    nota = (nota or "").strip() or None
+    confirmar(pedido, f"Autorizado por la distribuidora{': ' + nota if nota else ''}")
+    auditar("pedido.autorizar", "pedido", pedido.id, despues={"nota": nota})
     db.session.commit()
     return pedido
 

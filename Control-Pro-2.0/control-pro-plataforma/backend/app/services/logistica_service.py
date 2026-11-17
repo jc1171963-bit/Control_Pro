@@ -45,6 +45,9 @@ def _estado_asig(a: AsignacionSurtido, nuevo: str):
 
 def iniciar_surtido(a: AsignacionSurtido):
     pedido = ped.bloquear_pedido(a.pedido_id)
+    if pedido.estado == "aprobado":  # corporativo: solo la autorización de la distribuidora lo confirma
+        raise TransicionInvalida("La distribuidora aún no autoriza este pedido; no puede surtirse.",
+                                 codigo="autorizacion_pendiente")
     if pedido.estado not in ACTIVOS:
         raise TransicionInvalida("El pedido no está confirmado; no puede surtirse.",
                                  detalles={"estado_pedido": pedido.estado})
