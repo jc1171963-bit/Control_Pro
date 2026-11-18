@@ -1,8 +1,9 @@
-"""Sucursales, usuarios internos, roles, permisos y tokens."""
+"""Sucursales, usuarios internos, roles, permisos, sesiones y tokens."""
+import uuid
 from datetime import datetime
 
 from sqlalchemy import (BigInteger, Boolean, CheckConstraint, Column, DateTime, ForeignKey, Index, Integer, String,
-                        Table, Text, UniqueConstraint, func)
+                        Table, Text, UniqueConstraint, Uuid, func, text)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -119,6 +120,38 @@ class TokenRecuperacion(db.Model):
     usado: Mapped[bool] = mapped_column(Boolean, default=False)
     creado: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     __table_args__ = (CheckConstraint("tipo_cuenta in ('usuario','cliente')", name="ck_token_tipo"),)
+
+
+MOTIVOS_FIN_SESION = ("cierre", "password", "restablecimiento", "admin", "desactivacion", "inactividad", "expiracion",
+                      "reutilizacion", "reemplazo")
+
+
+class SesionAuth(db.Model):
+    """Sesión de inicio (S2): sus tokens llevan `sid` y la generación `gen` del refresh vigente.
+
+    Todas las horas las fija el servidor. `actividad_en` solo la escribe la renovación; `revocada_en` y `motivo` van juntos.
+    """
+    __tablename__ = "sesion_auth"
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    tipo_cuenta: Mapped[str] = mapped_column(String(10))
+    cuenta_id: Mapped[int] = mapped_column(BigInteger)
+    gen: Mapped[int] = mapped_column(Integer, default=1)
+    gen_emitida_en: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    creada: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expira_absoluta: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    actividad_en: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    revocada_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    motivo: Mapped[str | None] = mapped_column(String(20))
+    ip: Mapped[str | None] = mapped_column(String(45))
+    agente: Mapped[str | None] = mapped_column(String(300))
+    __table_args__ = (
+        CheckConstraint("tipo_cuenta in ('usuario','cliente')", name="ck_sesion_tipo"),
+        CheckConstraint("gen >= 1", name="ck_sesion_gen"),
+        CheckConstraint("(revocada_en is null) = (motivo is null)", name="ck_sesion_revocacion"),
+        CheckConstraint("motivo is null or motivo in (" + ", ".join(f"'{m}'" for m in MOTIVOS_FIN_SESION) + ")",
+                        name="ck_sesion_motivo"),
+        Index("ix_sesion_cuenta_activa", "tipo_cuenta", "cuenta_id", postgresql_where=text("revocada_en is null")),
+    )
 
 
 class TokenRevocado(db.Model):

@@ -5,10 +5,13 @@ copia (esquema `snap`) para que cada prueba empiece del mismo estado.
 """
 import itertools
 import os
+import re
 import sys
 
 import pytest
 from sqlalchemy import text
+from sqlalchemy.engine import make_url
+from sqlalchemy.exc import ArgumentError
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
@@ -27,10 +30,56 @@ def _tablas():
     return [t.name for t in db.metadata.sorted_tables]
 
 
+# ---------------------------------------------------------------- guardia: la suite borra y recrea la base de pruebas
+
+HOSTS_LOCALES = {"localhost", "127.0.0.1", "::1"}
+
+
+def motivo_rechazo_url(url_pruebas: str | None, url_trabajo: str | None = None) -> str | None:
+    """Por qué `url_pruebas` no es inequívocamente una base de pruebas local, o None si lo es. No se conecta."""
+    if not url_pruebas:
+        return "TEST_DATABASE_URL está vacía."
+    try:
+        u = make_url(url_pruebas)
+    except (ArgumentError, ValueError):
+        return "TEST_DATABASE_URL no es una URL válida."
+    if u.get_backend_name() != "postgresql":
+        return f"Solo se admite PostgreSQL (recibido: {u.get_backend_name()})."
+    if not u.database or not re.fullmatch(r"[a-z0-9_]+_test", u.database):
+        return f"La base '{u.database}' no termina en '_test': no parece una base de pruebas."
+    if (u.host or "") not in HOSTS_LOCALES:
+        return f"El host '{u.host}' no es local; solo se admiten {sorted(HOSTS_LOCALES)}."
+    if url_trabajo:
+        try:
+            t = make_url(url_trabajo)
+        except (ArgumentError, ValueError):
+            t = None
+        if t and t.database == u.database and (t.port or 5432) == (u.port or 5432):
+            return "TEST_DATABASE_URL apunta a la misma base que DATABASE_URL (la base de trabajo)."
+    return None
+
+
+def _verificar_base_de_pruebas(app):
+    """Aborta toda la sesión, sin ejecutar nada destructivo, si la base no es inequívocamente de pruebas."""
+    url = app.config["SQLALCHEMY_DATABASE_URI"]
+    motivo = motivo_rechazo_url(url, os.getenv("DATABASE_URL"))
+    if motivo:
+        pytest.exit(f"Pruebas abortadas antes de tocar la base: {motivo}", returncode=3)
+    esperada = make_url(url).database
+    try:
+        with db.engine.connect() as c:  # solo lectura: confirma a qué base respondió realmente el servidor
+            real = c.execute(text("select current_database()")).scalar()
+    except Exception as e:  # sin identidad comprobada no se continúa
+        pytest.exit(f"Pruebas abortadas: no se pudo comprobar la identidad de la base ({type(e).__name__}).", returncode=3)
+    if real != esperada or not str(real).endswith("_test"):
+        pytest.exit(f"Pruebas abortadas: el servidor respondió con la base '{real}', no con '{esperada}'.", returncode=3)
+
+
 @pytest.fixture(scope="session")
 def app():
     app = create_app("testing")
     with app.app_context():
+        _verificar_base_de_pruebas(app)  # antes de cualquier drop, create o truncate
         db.session.execute(text("drop schema if exists snap cascade"))
         db.session.commit()
         db.drop_all()

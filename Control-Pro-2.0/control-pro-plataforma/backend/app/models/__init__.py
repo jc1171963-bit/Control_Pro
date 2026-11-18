@@ -9,4 +9,5 @@ from .operacion import (Auditoria, Devolucion, DevolucionDetalle, EntregaIndivid
                         PaqueteDetalle, Recepcion, RecepcionDetalle, Reembolso)
 from .pedidos import (AsignacionDetalle, AsignacionSurtido, Aprobacion, Carrito, CarritoItem, Favorito,  # noqa: F401
                       HistorialEstado, Pedido, PedidoDetalle, ReservaInventario)
-from .seguridad import Permiso, Rol, Sucursal, SucursalZona, TokenRecuperacion, TokenRevocado, Usuario  # noqa: F401
+from .seguridad import (Permiso, Rol, SesionAuth, Sucursal, SucursalZona, TokenRecuperacion, TokenRevocado,  # noqa: F401
+                        Usuario)

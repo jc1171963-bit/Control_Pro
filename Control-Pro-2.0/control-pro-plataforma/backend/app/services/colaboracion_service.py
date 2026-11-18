@@ -216,8 +216,11 @@ def abrir(tipo: str, pedido_id: int | None, cliente_id: int | None, usuario=None
             raise NoEncontrado("Solicitud no encontrada.")
         cliente_id = pedido.cliente_id
     if tipo == "sucursal":
-        if not cliente_id or not db.session.get(Cliente, cliente_id):
+        if not cliente_id:
             raise AppError("Indica la sucursal de la conversación.")
+        destino = db.session.get(Cliente, cliente_id)
+        if not destino or destino.tipo != "empresa":  # solo con cuentas de sucursal, nunca con clientes de la tienda
+            raise NoEncontrado("Sucursal no encontrada.")
     elif pedido_id is None:
         cliente_id = None  # canal general con la distribuidora
     db.session.execute(insert(Conversacion).values(tipo=tipo, cliente_id=cliente_id, pedido_id=pedido_id)

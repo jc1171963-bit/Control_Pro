@@ -3,9 +3,10 @@ from flask import Blueprint, g, jsonify, request
 
 from ..errors import SinPermiso
 from ..schemas import ConversacionSchema, MensajeSchema, PermisoPadronDecisionSchema, cargar
-from ..security.auth import requiere_usuario, tiene_permiso
+from ..security.auth import canales_permitidos, requiere_usuario, tiene_permiso
 from ..services import colaboracion_service as col
 from ..services.comun import paginar
+from .admin_sucursales import _sucursal
 from .util import cuerpo, pagina
 
 bp = Blueprint("admin_colaboracion", __name__, url_prefix="/api/admin")
@@ -32,6 +33,8 @@ def decidir_permiso(permiso_id):
 @bp.get("/cuentas-sucursal/<int:cliente_id>/permiso-padron")
 @requiere_usuario("cliente.ver")
 def permiso_de_sucursal(cliente_id):
+    if canales_permitidos() is not None:
+        _sucursal(cliente_id)  # aprobador: 404 si no es una cuenta de sucursal (empresa)
     return jsonify(col.estado_padron(cliente_id))
 
 
