@@ -13,7 +13,7 @@ import { Estado, Tarjeta, Vacio } from '../../components/ui';
 import { EsqueletoLista } from '../../components/movimiento';
 import { fechaHora } from '../../lib/formato';
 import PanelSolicitudes from '../admin/PanelSolicitudes';
-import { useContadoresAprobador } from './AprobadorLayout';
+import { AREA_APROBADOR, useContadoresAprobador } from './AprobadorLayout';
 
 const fechaLarga = () => new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -39,7 +39,7 @@ export default function InicioAprobador() {
     queryFn: () => get<Pagina<PedidoResumen>>('/admin/pedidos?canal=corporativo&estado=en_revision&por_pagina=5') });
   const permisos = useQuery({ queryKey: ['aprobador-resumen', 'permisos-lista'], refetchInterval: 45_000,
     queryFn: () => get<Pagina<PermisoPadron>>('/admin/permisos-padron?estado=pendiente&por_pagina=5') });
-  const nombre = (usuario?.nombre ?? '').trim().split(/\s+/)[0];
+  const nombre = (usuario?.nombre ?? '').trim();
   return (
     <div className="space-y-6">
       <section className="relative isolate flex min-h-[250px] items-center overflow-hidden rounded-[29px] border border-white/55 p-6 text-white shadow-[0_18px_55px_rgba(25,91,87,.13)] sm:px-10 sm:py-8">
@@ -50,7 +50,8 @@ export default function InicioAprobador() {
           <p className="inline-flex items-center gap-2 rounded-full border border-[#5ec8d888] bg-[#0e74906b] px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.06em]">
             <span className="h-2 w-2 rounded-full bg-[#9be7f0]" aria-hidden />Aprobador corporativo · {fechaLarga()}
           </p>
-          <h1 className="mt-3.5 font-display text-[34px] font-extrabold tracking-[-0.04em] sm:text-[42px]">Hola, <span className="text-[#9be7f0]">{nombre}</span></h1>
+          <h1 className="mt-3.5 font-display text-[30px] font-extrabold leading-tight tracking-[-0.03em] sm:text-[40px]">Hola, <span className="text-[#9be7f0]">{nombre}</span></h1>
+          <p className="mt-1 text-sm font-semibold text-white/80">{AREA_APROBADOR} · Salud Digna</p>
           <p className="mt-2 max-w-[500px] text-[15px] leading-relaxed sm:text-lg">
             {c.revisar ? `Tienes ${c.revisar} solicitud(es) por revisar` : 'No tienes solicitudes por revisar'}
             {c.permisos ? ` y ${c.permisos} permiso(s) de padrón por autorizar.` : '.'}</p>

@@ -6,12 +6,13 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, ScrollRestoration, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Bell, ChevronDown, ChevronRight, ClipboardCheck, Inbox, KeyRound, LayoutDashboard, Menu, MessagesSquare, Network, Search, ShieldCheck,
-  Store, X } from 'lucide-react';
+import { Bell, Camera, ChevronDown, ChevronRight, ClipboardCheck, Inbox, KeyRound, LayoutDashboard, Menu, MessagesSquare, Network, Search,
+  Store, Trash2, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { get } from '../../api/cliente';
 import { useAuth } from '../../app/auth';
 import { BASE_APROBADOR } from '../../app/panel';
+import Avatar, { useFotoPerfil } from '../../components/Avatar';
 import { Transicion } from '../../components/movimiento';
 import { useAtraparFoco } from '../../components/useAtraparFoco';
 import { useMediaQuery } from '../../components/useMediaQuery';
@@ -20,6 +21,9 @@ import { useMensajesNoLeidos } from '../colaboracion/Mensajes';
 import FondoPortal from '../portal/FondoPortal';
 import MarcaPortal from '../portal/MarcaPortal';
 
+/** Área del aprobador corporativo dentro de Salud Digna (se muestra junto a su nombre). */
+export const AREA_APROBADOR = 'Gerencia de Compras';
+
 type Clave = 'revisar' | 'permisos' | 'mensajes' | 'avisos';
 const ITEMS: [string, string, LucideIcon, Clave | null][] = [
   ['', 'Panel', LayoutDashboard, null], ['solicitudes', 'Solicitudes', Inbox, 'revisar'], ['sucursales-cliente', 'Sucursales', Store, null],
@@ -27,7 +31,6 @@ const ITEMS: [string, string, LucideIcon, Clave | null][] = [
   ['mensajes', 'Mensajes', MessagesSquare, 'mensajes'], ['notificaciones', 'Notificaciones', Bell, 'avisos'],
 ];
 
-const iniciales = (s?: string | null) => (s ?? '').trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || '·';
 
 /** Pendientes del aprobador para los contadores del menú (se refrescan solos). */
 export function useContadoresAprobador() {
@@ -44,8 +47,9 @@ export function useContadoresAprobador() {
   };
 }
 
-function MenuUsuario({ nombre, onSalir }: { nombre: string; onSalir: () => void }) {
+function MenuUsuario({ nombre, foto, onSalir }: { nombre: string; foto?: string | null; onSalir: () => void }) {
   const [abierto, setAbierto] = useState(false);
+  const fotoPerfil = useFotoPerfil();
   const raiz = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!abierto) return;
@@ -59,16 +63,41 @@ function MenuUsuario({ nombre, onSalir }: { nombre: string; onSalir: () => void 
     <div ref={raiz} className="relative">
       <button type="button" onClick={() => setAbierto(!abierto)} aria-expanded={abierto} aria-haspopup="true"
         className="flex min-h-12 items-center gap-2 rounded-full border border-white/80 bg-white/60 pl-1.5 pr-1.5 text-sm sm:pr-3 font-semibold backdrop-blur-md transition hover:bg-white/80">
-        <span className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-[#0b3f57] to-[#5ec8d8] text-xs font-bold text-white" aria-hidden>{iniciales(nombre)}</span>
+        <Avatar nombre={nombre} foto={foto} className="h-9 w-9 text-xs" />
         <span className="hidden max-w-[12rem] truncate sm:inline">{nombre}</span><span className="sr-only sm:hidden">{nombre}</span><ChevronDown className="hidden h-4 w-4 sm:block" aria-hidden />
       </button>
       {abierto && (
         <div className="absolute right-0 z-30 mt-2 w-56 rounded-2xl border border-white/80 bg-white/95 p-1 shadow-[0_18px_55px_rgba(25,91,87,.18)] backdrop-blur-xl">
-          <p className="px-3 py-2 text-xs text-tinta-500">Aprobador corporativo</p>
+          <div className="flex items-center gap-3 px-3 py-2">
+            <Avatar nombre={nombre} foto={foto} className="h-11 w-11 text-sm" />
+            <p className="min-w-0 text-xs text-tinta-500"><span className="block truncate font-semibold text-tinta-800">{nombre}</span>{AREA_APROBADOR} · Aprobador corporativo</p>
+          </div>
+          {fotoPerfil.input}
+          <button type="button" onClick={fotoPerfil.elegir} disabled={fotoPerfil.subiendo}
+            className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 text-left text-sm font-semibold text-tinta-800 hover:bg-[#e6f6f8] disabled:opacity-60">
+            <Camera className="h-4 w-4" aria-hidden />{fotoPerfil.subiendo ? 'Subiendo foto…' : foto ? 'Cambiar foto' : 'Subir foto'}</button>
+          {foto && <button type="button" onClick={fotoPerfil.quitar} className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 text-left text-sm font-semibold text-tinta-600 hover:bg-tinta-50">
+            <Trash2 className="h-4 w-4" aria-hidden />Quitar foto</button>}
           <button type="button" onClick={onSalir} className="flex min-h-11 w-full items-center rounded-lg px-3 text-left text-sm font-semibold text-coral-600 hover:bg-coral-50">Cerrar sesión</button>
         </div>
       )}
     </div>
+  );
+}
+
+/** Foto de la tarjeta del menú: un clic la cambia (con un ícono de cámara al pasar el cursor). */
+function FotoTarjeta({ nombre, foto }: { nombre?: string | null; foto?: string | null }) {
+  const fotoPerfil = useFotoPerfil();
+  return (
+    <>
+      {fotoPerfil.input}
+      <button type="button" onClick={fotoPerfil.elegir} disabled={fotoPerfil.subiendo} title={foto ? 'Cambiar foto' : 'Subir foto'}
+        aria-label={foto ? 'Cambiar foto de perfil' : 'Subir foto de perfil'} className="group relative shrink-0 rounded-full ring-2 ring-white/40">
+        <Avatar nombre={nombre} foto={foto} className="h-11 w-11 text-xs" degradado="from-[#0e7490] to-[#5ec8d8]" />
+        <span className="absolute inset-0 grid place-items-center rounded-full bg-black/45 opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100">
+          <Camera className="h-4 w-4 text-white" aria-hidden /></span>
+      </button>
+    </>
   );
 }
 
@@ -105,9 +134,10 @@ export default function AprobadorLayout() {
           <button type="button" onClick={cerrarMenu} aria-label="Cerrar menú" className="grid h-11 w-11 place-items-center rounded-full hover:bg-white/70 lg:hidden"><X className="h-5 w-5" aria-hidden /></button>
         </div>
         <div className="mx-3 mb-4 mt-4 flex items-center gap-2.5 rounded-[18px] bg-gradient-to-br from-[#0b3f57] to-[#0e7490] p-3 text-white shadow-[0_8px_24px_#0e749033]">
-          <ShieldCheck className="h-5 w-5 shrink-0 text-[#9be7f0]" aria-hidden />
+          <FotoTarjeta nombre={usuario?.nombre} foto={usuario?.foto} />
           <span className="min-w-0 text-xs"><span className="block font-display text-[13px] font-bold">Aprobador corporativo</span>
-            <span className="block truncate text-white/75">{usuario?.nombre}</span></span>
+            <span className="block truncate text-white/75">{AREA_APROBADOR}</span>
+            <span className="block truncate text-white/90">{usuario?.nombre}</span></span>
         </div>
         <p className="px-6 pb-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-[#71858b]">Menú</p>
         <nav aria-label="Principal" className="flex flex-1 flex-col gap-1.5 overflow-y-auto px-3 pb-3">
@@ -155,7 +185,7 @@ export default function AprobadorLayout() {
             <Bell className="h-5 w-5" aria-hidden />
             {cuentas.avisos > 0 && <span className="absolute right-1.5 top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-[#e43e43] px-1 text-[10px] font-bold text-white" aria-hidden>{cuentas.avisos}</span>}
           </Link>
-          <MenuUsuario nombre={usuario?.nombre ?? 'Aprobador'} onSalir={salirDelPortal} />
+          <MenuUsuario nombre={usuario?.nombre ?? 'Aprobador'} foto={usuario?.foto} onSalir={salirDelPortal} />
         </div>
       </header>
 

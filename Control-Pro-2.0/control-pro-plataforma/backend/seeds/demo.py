@@ -63,7 +63,7 @@ def cargar_demo(con_existencias: bool = True):
     usuarios = [("admin@controlpro.mx", "Administración General", "admin", []),
                 ("finanzas@controlpro.mx", "Laura Finanzas", "finanzas", []),
                 ("atencion@controlpro.mx", "Mario Atención", "atencion", []),
-                ("aprobador@controlpro.mx", "Gerencia de Ventas", "aprobador", []),
+                ("aprobador@controlpro.mx", "Jesús Antonio Castillo Lizarraga", "aprobador", []),
                 ("auditor@controlpro.mx", "Supervisión y Auditoría", "auditor", [])]
     for cod, s in sucs.items():
         usuarios.append((f"encargado.{cod.lower()}@controlpro.mx", f"Encargado {s.ciudad}", "encargado", [s]))

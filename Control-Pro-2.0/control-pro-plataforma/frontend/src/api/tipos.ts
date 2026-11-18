@@ -6,11 +6,11 @@ export type Sucursal = {
 export type Usuario = {
   id: number; correo: string; nombre: string; activo: boolean;
   rol: { codigo: string; nombre: string; alcance_global: boolean }; permisos: string[];
-  sucursales: { id: number; nombre: string }[]; ultimo_acceso: string | null; bloqueado_hasta: string | null;
+  sucursales: { id: number; nombre: string }[]; ultimo_acceso: string | null; bloqueado_hasta: string | null; foto?: string | null;
 };
 export type Cliente = {
   id: number; correo: string; nombre: string; telefono: string | null; tipo: 'persona' | 'empresa';
-  razon_social: string | null; rfc: string | null; activo: boolean; creado: string;
+  razon_social: string | null; rfc: string | null; activo: boolean; creado: string; foto?: string | null;
 };
 export type Direccion = {
   id: number; alias: string; destinatario: string; telefono: string; calle: string; numero: string; colonia: string;

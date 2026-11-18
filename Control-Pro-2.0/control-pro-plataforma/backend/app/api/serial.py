@@ -31,12 +31,12 @@ def usuario(u):
     return {"id": u.id, "correo": u.correo, "nombre": u.nombre, "activo": u.activo,
             "rol": {"codigo": u.rol.codigo, "nombre": u.rol.nombre, "alcance_global": u.rol.alcance_global},
             "permisos": sorted(u.codigos_permiso), "sucursales": [{"id": s.id, "nombre": s.nombre} for s in u.sucursales],
-            "ultimo_acceso": f(u.ultimo_acceso), "bloqueado_hasta": f(u.bloqueado_hasta)}
+            "ultimo_acceso": f(u.ultimo_acceso), "bloqueado_hasta": f(u.bloqueado_hasta), "foto": u.foto_url}
 
 
 def cliente(c):
     return {"id": c.id, "correo": c.correo, "nombre": c.nombre, "telefono": c.telefono, "tipo": c.tipo,
-            "razon_social": c.razon_social, "rfc": c.rfc, "activo": c.activo, "creado": f(c.creado)}
+            "razon_social": c.razon_social, "rfc": c.rfc, "activo": c.activo, "creado": f(c.creado), "foto": c.foto_url}
 
 
 def direccion(d):

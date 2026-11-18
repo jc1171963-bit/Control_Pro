@@ -44,6 +44,16 @@ def registrar_comandos(app):
         click.echo(f"Divisiones: {r['divisiones']}. Zonas: {r['zonas']}. Sucursales creadas: {r['creadas']}, ya existían: "
                    f"{r['existentes']}. Direcciones reales aplicadas: {r['direcciones_reales']}.")
 
+    @app.cli.command("homologar-accesos-sucursales")
+    @click.option("--password", default="ControlPro2026", show_default=True, help="Contraseña para todas las sucursales.")
+    def homologar_accesos(password):
+        """Pone a TODAS las sucursales un correo con su nombre (@sucursal.controlpro.mx) y la misma contraseña."""
+        from seeds.cargar_sucursales import homologar_accesos as homologar
+        r = homologar(password)
+        click.echo(f"Sucursales: {r['sucursales']}. Correos cambiados: {len(r['correos_cambiados'])}.")
+        for antes, despues in r["correos_cambiados"]:
+            click.echo(f"  {antes} -> {despues}")
+
     @app.cli.command("cargar-fotos")
     def cargar_fotos():
         """Asigna a cada producto sus fotografías y video ilustrativos de stock (seeds/fotos_stock). Se puede repetir."""

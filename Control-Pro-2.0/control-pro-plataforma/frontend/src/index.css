@@ -26,6 +26,15 @@
     --lurima-500: 62 85 118; --lurima-600: 10 90 75; --lurima-700: 10 90 75; --lurima-800: 1 67 57; --lurima-900: 2 61 52; --lurima-950: 1 45 38;
     --bienestar-50: 230 244 238; --bienestar-100: 204 233 221; --bienestar-400: 0 137 89; --bienestar-500: 0 122 79; --bienestar-600: 0 122 79; --bienestar-700: 0 107 69;
   }
+  /* Panel de la distribuidora (identidad LURIMA): el acento `menta` pasa al verde bienestar del logotipo y los botones
+     primarios al azul LURIMA. Fuera de .tema-lu no aplica. */
+  .tema-lu {
+    --menta-50: 239 248 240; --menta-100: 214 238 218; --menta-200: 178 222 185; --menta-300: 125 196 138; --menta-400: 82 174 98;
+    --menta-500: 47 131 64; --menta-600: 37 106 52; --menta-700: 37 106 52; --menta-800: 30 86 43; --menta-900: 24 68 35;
+    --barra-titulo: #1f5192;
+  }
+  .tema-lu .boton-primario { background-color: rgb(var(--lurima-800)); }
+  .tema-lu .boton-primario:hover:not(:disabled) { background-color: rgb(var(--lurima-700)); }
   .tema-sd ::placeholder { color: theme('colors.tinta.400'); opacity: 1; }
   /* Botón primario del portal en el verde institucional oscuro (sd-900, 11:1 con blanco). Fuera de .tema-sd no aplica. */
   .tema-sd .boton-primario { background-color: theme('colors.sd.900'); }
@@ -49,16 +58,16 @@
 
 /* Portal de sucursales: paneles de cristal sobre el fondo animado. Solo aplica dentro de .tema-sd. */
 @layer components {
-  .tema-sd .vidrio {
+  .tema-sd .vidrio, .tema-lu .vidrio {
     background-color: rgb(255 255 255 / .7);
     -webkit-backdrop-filter: blur(22px); backdrop-filter: blur(22px);
     border-radius: 25px;
     box-shadow: 0 18px 55px rgba(25, 91, 87, .13), inset 0 0 0 1px rgb(255 255 255 / .8);
   }
   /* Barra verde a la izquierda del título de cada panel. */
-  .tema-sd .vidrio > header h2::before {
+  .tema-sd .vidrio > header h2::before, .tema-lu .vidrio > header h2::before {
     content: ""; display: inline-block; width: 6px; height: 1.25em; margin-right: .7rem; border-radius: 8px;
-    background: #0c986b; vertical-align: -.25em;
+    background: var(--barra-titulo, #0c986b); vertical-align: -.25em;
   }
 }
 

@@ -139,3 +139,24 @@ def test_rol_desincronizado_se_repara_con_seed_roles(app, como):
     # Sin privilegios de más: el aprobador no administra usuarios y la sucursal no decide permisos
     assert aprob.get("/api/admin/usuarios").status_code == 403
     assert suc.post(f"/api/admin/permisos-padron/{p['id']}/decision", {"decision": "rechazado", "respuesta": "x"}).status_code == 403
+
+
+PNG_1PX = bytes.fromhex("89504e470d0a1a0a0000000d4948445200000001000000010806000000"
+                        "1f15c4890000000d49444154789c6360000002000154a24f5d0000000049454e44ae426082")
+
+
+def test_foto_de_perfil(como, client):
+    import io
+    aprob = como("aprobador")
+    r = client.post("/api/auth/foto", headers=aprob._h(),
+                    data={"archivo": (io.BytesIO(PNG_1PX), "yo.png")}, content_type="multipart/form-data")
+    assert r.status_code == 200 and r.get_json()["cuenta"]["foto"].startswith("/api/archivos/publicos/")
+    url = r.get_json()["cuenta"]["foto"]
+    assert client.get(url).status_code == 200
+    assert aprob.get("/api/auth/yo").get_json()["cuenta"]["foto"] == url
+    # Un archivo que no es imagen se rechaza aunque diga .png
+    r = client.post("/api/auth/foto", headers=aprob._h(),
+                    data={"archivo": (io.BytesIO(b"no soy imagen"), "x.png")}, content_type="multipart/form-data")
+    assert r.status_code == 400
+    assert aprob.delete("/api/auth/foto").get_json()["cuenta"]["foto"] is None
+    assert client.get(url).status_code == 404  # el archivo anterior se borra

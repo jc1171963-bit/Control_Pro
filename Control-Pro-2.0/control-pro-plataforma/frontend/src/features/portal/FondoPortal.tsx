@@ -6,18 +6,31 @@
  */
 import { useEffect, useRef } from 'react';
 
-const ESFERAS = [
-  { color: '#43d9a7', pos: { top: '-23%', left: '-12%' }, dur: '18s', retraso: '0s' },
-  { color: '#70b8e7', pos: { right: '-18%', top: '18%' }, dur: '23s', retraso: '-7s' },
-  { color: '#6ce4c2', pos: { bottom: '-34%', left: '28%' }, dur: '20s', retraso: '-4s' },
+const POSICIONES: [React.CSSProperties, string, string][] = [
+  [{ left: '4%', top: '17%' }, '19s', '0s'], [{ left: '28%', top: '7%' }, '23s', '-8s'], [{ left: '49%', top: '22%' }, '21s', '-4s'],
+  [{ right: '5%', top: '28%' }, '18s', '-11s'], [{ left: '12%', top: '69%' }, '22s', '-6s'], [{ left: '40%', top: '82%' }, '20s', '-13s'],
+  [{ right: '27%', top: '12%' }, '24s', '-2s'], [{ right: '8%', top: '76%' }, '19s', '-9s'], [{ left: '67%', top: '68%' }, '26s', '-15s'],
+  [{ left: '2%', top: '43%' }, '22s', '-5s'],
 ];
 
-const ICONOS: [string, React.CSSProperties, string, string][] = [
-  ['🧪', { left: '4%', top: '17%' }, '19s', '0s'], ['🩺', { left: '28%', top: '7%' }, '23s', '-8s'],
-  ['🧤', { left: '49%', top: '22%' }, '21s', '-4s'], ['💉', { right: '5%', top: '28%' }, '18s', '-11s'],
-  ['🧫', { left: '12%', top: '69%' }, '22s', '-6s'], ['🩹', { left: '40%', top: '82%' }, '20s', '-13s'],
-  ['⚕', { right: '27%', top: '12%' }, '24s', '-2s'], ['🧴', { right: '8%', top: '76%' }, '19s', '-9s'],
-  ['🧪', { left: '67%', top: '68%' }, '26s', '-15s'], ['🩺', { left: '2%', top: '43%' }, '22s', '-5s'],
+/** Paletas: `sd` = portal Salud Digna (menta y azul); `lurima` = Distribuidora LURIMA (azul, verde bienestar y coral). */
+const PALETAS = {
+  sd: {
+    fondo: 'bg-[linear-gradient(120deg,#e9f1f5,#a8d8ca_40%,#d6e9f4_72%,#b9eadb)]',
+    esferas: ['#43d9a7', '#70b8e7', '#6ce4c2'],
+    iconos: ['🧪', '🩺', '🧤', '💉', '🧫', '🩹', '⚕', '🧴', '🧪', '🩺'],
+  },
+  lurima: {
+    fondo: 'bg-[linear-gradient(120deg,#eef3fb,#c3d6f0_38%,#e2efe4_70%,#cfe0f5)]',
+    esferas: ['#4f82c2', '#52ae62', '#86aedd'],
+    iconos: ['📦', '👕', '🥼', '🚚', '🧤', '👢', '🏷️', '📋', '🧥', '🧵'],
+  },
+} as const;
+export type PaletaFondo = keyof typeof PALETAS;
+const ESFERA_POS = [
+  { pos: { top: '-23%', left: '-12%' }, dur: '18s', retraso: '0s' },
+  { pos: { right: '-18%', top: '18%' }, dur: '23s', retraso: '-7s' },
+  { pos: { bottom: '-34%', left: '28%' }, dur: '20s', retraso: '-4s' },
 ];
 
 const GRANO = "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.2'/%3E%3C/svg%3E\")";
@@ -65,20 +78,21 @@ function Particulas() {
   return <canvas ref={lienzo} className="absolute inset-0 h-full w-full" />;
 }
 
-export default function FondoPortal() {
+export default function FondoPortal({ paleta = 'sd' }: { paleta?: PaletaFondo }) {
+  const p = PALETAS[paleta];
   return (
     <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-      <div className="absolute inset-0 bg-[linear-gradient(120deg,#e9f1f5,#a8d8ca_40%,#d6e9f4_72%,#b9eadb)]" />
+      <div className={`absolute inset-0 ${p.fondo}`} />
       <Particulas />
-      {ESFERAS.map((e) => (
-        <div key={e.color} className="absolute h-[55vw] max-h-[760px] w-[55vw] max-w-[760px] animate-flotar rounded-full opacity-[.48] blur-[75px]"
-          style={{ ...e.pos, background: `radial-gradient(circle, ${e.color}, transparent 68%)`, animationDuration: e.dur, animationDelay: e.retraso }} />
+      {ESFERA_POS.map((e, i) => (
+        <div key={i} className="absolute h-[55vw] max-h-[760px] w-[55vw] max-w-[760px] animate-flotar rounded-full opacity-[.48] blur-[75px]"
+          style={{ ...e.pos, background: `radial-gradient(circle, ${p.esferas[i]}, transparent 68%)`, animationDuration: e.dur, animationDelay: e.retraso }} />
       ))}
       <div className="absolute inset-0 opacity-[.12]" style={{ backgroundImage: GRANO }} />
       <div className="absolute inset-0 [perspective:900px]">
-        {ICONOS.map(([icono, pos, dur, retraso], i) => (
+        {POSICIONES.map(([pos, dur, retraso], i) => (
           <span key={i} className="absolute grid h-[58px] w-[58px] animate-deriva place-items-center rounded-[19px] border border-white/55 bg-gradient-to-br from-white/40 to-white/10 text-[27px] opacity-30 shadow-[0_12px_32px_rgba(30,105,91,.10),inset_0_1px_0_rgba(255,255,255,.55)] saturate-[.82] backdrop-blur-[7px]"
-            style={{ ...pos, animationDuration: dur, animationDelay: retraso }}>{icono}</span>
+            style={{ ...pos, animationDuration: dur, animationDelay: retraso }}>{p.iconos[i]}</span>
         ))}
       </div>
     </div>
