@@ -948,3 +948,48 @@ def test_renovacion_y_desactivacion_concurrentes(app):
         else:
             resultados["refresh_401"] += 1
     print(f"\n[concurrencia S2.5 refresh/desactivación] {resultados}")
+
+
+def _suscribir_push(app, columna, cuenta_id, n):
+    with app.app_context():
+        for _ in range(n):
+            db.session.execute(text(f"insert into push_suscripcion ({columna}, endpoint, p256dh, auth) "
+                                    "values (:c, :e, 'p256', 'auth')"),
+                               {"c": cuenta_id, "e": f"https://push.ejemplo/{uuid.uuid4()}"})
+        db.session.commit()
+
+
+def _push_de(app, columna, cuenta_id):
+    with app.app_context():
+        return db.session.execute(text(f"select count(*) from push_suscripcion where {columna} = :c"), {"c": cuenta_id}).scalar()
+
+
+@pytest.mark.parametrize("evento", ["cambio_propio", "admin", "desactivacion", "restablecimiento"])
+def test_revocar_por_credenciales_borra_las_suscripciones_push_de_la_cuenta(app, evento):
+    adm, usu, ajena = _admin_dispositivo(app), _dispositivo(app, "personal"), _dispositivo(app, "tienda")
+    uid, cid = _id_cuenta(app, usu), _id_cuenta(app, ajena)
+    _suscribir_push(app, "usuario_id", uid, 2)
+    _suscribir_push(app, "cliente_id", cid, 1)
+    if evento == "cambio_propio":
+        r = usu["c"].post("/api/auth/password", json={"actual": PASSWORD, "nueva": NUEVA}, headers=_bearer(usu["d"]))
+    elif evento == "restablecimiento":
+        token = usu["c"].post("/api/auth/recuperar", json={"correo": "finanzas@controlpro.mx", "tipo": "usuario"}).get_json()["token_desarrollo"]
+        r = usu["c"].post("/api/auth/restablecer", json={"token": token, "password": NUEVA})
+    else:
+        cambios = {"password": NUEVA} if evento == "admin" else {"activo": False}
+        _, cuerpo_ = _payload_usuario(Api_(adm), "finanzas@controlpro.mx", **cambios)
+        r = adm["c"].put(f"/api/admin/usuarios/{uid}", json=cuerpo_, headers=_bearer(adm["d"]))
+    assert r.status_code == 200, r.get_json()
+    assert _push_de(app, "usuario_id", uid) == 0  # ningún dispositivo de la cuenta sigue recibiendo avisos
+    assert _push_de(app, "cliente_id", cid) == 1  # las demás cuentas conservan los suyos
+
+
+def test_un_fallo_antes_de_confirmar_conserva_las_suscripciones_push(app, monkeypatch):
+    from app.services import auth_service
+    usu = _dispositivo(app, "personal")
+    uid = _id_cuenta(app, usu)
+    _suscribir_push(app, "usuario_id", uid, 2)
+    monkeypatch.setattr(auth_service, "auditar", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("caída")))
+    r = usu["c"].post("/api/auth/password", json={"actual": PASSWORD, "nueva": NUEVA}, headers=_bearer(usu["d"]))
+    monkeypatch.undo()
+    assert r.status_code == 500 and _push_de(app, "usuario_id", uid) == 2  # todo o nada, también para push

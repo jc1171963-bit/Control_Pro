@@ -8,11 +8,11 @@ from datetime import datetime, timedelta
 
 from flask import current_app, request
 from flask_jwt_extended import create_access_token, create_refresh_token
-from sqlalchemy import case, func, select, update
+from sqlalchemy import case, delete, func, select, update
 
 from ..errors import AppError, Conflicto, NoAutenticado
 from ..extensions import db
-from ..models import Carrito, Cliente, SesionAuth, TokenRecuperacion, Usuario, ahora
+from ..models import Carrito, Cliente, PushSuscripcion, SesionAuth, TokenRecuperacion, Usuario, ahora
 from ..security.auth import (MENSAJES_SESION, hash_password, inactiva, ip_cliente, limite_inactividad, validar_fortaleza,
                              verificar_password)
 from .comun import auditar
@@ -68,12 +68,18 @@ def bloquear_cuenta(modelo, cuenta_id: int):
 def revocar_sesiones_de_cuenta(tipo: str, cuenta_id: int, motivo: str, excepto_sid: str | None = None) -> int:
     """Revoca las sesiones vigentes de una cuenta en todos los dispositivos. SIN commit: corre en la transacción de
     quien cambia la contraseña o el estado, así que ambos se confirman juntos o ninguno. No toca las ya revocadas
-    (conservan su motivo). Devuelve cuántas revocó."""
+    (conservan su motivo). Devuelve cuántas revocó.
+
+    También borra TODAS las suscripciones push de la cuenta: un dispositivo cuya sesión se revoca no debe seguir
+    recibiendo avisos (folios, mensajes). Una suscripción no está ligada a una sesión, así que no se puede conservar
+    solo la del dispositivo actual: en el cambio propio, ese dispositivo vuelve a activar los avisos al recargar."""
     condiciones = [SesionAuth.tipo_cuenta == tipo, SesionAuth.cuenta_id == cuenta_id, SesionAuth.revocada_en.is_(None)]
     if (excepto := _clave(excepto_sid)) is not None:
         condiciones.append(SesionAuth.id != excepto)
     r = db.session.execute(update(SesionAuth).where(*condiciones).values(revocada_en=ahora(), motivo=motivo)
                            .execution_options(synchronize_session=False))
+    dueno = PushSuscripcion.usuario_id if tipo == "usuario" else PushSuscripcion.cliente_id
+    db.session.execute(delete(PushSuscripcion).where(dueno == cuenta_id).execution_options(synchronize_session=False))
     return r.rowcount
 
 
