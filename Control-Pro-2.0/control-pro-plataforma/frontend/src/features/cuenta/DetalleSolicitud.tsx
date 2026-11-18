@@ -10,6 +10,7 @@ import ConfirmarEnvio from '../portal/ConfirmarEnvio';
 import { post } from '../../api/cliente';
 import type { EntregaIndividual, Incidencia, Paquete, Pedido } from '../../api/tipos';
 import { Aviso, Boton, Campo, Entrada, ErrorCaja, Estado, Firma, Modal, Selector, Tarjeta, Texto, useAviso } from '../../components/ui';
+import { useCelebrar } from '../../components/Celebracion';
 import { Aparecer, Etapa, LineaProceso, Palomita } from '../../components/movimiento';
 import ComprobanteEntrega from './ComprobanteEntrega';
 import LineaTiempoSolicitud from '../../components/LineaTiempoSolicitud';
@@ -306,6 +307,7 @@ export default function DetalleSolicitud({ p }: { p: Pedido }) {
   const [params] = useSearchParams();
   const qc = useQueryClient();
   const avisar = useAviso();
+  const celebrar = useCelebrar();
   const [recibir, setRecibir] = useState<Paquete | null>(null);
   const [entrega, setEntrega] = useState<EntregaIndividual | null>(null);
   const [conformidad, setConformidad] = useState<EntregaIndividual | null>(null);
@@ -315,7 +317,8 @@ export default function DetalleSolicitud({ p }: { p: Pedido }) {
   const [motivo, setMotivo] = useState('');
   const refrescar = () => { qc.invalidateQueries({ queryKey: ['pedido', String(p.id)] }); qc.invalidateQueries({ queryKey: ['resumen-sucursal'] }); qc.invalidateQueries({ queryKey: ['mis-borradores'] }); };
   const [confirmar, setConfirmar] = useState(false);
-  const enviar = useMutation({ mutationFn: () => post(`/cuenta/pedidos-corporativos/${p.id}/enviar`), onSuccess: () => { refrescar(); setConfirmar(false); avisar(`Solicitud ${p.folio} enviada a revisión.`); } });
+  const enviar = useMutation({ mutationFn: () => post(`/cuenta/pedidos-corporativos/${p.id}/enviar`), onSuccess: () => { refrescar(); setConfirmar(false); avisar(`Solicitud ${p.folio} enviada a revisión.`);
+    celebrar({ titulo: `¡Solicitud ${p.folio} enviada!`, texto: 'Quedó en revisión con el aprobador corporativo. Te avisaremos de cada avance.' }); } });
   const cancelarM = useMutation({ mutationFn: () => post(`/cuenta/pedidos/${p.id}/cancelar`, { motivo }), onSuccess: () => { refrescar(); setCancelar(false); avisar(p.estado === 'borrador' ? 'Borrador descartado.' : 'Solicitud cancelada.'); } });
 
   const entregas = p.entregas_individuales || [];

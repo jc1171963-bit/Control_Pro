@@ -8,7 +8,7 @@ import { BASE_APROBADOR, enlacePanel, esAprobador } from './panel';
 function RequiereCliente({ empresa = false }: { empresa?: boolean }) {
   const { tipo, cliente, cargando } = useAuth();
   const loc = useLocation();
-  if (cargando) return <Cargando />;
+  if (cargando) return <div className="mx-auto max-w-6xl px-4 py-8 sm:px-8"><Cargando forma="pagina" texto="Abriendo tu sesión…" /></div>;
   if (tipo !== 'cliente') return <Navigate to={`/entrar?siguiente=${encodeURIComponent(loc.pathname + loc.search)}`} replace />;
   if (empresa && cliente?.tipo !== 'empresa') return <Navigate to="/cuenta" replace />;
   return <Outlet />;
@@ -17,7 +17,7 @@ function RequiereCliente({ empresa = false }: { empresa?: boolean }) {
 function RequiereUsuario() {
   const { tipo, usuario, cargando } = useAuth();
   const loc = useLocation();
-  if (cargando) return <Cargando />;
+  if (cargando) return <div className="mx-auto max-w-6xl px-4 py-8 sm:px-8"><Cargando forma="pagina" texto="Abriendo tu sesión…" /></div>;
   if (tipo !== 'usuario') return <Navigate to={`/admin/entrar?siguiente=${encodeURIComponent(loc.pathname)}`} replace />;
   // El aprobador corporativo ya no usa el panel interno: cualquier enlace /admin/... lo lleva a su portal.
   if (esAprobador(usuario)) return <Navigate to={enlacePanel(loc.pathname, BASE_APROBADOR) + loc.search} replace />;
@@ -28,7 +28,7 @@ function RequiereUsuario() {
 function RequiereAprobador() {
   const { tipo, usuario, cargando } = useAuth();
   const loc = useLocation();
-  if (cargando) return <Cargando />;
+  if (cargando) return <div className="mx-auto max-w-6xl px-4 py-8 sm:px-8"><Cargando forma="pagina" texto="Abriendo tu sesión…" /></div>;
   if (tipo === 'usuario' && !esAprobador(usuario)) return <Navigate to="/admin" replace />;
   if (tipo !== 'usuario') return <Navigate to={`/entrar?siguiente=${encodeURIComponent(loc.pathname + loc.search)}`} replace />;
   return <Outlet />;
@@ -37,7 +37,7 @@ function RequiereAprobador() {
 /** Carrito y checkout existen solo si la tienda en línea está encendida. */
 function SoloTienda() {
   const { canalTienda, cargando } = useConfig();
-  if (cargando) return <Cargando />;
+  if (cargando) return <div className="mx-auto max-w-6xl px-4 py-8 sm:px-8"><Cargando forma="pagina" texto="Abriendo tu sesión…" /></div>;
   return canalTienda ? <Outlet /> : <Navigate to="/catalogo" replace />;
 }
 

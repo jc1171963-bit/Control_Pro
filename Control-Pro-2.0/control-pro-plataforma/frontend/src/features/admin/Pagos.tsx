@@ -41,7 +41,7 @@ export default function Pagos() {
         <div className="mb-4 flex flex-wrap gap-1.5">
           {PESTANAS.map(([v, n]) => <button key={v} onClick={() => { setTab(v); setPagina(1); }} className={cls('rounded-full px-3 py-1 text-xs font-semibold ring-1', tab === v ? 'bg-tinta-900 text-white ring-tinta-900' : 'ring-tinta-200')}>{n}</button>)}
         </div>
-        {tab !== 'reembolsos' ? (pagos.isLoading ? <Cargando /> : (
+        {tab !== 'reembolsos' ? (pagos.isLoading ? <Cargando forma="tabla" /> : (
           <>
             <ErrorCaja error={pagos.error} />
             <Tabla columnas={['Pago', 'Pedido', 'Cliente', 'Método', 'Referencia', 'Monto', 'Estado', '']} vacia={!pagos.data?.items.length}>
@@ -63,7 +63,7 @@ export default function Pagos() {
             </Tabla>
             {pagos.data && <Paginacion pagina={pagos.data.pagina} paginas={pagos.data.paginas} total={pagos.data.total} onCambio={setPagina} />}
           </>
-        )) : (reemb.isLoading ? <Cargando /> : (
+        )) : (reemb.isLoading ? <Cargando forma="tabla" /> : (
           <>
             <Tabla columnas={['Fecha', 'Pedido', 'Cliente', 'Tipo', 'Motivo', 'Monto', 'Estado', '']} vacia={!reemb.data?.items.length}>
               {reemb.data?.items.map((r) => (

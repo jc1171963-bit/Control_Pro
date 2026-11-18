@@ -21,6 +21,8 @@ import { useMensajesNoLeidos } from '../colaboracion/Mensajes';
 import FondoPortal from '../portal/FondoPortal';
 import MarcaPortal from '../portal/MarcaPortal';
 import { OpcionesAppMenu } from '../../components/AppDispositivo';
+import InterruptorTema from '../../components/InterruptorTema';
+import { useAplicarTema } from '../../app/tema';
 
 /** Área del aprobador corporativo dentro de Salud Digna (se muestra junto a su nombre). */
 export const AREA_APROBADOR = 'Gerencia de Compras';
@@ -104,6 +106,7 @@ function FotoTarjeta({ nombre, foto }: { nombre?: string | null; foto?: string |
 }
 
 export default function AprobadorLayout() {
+  useAplicarTema();
   const { usuario, salir } = useAuth();
   const nav = useNavigate();
   const loc = useLocation();
@@ -160,7 +163,7 @@ export default function AprobadorLayout() {
             );
           })}
         </nav>
-        <div className="mx-3 mb-3 rounded-[22px] bg-gradient-to-br from-[#d6f3f7cc] to-[#a8e6d4aa] p-4 text-[13px] font-bold leading-snug">
+        <div className="lema-panel mx-3 mb-3 rounded-[22px] bg-gradient-to-br from-[#d6f3f7cc] to-[#a8e6d4aa] p-4 text-[13px] font-bold leading-snug">
           <ClipboardCheck className="mb-2 h-5 w-5 text-[#0e7490]" aria-hidden />
           Revisas, apruebas y das<br />seguimiento a las sucursales
         </div>
@@ -182,6 +185,7 @@ export default function AprobadorLayout() {
             <MessagesSquare className="h-5 w-5" aria-hidden />
             {cuentas.mensajes > 0 && <span className="absolute right-1.5 top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-[#e43e43] px-1 text-[10px] font-bold text-white" aria-hidden>{cuentas.mensajes}</span>}
           </Link>
+          <InterruptorTema className="h-12 w-12 shrink-0" />
           <Link to={`${BASE_APROBADOR}/notificaciones`} className="relative grid h-12 w-12 place-items-center rounded-full border border-white/80 bg-white/60 backdrop-blur-md transition hover:bg-white/80"
             aria-label={`Notificaciones${cuentas.avisos ? `: ${cuentas.avisos} sin leer` : ''}`}>
             <Bell className="h-5 w-5" aria-hidden />

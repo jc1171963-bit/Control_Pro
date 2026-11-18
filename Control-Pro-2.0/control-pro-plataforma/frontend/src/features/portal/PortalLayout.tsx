@@ -20,6 +20,8 @@ import FondoPortal from './FondoPortal';
 import MarcaPortal from './MarcaPortal';
 import { CONTEXTO_CATALOGO_PORTAL, RUTA_CATALOGO_PORTAL } from './rutas';
 import { OpcionesAppMenu } from '../../components/AppDispositivo';
+import InterruptorTema from '../../components/InterruptorTema';
+import { useAplicarTema } from '../../app/tema';
 
 // "Catálogo" abre el catálogo dentro del portal (/cuenta/catalogo).
 // "Dirección de entrega" vive dentro de "Mi cuenta"; /cuenta/direcciones redirige allí.
@@ -71,6 +73,7 @@ function MenuUsuario({ nombre, onSalir }: { nombre: string; onSalir: () => void 
 }
 
 export default function PortalLayout() {
+  useAplicarTema();
   const { cliente, salir } = useAuth();
   const nav = useNavigate();
   const loc = useLocation();
@@ -156,7 +159,7 @@ export default function PortalLayout() {
           ))}
         </nav>
         {/* Tarjeta institucional y perfil (decorativos, sin acciones: cerrar sesión vive en el menú de usuario). */}
-        <div className={cls('mx-3 mt-2 rounded-[22px] bg-gradient-to-br from-[#d8f7e9cc] to-[#a8e6d4aa] p-4 text-[13px] font-bold leading-snug', rail && 'lg:hidden')}>
+        <div className={cls('lema-panel mx-3 mt-2 rounded-[22px] bg-gradient-to-br from-[#d8f7e9cc] to-[#a8e6d4aa] p-4 text-[13px] font-bold leading-snug', rail && 'lg:hidden')}>
           <Heart className="mb-2 h-5 w-5 text-[#0b9b6d]" aria-hidden />
           Juntos por una<br />mejor salud
           <ArrowRight className="ml-auto mt-1 h-5 w-5" aria-hidden />
@@ -200,6 +203,7 @@ export default function PortalLayout() {
               <span className="grid h-5 min-w-5 place-items-center rounded-full bg-menta-500 px-1 text-[11px] font-bold text-white" aria-hidden>{enCurso.articulos}</span>
             </Link>
           )}
+          <InterruptorTema className="h-12 w-12 shrink-0" />
           <Link to="/cuenta/notificaciones" className="relative grid h-12 w-12 place-items-center rounded-full border border-white/80 bg-white/60 text-[#102a31] backdrop-blur-md transition hover:bg-white/80" aria-label={`Notificaciones${noLeidas ? `: ${noLeidas} sin leer` : ''}`}>
             <Bell className="h-5 w-5" aria-hidden />
             {noLeidas > 0 && <span className="absolute right-1.5 top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-[#e43e43] px-1 text-[10px] font-bold text-white" aria-hidden>{noLeidas}</span>}

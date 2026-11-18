@@ -59,7 +59,7 @@ export default function Dashboard() {
         <FiltroSucursal valor={sucursal} onCambio={setSucursal} />
       </Encabezado>
       <ErrorCaja error={q.error} />
-      {q.isLoading || !d ? <Cargando /> : (
+      {q.isLoading || !d ? <Cargando forma="pagina" /> : (
         <div className="space-y-5">
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
             <Cifra etiqueta="Pedidos recibidos" valor={d.pedidos.recibidos} detalle={`${d.pedidos.cancelados} cancelados o expirados`} icono={<ClipboardList className="h-4 w-4" />} />

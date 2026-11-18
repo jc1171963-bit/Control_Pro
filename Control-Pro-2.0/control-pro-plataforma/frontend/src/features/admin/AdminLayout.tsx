@@ -10,6 +10,8 @@ import { cls } from '../../lib/formato';
 import { MarcaLurima } from '../tienda/TiendaLayout';
 import FondoPortal from '../portal/FondoPortal';
 import { useMensajesNoLeidos } from '../colaboracion/Mensajes';
+import InterruptorTema from '../../components/InterruptorTema';
+import { useAplicarTema } from '../../app/tema';
 
 export function useSucursalesAdmin() {
   return useQuery({ queryKey: ['admin-sucursales'], queryFn: () => get<Sucursal[]>('/admin/sucursales'), staleTime: 120_000 });
@@ -33,6 +35,7 @@ const GRUPOS: { titulo: string; items: [string, string, any, string][] }[] = [
  * lateral de cristal flotante, paneles de cristal) con la paleta de la tienda: azul LURIMA, verde bienestar y coral.
  */
 export default function AdminLayout() {
+  useAplicarTema();
   const { usuario, puede, salir } = useAuth();
   const [abierto, setAbierto] = useState(false);
   const loc = useLocation();
@@ -115,6 +118,7 @@ export default function AdminLayout() {
               <MessagesSquare className="h-5 w-5" />{sinLeer > 0 && <span className="absolute right-1 top-1 grid h-4 min-w-4 place-items-center rounded-full bg-coral-500 px-1 text-[10px] font-bold text-white" aria-hidden>{sinLeer}</span>}
             </Link>
           )}
+          <InterruptorTema className="h-11 w-11 shrink-0" />
           <Link to="/admin/notificaciones" className="relative grid h-11 w-11 place-items-center rounded-full border border-white/80 bg-white/60 text-lurima-900 backdrop-blur-md transition hover:bg-white/85" aria-label="Notificaciones">
             <Bell className="h-5 w-5" />{noLeidas > 0 && <span className="absolute right-1 top-1 grid h-4 min-w-4 place-items-center rounded-full bg-coral-500 px-1 text-[10px] font-bold text-white" aria-hidden>{noLeidas}</span>}
           </Link>

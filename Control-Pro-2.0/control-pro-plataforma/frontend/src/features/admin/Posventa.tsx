@@ -44,7 +44,7 @@ export function Devoluciones() {
       <Encabezado titulo="Devoluciones" sub="Solicitud con evidencia → autorización → recepción → inspección → reembolso" />
       <Tarjeta>
         <div className="mb-4 flex flex-wrap gap-1.5">{FILTROS_DEV.map(([v, n]) => <button key={v} onClick={() => { setEstado(v); setPagina(1); }} className={cls('rounded-full px-3 py-1 text-xs font-semibold ring-1', estado === v ? 'bg-tinta-900 text-white ring-tinta-900' : 'ring-tinta-200')}>{n}</button>)}</div>
-        {q.isLoading ? <Cargando /> : (
+        {q.isLoading ? <Cargando forma="tabla" /> : (
           <Tabla columnas={['Folio', 'Pedido', 'Motivo', 'Artículos', 'Recibe', 'Monto', 'Estado', '']} vacia={!q.data?.items.length}>
             {q.data?.items.map((d) => (
               <tr key={d.id}><Td><p className="font-semibold">{d.folio}</p><p className="text-xs text-tinta-400">{fechaHora(d.creado)}</p></Td>
@@ -120,7 +120,7 @@ export function Incidencias() {
       <Tarjeta>
         <div className="mb-4 flex flex-wrap gap-1.5">{[['abierta,en_atencion', 'Abiertas'], ['resuelta', 'Resueltas'], ['cerrada', 'Cerradas'], ['', 'Todas']].map(([v, n]) =>
           <button key={v} onClick={() => { setEstado(v); setPagina(1); }} className={cls('rounded-full px-3 py-1 text-xs font-semibold ring-1', estado === v ? 'bg-tinta-900 text-white ring-tinta-900' : 'ring-tinta-200')}>{n}</button>)}</div>
-        {q.isLoading ? <Cargando /> : (
+        {q.isLoading ? <Cargando forma="tabla" /> : (
           <Tabla columnas={['Folio', 'Tipo', 'Referencia', 'Empleado / artículo', 'Descripción', 'Prioridad', 'Estado', '']} vacia={!q.data?.items.length}>
             {q.data?.items.map((i) => (
               <tr key={i.id}><Td><p className="font-semibold">{i.folio}</p><p className="text-xs text-tinta-400">{fechaHora(i.creado)}</p></Td><Td className="text-xs">{tipoIncidencia(i.tipo)}</Td>

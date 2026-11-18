@@ -82,16 +82,16 @@ export default function FondoPortal({ paleta = 'sd' }: { paleta?: PaletaFondo })
   const p = PALETAS[paleta];
   return (
     <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-      <div className={`absolute inset-0 ${p.fondo}`} />
+      <div className={`fondo-portal-base absolute inset-0 ${p.fondo}`} />
       <Particulas />
       {ESFERA_POS.map((e, i) => (
-        <div key={i} className="absolute h-[55vw] max-h-[760px] w-[55vw] max-w-[760px] animate-flotar rounded-full opacity-[.48] blur-[75px]"
+        <div key={i} className="fondo-portal-esfera absolute h-[55vw] max-h-[760px] w-[55vw] max-w-[760px] animate-flotar rounded-full opacity-[.48] blur-[75px]"
           style={{ ...e.pos, background: `radial-gradient(circle, ${p.esferas[i]}, transparent 68%)`, animationDuration: e.dur, animationDelay: e.retraso }} />
       ))}
       <div className="absolute inset-0 opacity-[.12]" style={{ backgroundImage: GRANO }} />
       <div className="absolute inset-0 [perspective:900px]">
         {POSICIONES.map(([pos, dur, retraso], i) => (
-          <span key={i} className="absolute grid h-[58px] w-[58px] animate-deriva place-items-center rounded-[19px] border border-white/55 bg-gradient-to-br from-white/40 to-white/10 text-[27px] opacity-30 shadow-[0_12px_32px_rgba(30,105,91,.10),inset_0_1px_0_rgba(255,255,255,.55)] saturate-[.82] backdrop-blur-[7px]"
+          <span key={i} className="fondo-portal-icono absolute grid h-[58px] w-[58px] animate-deriva place-items-center rounded-[19px] border border-white/55 bg-gradient-to-br from-white/40 to-white/10 text-[27px] opacity-30 shadow-[0_12px_32px_rgba(30,105,91,.10),inset_0_1px_0_rgba(255,255,255,.55)] saturate-[.82] backdrop-blur-[7px]"
             style={{ ...pos, animationDuration: dur, animationDelay: retraso }}>{p.iconos[i]}</span>
         ))}
       </div>

@@ -12,7 +12,7 @@ import { useAuth } from '../../app/auth';
 import { BASE_APROBADOR, useBasePanel } from '../../app/panel';
 import { BotonWhatsApp } from '../colaboracion/Mensajes';
 import { Aviso, Boton, Campo, Entrada, ErrorCaja, Estado, Modal, Paginacion, Selector, Tarjeta, useAviso, Vacio } from '../../components/ui';
-import { Aparecer, EsqueletoLista } from '../../components/movimiento';
+import { Aparecer, EsqueletoLista, NumeroAnimado } from '../../components/movimiento';
 import { cls, fecha, fechaHora } from '../../lib/formato';
 import { Encabezado } from './AdminLayout';
 import { Contacto, SelectorZona, useOrganizacion, ZonaRef } from './Organizacion';
@@ -331,10 +331,10 @@ export function SucursalCliente() {
           )}
           <Tarjeta titulo="Resumen">
             <dl className="grid grid-cols-2 gap-2 text-center">
-              <div className="rounded-lg bg-arena-50 p-3"><dt className="text-[10px] uppercase text-tinta-400">Solicitudes</dt><dd className="font-display text-2xl font-extrabold">{c.solicitudes}</dd></div>
-              <div className="rounded-lg bg-arena-50 p-3"><dt className="text-[10px] uppercase text-tinta-400">En curso</dt><dd className="font-display text-2xl font-extrabold">{c.en_curso}</dd></div>
-              <div className="rounded-lg bg-arena-50 p-3"><dt className="text-[10px] uppercase text-tinta-400">Por revisar</dt><dd className="font-display text-2xl font-extrabold">{c.por_revisar}</dd></div>
-              <div className="rounded-lg bg-arena-50 p-3"><dt className="text-[10px] uppercase text-tinta-400">Empleados</dt><dd className="font-display text-2xl font-extrabold">{c.empleados_activos}</dd></div>
+              <div className="rounded-lg bg-arena-50 p-3"><dt className="text-[10px] uppercase text-tinta-400">Solicitudes</dt><dd className="font-display text-2xl font-extrabold"><NumeroAnimado valor={c.solicitudes} /></dd></div>
+              <div className="rounded-lg bg-arena-50 p-3"><dt className="text-[10px] uppercase text-tinta-400">En curso</dt><dd className="font-display text-2xl font-extrabold"><NumeroAnimado valor={c.en_curso} /></dd></div>
+              <div className="rounded-lg bg-arena-50 p-3"><dt className="text-[10px] uppercase text-tinta-400">Por revisar</dt><dd className="font-display text-2xl font-extrabold"><NumeroAnimado valor={c.por_revisar} /></dd></div>
+              <div className="rounded-lg bg-arena-50 p-3"><dt className="text-[10px] uppercase text-tinta-400">Empleados</dt><dd className="font-display text-2xl font-extrabold"><NumeroAnimado valor={c.empleados_activos} /></dd></div>
             </dl>
           </Tarjeta>
         </div>

@@ -3,6 +3,7 @@ import { ButtonHTMLAttributes, createContext, InputHTMLAttributes, ReactNode, Se
 import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Inbox, Loader2, X } from 'lucide-react';
 import { cls, etiqueta, mensajeError, tono } from '../lib/formato';
 import { useAtraparFoco } from './useAtraparFoco';
+import { EsqueletoLista, EsqueletoPagina, EsqueletoTabla, NumeroAnimado } from './movimiento';
 
 // ---------------------------------------------------------------- botones y campos
 
@@ -84,8 +85,11 @@ export function Vacio({ titulo, texto, accion }: { titulo: string; texto?: strin
   );
 }
 
-export function Cargando({ texto = 'Cargando…' }: { texto?: string }) {
-  return <div className="flex items-center justify-center gap-2 py-16 text-sm text-tinta-400"><Loader2 className="h-5 w-5 animate-spin" />{texto}</div>;
+/** Carga con siluetas que anticipan la forma del contenido (lista, tabla o página completa) en lugar de un spinner. */
+export function Cargando({ texto = 'Cargando…', forma = 'lista', filas }: { texto?: string; forma?: 'lista' | 'tabla' | 'pagina'; filas?: number }) {
+  if (forma === 'tabla') return <EsqueletoTabla texto={texto} filas={filas} />;
+  if (forma === 'pagina') return <EsqueletoPagina texto={texto} />;
+  return <EsqueletoLista texto={texto} filas={filas ?? 4} />;
 }
 
 export function ErrorCaja({ error }: { error: unknown }) {
@@ -237,7 +241,7 @@ export function Cifra({ etiqueta: et, valor, detalle, icono, acento }: { etiquet
       <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-tinta-400">
         <span>{et}</span>{icono && <span className={cls('grid h-8 w-8 place-items-center rounded-xl', acento || 'bg-tinta-50 text-tinta-600')}>{icono}</span>}
       </div>
-      <div className="mt-2 font-display text-2xl font-extrabold text-tinta-900">{valor}</div>
+      <div className="mt-2 font-display text-2xl font-extrabold text-tinta-900">{typeof valor === 'string' || typeof valor === 'number' ? <NumeroAnimado valor={valor} /> : valor}</div>
       {detalle && <div className="mt-1 text-xs text-tinta-400">{detalle}</div>}
     </div>
   );

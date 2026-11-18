@@ -81,7 +81,7 @@ export function Inventario() {
           <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={params.get('bajo') === '1'} onChange={(e) => set('bajo', e.target.checked ? '1' : '')} className="accent-coral-500" />Solo existencias bajas</label>
         </div>
         <ErrorCaja error={q.error} />
-        {q.isLoading ? <Cargando /> : (
+        {q.isLoading ? <Cargando forma="tabla" /> : (
           <Tabla columnas={['Sucursal', 'SKU', 'Producto', 'Físico', 'Reservado', 'Comprometido', 'En tránsito', 'Disponible', 'Mínimo', '']} vacia={!q.data?.items.length}>
             {q.data?.items.map((f) => (
               <tr key={`${f.sucursal_id}-${f.variante_id}`} className={cls(f.bajo && 'bg-amber-50/50')}>
@@ -102,7 +102,7 @@ export function Inventario() {
 
       <Modal abierto={!!modo} titulo={modo?.tipo === 'kardex' ? `Kardex · ${modo.fila?.sku} · ${modo.fila?.sucursal}` : modo?.tipo === 'entrada' ? 'Registrar entrada' : modo?.tipo === 'minimo' ? 'Existencia mínima' : 'Ajuste de inventario'}
         onCerrar={() => setModo(null)} ancho={modo?.tipo === 'kardex' ? 'max-w-3xl' : 'max-w-lg'}>
-        {modo?.tipo === 'kardex' ? (kardex.isLoading ? <Cargando /> : (
+        {modo?.tipo === 'kardex' ? (kardex.isLoading ? <Cargando forma="tabla" /> : (
           <Tabla columnas={['Fecha', 'Tipo', 'Cantidad', 'Saldo', 'Motivo', 'Usuario']} vacia={!kardex.data?.items.length}>
             {kardex.data?.items.map((m) => <tr key={m.id}><Td className="text-xs">{fechaHora(m.fecha)}</Td><Td className="text-xs">{TIPOS_MOVIMIENTO[m.tipo]}</Td>
               <Td className={m.cantidad < 0 ? 'text-coral-600' : 'text-menta-700'}>{m.cantidad > 0 ? '+' : ''}{m.cantidad}</Td><Td>{m.saldo}</Td><Td className="text-xs">{m.motivo}</Td><Td className="text-xs">{m.usuario}</Td></tr>)}
@@ -170,7 +170,7 @@ export function Transferencias() {
       <Tarjeta accion={<Selector value={estado} onChange={(e) => { setEstado(e.target.value); setPagina(1); }} className="w-48"><option value="">Todos los estados</option>
         {['solicitada', 'autorizada', 'enviada', 'recibida', 'recibida_parcial', 'cancelada'].map((e) => <option key={e} value={e}>{e.replace('_', ' ')}</option>)}</Selector>}>
         <ErrorCaja error={q.error || autorizar.error} />
-        {q.isLoading ? <Cargando /> : (
+        {q.isLoading ? <Cargando forma="tabla" /> : (
           <Tabla columnas={['Folio', 'Origen → destino', 'Partidas', 'Motivo', 'Actualizado', 'Estado', '']} vacia={!q.data?.items.length}>
             {q.data?.items.map((t) => (
               <tr key={t.id}>

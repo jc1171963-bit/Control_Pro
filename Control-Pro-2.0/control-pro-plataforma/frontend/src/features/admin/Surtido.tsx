@@ -24,7 +24,7 @@ export function Surtido() {
       </Encabezado>
       <Tarjeta>
         <ErrorCaja error={q.error} />
-        {q.isLoading ? <Cargando /> : (
+        {q.isLoading ? <Cargando forma="tabla" /> : (
           <Tabla columnas={['Pedido', 'Sucursal', 'Cliente', 'Entrega', 'Unidades', 'Avance', 'Estado', '']} vacia={!q.data?.items.length}>
             {q.data?.items.map((a) => {
               const total = a.detalles.reduce((s, d) => s + d.cantidad - d.faltante, 0);
@@ -118,7 +118,7 @@ export function SurtidoDetalle() {
     onSuccess: () => { refrescar(); setModalPaquete(false); avisar('Paquete creado.'); },
   });
 
-  if (q.isLoading) return <Cargando />;
+  if (q.isLoading) return <Cargando forma="pagina" />;
   if (!q.data) return <ErrorCaja error={q.error} />;
   const a = q.data;
   const abrirSurtido = () => { setSurtido(Object.fromEntries(a.detalles.map((d) => [d.id, { surtida: d.cantidad - d.faltante, faltante: d.faltante, motivo: '' }]))); setModalSurtido(true); };

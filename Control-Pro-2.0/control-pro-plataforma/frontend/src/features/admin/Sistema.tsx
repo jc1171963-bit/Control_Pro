@@ -28,7 +28,7 @@ export function Clientes() {
             <Entrada value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Nombre, razón social o correo" className="w-72 pl-9" /></form>
           <Selector value={tipo} onChange={(e) => { setTipo(e.target.value); setPagina(1); }} className="w-40"><option value="">Todos</option><option value="persona">Personas</option><option value="empresa">Empresas</option></Selector>
         </div>
-        {q.isLoading ? <Cargando /> : (
+        {q.isLoading ? <Cargando forma="tabla" /> : (
           <Tabla columnas={['Cliente', 'Correo', 'Tipo', 'RFC', 'Alta', '']} vacia={!q.data?.items.length}>
             {q.data?.items.map((c) => <tr key={c.id}><Td className="font-semibold">{c.razon_social || c.nombre}{c.razon_social && <p className="text-xs font-normal text-tinta-400">{c.nombre}</p>}</Td><Td>{c.correo}</Td>
               <Td className="capitalize">{c.tipo}</Td><Td className="font-mono text-xs">{c.rfc || '—'}</Td><Td className="text-xs">{fecha(c.creado)}</Td><Td><Boton tam="sm" variante="secundario" onClick={() => setSel(c.id)}>Ver</Boton></Td></tr>)}
@@ -155,7 +155,7 @@ export function Usuarios() {
       </Encabezado>
       <div className="grid gap-5 xl:grid-cols-[1.5fr_1fr]">
         <Tarjeta>
-          {q.isLoading ? <Cargando /> : (
+          {q.isLoading ? <Cargando forma="tabla" /> : (
             <Tabla columnas={['Usuario', 'Rol', 'Alcance', 'Último acceso', 'Estado', '']} vacia={!q.data?.length}>
               {q.data?.map((u) => <tr key={u.id}><Td><p className="font-semibold">{u.nombre}</p><p className="text-xs text-tinta-400">{u.correo}</p></Td><Td className="text-xs">{u.rol.nombre}</Td>
                 <Td className="text-xs">{u.rol.alcance_global ? 'Todas' : u.sucursales.map((s) => s.nombre.replace('Sucursal ', '')).join(', ')}</Td><Td className="text-xs">{fechaHora(u.ultimo_acceso)}</Td>
@@ -206,7 +206,7 @@ export function Auditoria() {
           <Entrada value={f.accion} onChange={(e) => setF({ ...f, accion: e.target.value })} placeholder="Acción (ej. validar)" className="w-56" />
           <Boton type="submit" variante="secundario" icono={<Search className="h-4 w-4" />}>Filtrar</Boton>
         </form>
-        {q.isLoading ? <Cargando /> : (
+        {q.isLoading ? <Cargando forma="tabla" /> : (
           <Tabla columnas={['Fecha', 'Acción', 'Entidad', 'Actor', 'IP', '']} vacia={!q.data?.items.length}>
             {q.data?.items.map((a) => <tr key={a.id}><Td className="text-xs">{fechaHora(a.fecha)}</Td><Td className="font-mono text-xs">{a.accion}</Td><Td className="text-xs">{a.entidad} #{a.entidad_id ?? '—'}</Td>
               <Td className="text-xs">{a.actor}</Td><Td className="font-mono text-xs">{a.ip || '—'}</Td><Td>{(a.antes || a.despues) && <Boton tam="sm" variante="fantasma" onClick={() => setSel(a)}>Detalle</Boton>}</Td></tr>)}

@@ -10,7 +10,7 @@ import type { Pagina, PedidoResumen, PermisoPadron } from '../../api/tipos';
 import { useAuth } from '../../app/auth';
 import { BASE_APROBADOR } from '../../app/panel';
 import { Estado, Tarjeta, Vacio } from '../../components/ui';
-import { EsqueletoLista } from '../../components/movimiento';
+import { EsqueletoLista, NumeroAnimado } from '../../components/movimiento';
 import { fechaHora } from '../../lib/formato';
 import PanelSolicitudes from '../admin/PanelSolicitudes';
 import { AREA_APROBADOR, useContadoresAprobador } from './AprobadorLayout';
@@ -24,7 +24,7 @@ function Pendiente({ a, icono, valor, titulo, texto, fondo }: { a: string; icono
       <span className="pointer-events-none absolute -right-6 -top-9 h-[90px] w-[90px] rounded-full bg-[#5ec8d82b]" aria-hidden />
       <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-full sm:h-14 sm:w-14 ${fondo}`} aria-hidden>{icono}</span>
       <span className="relative min-w-0">
-        <span className="block font-display text-[30px] font-extrabold leading-none">{valor}</span>
+        <span className="block font-display text-[30px] font-extrabold leading-none"><NumeroAnimado valor={valor} /></span>
         <span className="mt-1 block text-sm font-bold">{titulo}</span>
         <span className="block text-[11px] text-[#71858b]">{texto}</span>
       </span>
@@ -44,7 +44,7 @@ export default function InicioAprobador() {
   return (
     <div className="space-y-6">
       <section className="relative isolate flex min-h-[250px] items-center overflow-hidden rounded-[29px] border border-white/55 p-6 text-white shadow-[0_18px_55px_rgba(25,91,87,.13)] sm:px-10 sm:py-8">
-        <img src="/assets/escenas/pasillo-clinico.webp" alt="" width={1400} height={900} className="absolute inset-0 -z-20 h-full w-full object-cover object-[62%_center]" aria-hidden />
+        <img src="/assets/escenas/pasillo-clinico.webp" alt="" width={1400} height={900} className="foto-encabezado absolute inset-0 -z-20 h-full w-full object-cover object-[62%_center]" aria-hidden />
         <span className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,rgba(8,52,72,.97),rgba(11,79,108,.85)_45%,rgba(14,116,144,.1))] max-sm:bg-[linear-gradient(90deg,rgba(8,52,72,.97),rgba(11,79,108,.85))]" aria-hidden />
         <span className="pointer-events-none absolute inset-0 animate-destello bg-[linear-gradient(110deg,transparent_40%,#b7f3ff1a_65%,transparent_82%)]" aria-hidden />
         <div className="relative max-w-[600px]">

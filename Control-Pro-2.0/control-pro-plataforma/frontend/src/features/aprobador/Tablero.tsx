@@ -11,8 +11,9 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { ArrowDownRight, ArrowRight, ArrowUpRight, Clock3, Table2 } from 'lucide-react';
 import { get } from '../../api/cliente';
 import { Tarjeta } from '../../components/ui';
-import { EsqueletoLista } from '../../components/movimiento';
+import { Esqueleto, NumeroAnimado } from '../../components/movimiento';
 import { cls } from '../../lib/formato';
+import { useTema } from '../../app/tema';
 
 type Grupo = { sucursales: number; solicitudes: number; anterior: number; unidades: number; por_revisar: number };
 export type TableroDatos = {
@@ -28,11 +29,18 @@ export type TableroDatos = {
   divisiones: ({ id: number; nombre: string } & Grupo)[];
 };
 
-// Paleta de visualización validada con scripts/validate_palette.js contra el fondo de las tarjetas (#f3f9f9):
-// serie azul (contraste ≥ 3:1) y escala ordinal de un solo tono, de claro a oscuro, con el extremo claro ≥ 2:1.
-const SERIE = '#2a78d6', SERIE_SUAVE = '#6da7ec';
-const ESCALA = ['#6da7ec', '#3987e5', '#256abf', '#184f95', '#0d366b'];
-const TEXTO_SOBRE = ['#0b0b0b', '#ffffff', '#ffffff', '#ffffff', '#ffffff'];
+// Paletas de visualización validadas con scripts/validate_palette.js, una por tema (no es una inversión automática):
+// - Claro, contra el fondo de las tarjetas (#f3f9f9): serie azul (≥ 3:1) y escala ordinal de claro a oscuro, extremo ≥ 2:1.
+// - Oscuro, contra la superficie #131f2e: escala ordinal de oscuro a claro (más solicitudes = más luz), extremo ≥ 2:1; en las
+//   columnas la semana en curso va en el azul claro y el resto en el medio (ΔE 19, ≥ 3:1), además de su etiqueta de valor.
+type Paleta = { serie: string; serieSuave: string; escala: string[]; textoSobre: string[]; vacio: string; textoVacio: string };
+const PALETAS: Record<'claro' | 'oscuro', Paleta> = {
+  claro: { serie: '#2a78d6', serieSuave: '#6da7ec', escala: ['#6da7ec', '#3987e5', '#256abf', '#184f95', '#0d366b'],
+    textoSobre: ['#0b0b0b', '#ffffff', '#ffffff', '#ffffff', '#ffffff'], vacio: '#f1f3f5', textoVacio: '#5f7799' },
+  oscuro: { serie: '#6da7ec', serieSuave: '#256abf', escala: ['#184f95', '#256abf', '#3987e5', '#6da7ec', '#b7d3f6'],
+    textoSobre: ['#ffffff', '#ffffff', '#ffffff', '#0b0b0b', '#0b0b0b'], vacio: '#1f2e42', textoVacio: '#8698b0' },
+};
+const usePaleta = () => PALETAS[useTema().tema];
 const PERIODOS: [number, string][] = [[7, '7 días'], [30, '30 días'], [90, '90 días'], [180, '6 meses']];
 
 const fmtNum = new Intl.NumberFormat('es-MX');
@@ -66,7 +74,7 @@ function Cifra({ etiqueta, valor, delta, detalle }: { etiqueta: string; valor: s
   return (
     <div className="vidrio rounded-2xl bg-white p-4">
       <p className="text-xs font-semibold text-tinta-600">{etiqueta}</p>
-      <p className="mt-1 font-display text-[28px] font-extrabold leading-none text-tinta-900">{valor}</p>
+      <p className="mt-1 font-display text-[28px] font-extrabold leading-none text-tinta-900"><NumeroAnimado valor={valor} /></p>
       {delta && <div className="mt-2">{delta}</div>}
       {detalle && <p className="mt-1 text-[11px] text-tinta-500">{detalle}</p>}
     </div>
@@ -101,6 +109,7 @@ function BotonTabla({ abierta, onClick }: { abierta: boolean; onClick: () => voi
 
 /** Columnas de 12 semanas: semana actual en el tono pleno, las anteriores en el tono suave. */
 function RitmoSemanal({ semanas }: { semanas: TableroDatos['semanas'] }) {
+  const pal = usePaleta();
   const [info, setInfo] = useState<Info>(null);
   const [tabla, setTabla] = useState(false);
   const max = Math.max(1, ...semanas.map((s) => s.enviadas));
@@ -135,7 +144,7 @@ function RitmoSemanal({ semanas }: { semanas: TableroDatos['semanas'] }) {
                       onPointerMove={(e) => setInfo({ ...anclar(e), ...datos })} onPointerLeave={() => setInfo(null)}
                       onFocus={(e) => setInfo({ ...anclar(e), ...datos })} onBlur={() => setInfo(null)} />
                     <span className="pointer-events-none w-full max-w-[24px] origin-bottom animate-crecer rounded-t-[4px] transition group-hover:brightness-110"
-                      style={{ height: `${Math.max(alto, s.enviadas ? 2 : 0)}%`, background: s.actual ? SERIE : SERIE_SUAVE, transform: 'scaleY(1)' }} />
+                      style={{ height: `${Math.max(alto, s.enviadas ? 2 : 0)}%`, background: s.actual ? pal.serie : pal.serieSuave, transform: 'scaleY(1)' }} />
                     {s.actual && s.enviadas > 0 && <span className="pointer-events-none absolute text-[11px] font-bold text-tinta-900" style={{ bottom: `calc(${alto}% + 4px)` }}>{s.enviadas}</span>}
                   </li>
                 );
@@ -163,6 +172,8 @@ const MOSAICO: Record<string, [string, number, number]> = {
 };
 
 function MapaEstados({ estados }: { estados: TableroDatos['estados'] }) {
+  const pal = usePaleta();
+  const ESCALA = pal.escala;
   const [info, setInfo] = useState<Info>(null);
   const [tabla, setTabla] = useState(false);
   const porNombre = new Map(estados.map((e) => [e.estado, e]));
@@ -191,7 +202,7 @@ function MapaEstados({ estados }: { estados: TableroDatos['estados'] }) {
               const k = nivel(n);
               const datos = { titulo: nombre, filas: [['Solicitudes', fmtNum.format(n)], ['Sucursales', fmtNum.format(e?.sucursales ?? 0)], ['Por revisar', fmtNum.format(e?.por_revisar ?? 0)], ['Prendas', fmtNum.format(e?.unidades ?? 0)]] as [string, string][] };
               return (
-                <button key={nombre} type="button" style={{ gridColumn: col + 1, gridRow: fila + 1, background: !e ? 'transparent' : k < 0 ? '#f1f3f5' : ESCALA[k], color: k < 0 ? '#5f7799' : TEXTO_SOBRE[k] }}
+                <button key={nombre} type="button" style={{ gridColumn: col + 1, gridRow: fila + 1, background: !e ? 'transparent' : k < 0 ? pal.vacio : ESCALA[k], color: k < 0 ? pal.textoVacio : pal.textoSobre[k] }}
                   className={cls('relative grid aspect-square place-items-center rounded-[6px] text-[10px] font-bold transition hover:scale-[1.06] hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2a78d6] sm:text-xs',
                     !e && 'border border-dashed border-tinta-200 text-tinta-300')}
                   aria-label={`${nombre}: ${n} solicitudes, ${e?.sucursales ?? 0} sucursales, ${e?.por_revisar ?? 0} por revisar`}
@@ -206,7 +217,7 @@ function MapaEstados({ estados }: { estados: TableroDatos['estados'] }) {
           </div>
           {sinUbicar.length > 0 && <p className="mt-2 text-center text-[11px] text-tinta-500">Sin ubicar en el mapa: {sinUbicar.map((e) => `${e.estado} (${e.solicitudes})`).join(', ')}</p>}
           <div className="mt-4 flex flex-wrap items-center justify-center gap-3 text-[11px] text-tinta-600" aria-hidden>
-            <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-[3px] bg-[#f1f3f5] ring-1 ring-tinta-200" />Sin solicitudes</span>
+            <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-[3px] ring-1 ring-tinta-200" style={{ background: pal.vacio }} />Sin solicitudes</span>
             <span className="flex items-center gap-1">
               {ESCALA.map((c) => <span key={c} className="h-3 w-6 rounded-[3px]" style={{ background: c }} />)}
             </span>
@@ -221,6 +232,7 @@ function MapaEstados({ estados }: { estados: TableroDatos['estados'] }) {
 }
 
 function Ranking({ zonas, divisiones }: { zonas: TableroDatos['zonas']; divisiones: TableroDatos['divisiones'] }) {
+  const pal = usePaleta();
   const [vista, setVista] = useState<'zonas' | 'divisiones'>('zonas');
   const [todas, setTodas] = useState(false);
   const lista = vista === 'zonas' ? zonas : divisiones;
@@ -246,7 +258,7 @@ function Ranking({ zonas, divisiones }: { zonas: TableroDatos['zonas']; division
                 <span className="text-right text-xs font-bold tabular-nums text-tinta-400">{i + 1}</span>
                 <span className="truncate font-semibold text-tinta-800" title={x.nombre}>{x.nombre}</span>
                 <span className="flex items-center gap-2">
-                  <span className="h-[14px] origin-left animate-crecer rounded-r-[4px]" style={{ width: `${(x.solicitudes / max) * 100}%`, minWidth: x.solicitudes ? 4 : 0, background: SERIE }} aria-hidden />
+                  <span className="h-[14px] origin-left animate-crecer rounded-r-[4px]" style={{ width: `${(x.solicitudes / max) * 100}%`, minWidth: x.solicitudes ? 4 : 0, background: pal.serie }} aria-hidden />
                   <span className="text-xs font-bold tabular-nums text-tinta-900">{x.solicitudes}</span>
                 </span>
                 <span className={cls('inline-flex min-w-[64px] items-center justify-end gap-0.5 text-xs font-semibold tabular-nums', cambio > 0 ? 'text-[#006300]' : cambio < 0 ? 'text-[#b42318]' : 'text-tinta-500')}
@@ -263,6 +275,27 @@ function Ranking({ zonas, divisiones }: { zonas: TableroDatos['zonas']; division
           {todas ? 'Ver menos' : `Ver las ${lista.length} ${vista}`}</button>
       )}
     </Tarjeta>
+  );
+}
+
+/** Siluetas con la forma exacta del tablero mientras llegan los datos. */
+function EsqueletoTablero() {
+  return (
+    <div role="status" aria-live="polite" className="space-y-4">
+      <span className="sr-only">Cargando el tablero ejecutivo…</span>
+      <div className="grid gap-4 lg:grid-cols-[1.25fr_2fr]">
+        <div className="vidrio space-y-3 rounded-2xl bg-white p-5"><Esqueleto className="h-3.5 w-48 rounded-md" /><Esqueleto className="h-14 w-40 rounded-xl" /><Esqueleto className="h-3 w-56 rounded-md opacity-70" /><Esqueleto className="h-3 w-full rounded-md opacity-60" /></div>
+        <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+          {Array.from({ length: 4 }, (_, i) => <div key={i} className="vidrio space-y-2.5 rounded-2xl bg-white p-4"><Esqueleto className="h-3 w-24 rounded-md" /><Esqueleto className="h-8 w-16 rounded-lg" /><Esqueleto className="h-3 w-28 rounded-md opacity-70" /></div>)}
+        </div>
+      </div>
+      <div className="grid gap-4 xl:grid-cols-2">
+        <div className="vidrio rounded-2xl bg-white p-5"><Esqueleto className="mb-5 h-4 w-60 rounded-md" />
+          <div className="flex h-48 items-end gap-2">{[45, 70, 50, 38, 72, 78, 62, 70, 85, 70, 100, 40].map((h, i) => <Esqueleto key={i} className="flex-1 rounded-t-md rounded-b-none" style={{ height: `${h}%` }} />)}</div></div>
+        <div className="vidrio rounded-2xl bg-white p-5"><Esqueleto className="mb-5 h-4 w-48 rounded-md" />
+          <div className="grid grid-cols-10 gap-1.5">{Array.from({ length: 34 }, (_, i) => <Esqueleto key={i} className="aspect-square rounded-[6px]" />)}</div></div>
+      </div>
+    </div>
   );
 }
 
@@ -285,14 +318,14 @@ export default function Tablero() {
           ))}
         </div>
       </div>
-      {!t ? <EsqueletoLista filas={4} /> : (
+      {!t ? <EsqueletoTablero /> : (
         <div className={cls('space-y-4 transition-opacity', recargando && 'opacity-60')}>
           <div className="grid gap-4 lg:grid-cols-[1.25fr_2fr]">
             {/* Cifra principal: la única de tamaño héroe */}
             <div className="vidrio relative overflow-hidden rounded-2xl bg-white p-5">
               <span className="pointer-events-none absolute -right-10 -top-12 h-40 w-40 rounded-full bg-[#5ec8d822]" aria-hidden />
               <p className="flex items-center gap-1.5 text-xs font-semibold text-tinta-600"><Clock3 className="h-4 w-4 text-[#0e7490]" aria-hidden />Tiempo promedio de aprobación</p>
-              <p className="mt-2 font-display text-[54px] font-extrabold leading-none tracking-tight text-tinta-900">{horasLegibles(t.tiempo_aprobacion.promedio_h)}</p>
+              <p className="mt-2 font-display text-[54px] font-extrabold leading-none tracking-tight text-tinta-900"><NumeroAnimado valor={horasLegibles(t.tiempo_aprobacion.promedio_h)} /></p>
               <div className="mt-3"><Delta actual={t.tiempo_aprobacion.promedio_h} anterior={t.tiempo_aprobacion.anterior_promedio_h} bueno={false} /></div>
               <p className="mt-2 text-xs text-tinta-500">Desde que la sucursal envía hasta que se aprueba · mediana {horasLegibles(t.tiempo_aprobacion.mediana_h)} · {fmtNum.format(t.tiempo_aprobacion.aprobadas)} aprobada(s)</p>
             </div>

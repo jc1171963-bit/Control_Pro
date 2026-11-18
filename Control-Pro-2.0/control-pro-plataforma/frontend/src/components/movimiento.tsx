@@ -17,25 +17,80 @@ export function Aparecer({ children, orden = 0, className, como = 'div' }: { chi
   return <Etiqueta className={cls('animate-aparecer', className)} style={{ animationDelay: `${Math.min(orden, 12) * 45}ms` }}>{children}</Etiqueta>;
 }
 
-/** Número que cuenta hacia arriba hasta su valor. */
-export function Contador({ valor, duracion = 700 }: { valor: number; duracion?: number }) {
-  const [mostrado, setMostrado] = useState(reducirMovimiento() ? valor : 0);
-  const previo = useRef(0);
+/** Número que cuenta hacia arriba hasta su valor (atajo de NumeroAnimado para enteros). */
+export function Contador({ valor, duracion = 900 }: { valor: number; duracion?: number }) {
+  return <NumeroAnimado valor={valor} duracion={duracion} />;
+}
+
+// Partes de un texto con cifras: "$228,860.00" → ["$", 228860 (2 decimales, con comas), ""]; "11.3 h", "94.4 %", "6 / 54".
+type Parte = string | { n: number; decimales: number; miles: boolean };
+const CIFRA = /\d[\d,]*(?:\.\d+)?/g;
+function partes(texto: string): Parte[] {
+  const out: Parte[] = [];
+  let ultimo = 0;
+  for (const m of texto.matchAll(CIFRA)) {
+    const crudo = m[0];
+    if (m.index! > ultimo) out.push(texto.slice(ultimo, m.index));
+    const dec = crudo.includes('.') ? crudo.split('.')[1].length : 0;
+    out.push({ n: Number(crudo.replace(/,/g, '')), decimales: dec, miles: crudo.includes(',') });
+    ultimo = m.index! + crudo.length;
+  }
+  if (ultimo < texto.length) out.push(texto.slice(ultimo));
+  return out;
+}
+const formatoCifra = (n: number, p: { decimales: number; miles: boolean }) =>
+  n.toLocaleString('en-US', { minimumFractionDigits: p.decimales, maximumFractionDigits: p.decimales, useGrouping: p.miles });
+
+/**
+ * Cifra que sube animada hasta su valor la primera vez que aparece en pantalla y, después, desde el valor anterior
+ * cuando cambia. Conserva el formato del texto (moneda, decimales, separador de miles, unidades como "h" o "%").
+ * El lector de pantalla recibe solo el valor final; sin IntersectionObserver o con "reducir movimiento" se muestra
+ * el valor final de inmediato.
+ */
+export function NumeroAnimado({ valor, duracion = 900, className }: { valor: string | number; duracion?: number; className?: string }) {
+  const texto = typeof valor === 'number' ? valor.toLocaleString('en-US') : valor;
+  const objetivo = partes(texto);
+  const cifras = objetivo.filter((p): p is Exclude<Parte, string> => typeof p !== 'string');
+  const animable = cifras.length > 0 && typeof window !== 'undefined' && 'IntersectionObserver' in window && !reducirMovimiento();
+  const ref = useRef<HTMLSpanElement>(null);
+  const previos = useRef<number[] | null>(null);
+  const [actuales, setActuales] = useState<number[]>(() => (animable ? cifras.map(() => 0) : cifras.map((c) => c.n)));
+  const clave = cifras.map((c) => c.n).join('|');
+
   useEffect(() => {
-    if (reducirMovimiento()) { setMostrado(valor); return; }
-    const desde = previo.current;
-    const inicio = performance.now();
+    if (!animable) { setActuales(cifras.map((c) => c.n)); return; }
+    const el = ref.current;
     let id = 0;
-    const paso = (t: number) => {
-      const avance = Math.min(1, (t - inicio) / duracion);
-      setMostrado(Math.round(desde + (valor - desde) * (1 - Math.pow(1 - avance, 3))));
-      if (avance < 1) id = requestAnimationFrame(paso);
-      else previo.current = valor;
+    let obs: IntersectionObserver | null = null;
+    const animar = () => {
+      const desde = previos.current ?? cifras.map(() => 0);
+      const hasta = cifras.map((c) => c.n);
+      const inicio = performance.now();
+      const paso = (t: number) => {
+        const a = Math.min(1, (t - inicio) / duracion);
+        const e = 1 - Math.pow(1 - a, 4); // desacelera al llegar
+        setActuales(hasta.map((h, i) => (desde[i] ?? 0) + (h - (desde[i] ?? 0)) * e));
+        if (a < 1) id = requestAnimationFrame(paso); else previos.current = hasta;
+      };
+      id = requestAnimationFrame(paso);
     };
-    id = requestAnimationFrame(paso);
-    return () => cancelAnimationFrame(id);
-  }, [valor, duracion]);
-  return <>{mostrado}</>;
+    if (previos.current) animar(); // ya se vio: anima el cambio de inmediato
+    else if (el) {
+      obs = new IntersectionObserver((entradas) => { if (entradas.some((x) => x.isIntersecting)) { obs?.disconnect(); animar(); } }, { threshold: 0.3 });
+      obs.observe(el);
+    }
+    return () => { cancelAnimationFrame(id); obs?.disconnect(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clave, animable, duracion]);
+
+  let i = 0;
+  const visible = objetivo.map((p) => (typeof p === 'string' ? p : formatoCifra(p.decimales ? actuales[i++] ?? p.n : Math.round(actuales[i++] ?? p.n), p))).join('');
+  // Mientras cuenta, el lector de pantalla oye solo el valor final; al terminar queda un único texto.
+  return (
+    <span ref={ref} className={cls('tabular-nums', className)}>
+      {visible === texto ? texto : <><span aria-hidden>{visible}</span><span className="sr-only">{texto}</span></>}
+    </span>
+  );
 }
 
 /** Palomita que se dibuja: confirma que una acción quedó registrada. */
@@ -49,13 +104,59 @@ export function Palomita({ className }: { className?: string }) {
   );
 }
 
-/** Silueta de carga con brillo (en lugar de un spinner). */
-export function Esqueleto({ className }: { className?: string }) {
-  return <div className={cls('animate-brillo rounded-xl bg-[linear-gradient(90deg,#EDE7DC_0%,#F7F4EF_50%,#EDE7DC_100%)] bg-[length:200%_100%]', className)} aria-hidden />;
+/** Silueta de carga con brillo (en lugar de un spinner). Los colores dependen del tema (clase .esqueleto en index.css). */
+export function Esqueleto({ className, style }: { className?: string; style?: React.CSSProperties }) {
+  return <div className={cls('esqueleto animate-brillo', !/\brounded/.test(className ?? '') && 'rounded-xl', className)} style={style} aria-hidden />;
 }
 
-export function EsqueletoLista({ filas = 4 }: { filas?: number }) {
-  return <div className="space-y-3" aria-label="Cargando" role="status">{Array.from({ length: filas }, (_, i) => <Esqueleto key={i} className="h-16" />)}</div>;
+/** Contenedor accesible: anuncia la carga una vez y oculta las siluetas a los lectores de pantalla. */
+function ContenedorCarga({ texto, children, className }: { texto: string; children: ReactNode; className?: string }) {
+  return <div role="status" aria-live="polite" className={className}><span className="sr-only">{texto}</span>{children}</div>;
+}
+
+/** Fila de lista: ícono, dos líneas de texto de distinto largo y una etiqueta de estado. */
+function FilaEsqueleto({ i }: { i: number }) {
+  const largo = ['w-2/5', 'w-1/3', 'w-1/2', 'w-[45%]'][i % 4];
+  return (
+    <div className="flex items-center gap-3 py-3">
+      <Esqueleto className="h-10 w-10 shrink-0 rounded-full" />
+      <div className="min-w-0 flex-1 space-y-2"><Esqueleto className={cls('h-3.5 rounded-md', largo)} /><Esqueleto className="h-3 w-1/4 rounded-md opacity-70" /></div>
+      <Esqueleto className="hidden h-6 w-20 shrink-0 rounded-full sm:block" />
+    </div>
+  );
+}
+
+export function EsqueletoLista({ filas = 4, texto = 'Cargando…' }: { filas?: number; texto?: string }) {
+  return <ContenedorCarga texto={texto} className="divide-y divide-tinta-100">{Array.from({ length: filas }, (_, i) => <FilaEsqueleto key={i} i={i} />)}</ContenedorCarga>;
+}
+
+/** Tabla: encabezado y filas con celdas de anchos variados. */
+export function EsqueletoTabla({ filas = 6, columnas = 6, texto = 'Cargando…' }: { filas?: number; columnas?: number; texto?: string }) {
+  const anchos = ['w-3/4', 'w-1/2', 'w-2/3', 'w-2/5', 'w-1/3', 'w-3/5'];
+  return (
+    <ContenedorCarga texto={texto} className="-mx-5 overflow-hidden">
+      <div className="flex gap-6 border-y border-tinta-100 bg-tinta-50/60 px-5 py-3">{Array.from({ length: columnas }, (_, c) => <Esqueleto key={c} className="h-2.5 flex-1 rounded opacity-70" />)}</div>
+      {Array.from({ length: filas }, (_, f) => (
+        <div key={f} className="flex items-center gap-6 border-b border-tinta-100 px-5 py-4 last:border-0">
+          {Array.from({ length: columnas }, (_, c) => <div key={c} className="flex-1"><Esqueleto className={cls('h-3.5 rounded-md', anchos[(f + c) % anchos.length])} /></div>)}
+        </div>
+      ))}
+    </ContenedorCarga>
+  );
+}
+
+/** Página completa (rutas que se cargan y detalles): título, cifras y dos bloques de contenido. */
+export function EsqueletoPagina({ texto = 'Cargando…' }: { texto?: string }) {
+  return (
+    <ContenedorCarga texto={texto} className="space-y-5 py-2">
+      <div className="space-y-2.5"><Esqueleto className="h-8 w-64 max-w-[70%] rounded-lg" /><Esqueleto className="h-3.5 w-80 max-w-[85%] rounded-md opacity-70" /></div>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{Array.from({ length: 4 }, (_, i) => <Esqueleto key={i} className="h-24 rounded-2xl" />)}</div>
+      <div className="grid gap-5 lg:grid-cols-3">
+        <div className="space-y-1 rounded-2xl p-1 lg:col-span-2">{Array.from({ length: 5 }, (_, i) => <FilaEsqueleto key={i} i={i} />)}</div>
+        <Esqueleto className="h-64 rounded-2xl" />
+      </div>
+    </ContenedorCarga>
+  );
 }
 
 export type Etapa = { clave: string; titulo: string; detalle?: ReactNode; estado: 'hecha' | 'actual' | 'pendiente' | 'alerta' };

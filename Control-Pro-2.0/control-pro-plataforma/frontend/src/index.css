@@ -5,6 +5,9 @@
 @layer base {
   /* Valores por defecto de `menta` (los mismos de siempre, en canales RGB). */
   :root {
+    /* Neutros (texto, bordes y fondos suaves). En modo oscuro la escala se invierte (ver html.oscuro más abajo). */
+    --tinta-50: 242 245 249; --tinta-100: 227 233 241; --tinta-200: 197 209 225; --tinta-300: 147 167 194; --tinta-400: 95 119 153;
+    --tinta-500: 62 85 118; --tinta-600: 42 63 92; --tinta-700: 29 48 73; --tinta-800: 20 43 74; --tinta-900: 15 34 56; --tinta-950: 9 24 42;
     --menta-50: 236 251 249; --menta-100: 207 245 240; --menta-200: 159 233 224; --menta-300: 98 214 201; --menta-400: 47 188 174;
     --menta-500: 15 159 148; --menta-600: 11 128 120; --menta-700: 13 102 97; --menta-800: 15 81 78; --menta-900: 15 67 65;
     /* Tienda LURIMA (valores de siempre). */
@@ -35,7 +38,7 @@
   }
   .tema-lu .boton-primario { background-color: rgb(var(--lurima-800)); }
   .tema-lu .boton-primario:hover:not(:disabled) { background-color: rgb(var(--lurima-700)); }
-  .tema-sd ::placeholder { color: theme('colors.tinta.400'); opacity: 1; }
+  .tema-sd ::placeholder { color: rgb(var(--tinta-400)); opacity: 1; }
   /* Botón primario del portal en el verde institucional oscuro (sd-900, 11:1 con blanco). Fuera de .tema-sd no aplica. */
   .tema-sd .boton-primario { background-color: theme('colors.sd.900'); }
   .tema-sd .boton-primario:hover:not(:disabled) { background-color: theme('colors.sd.700'); }
@@ -74,4 +77,148 @@
 @layer utilities {
   .contenedor { @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8; }
   .texto-equilibrado { text-wrap: balance; }
+}
+
+/* ===== MODO OSCURO ===== */
+/* Modo oscuro de los paneles (sucursales, aprobador y distribuidora). La clase `oscuro` en <html> la ponen solo los
+   layouts de los paneles (app/tema.ts). Superficies azul noche; los acentos de cada marca se conservan.
+   - Neutros: la escala `tinta` se invierte (texto claro, fondos y bordes oscuros).
+   - Acentos claros (menta/lurima 50-200) pasan a tintes oscuros y sus textos oscuros (700-950) a tonos claros.
+   - Los colores fijos (hex) de los layouts se sustituyen aquí uno por uno. */
+@layer base {
+  html.oscuro {
+    color-scheme: dark;
+    --tinta-50: 26 39 56; --tinta-100: 36 51 71; --tinta-200: 54 72 95; --tinta-300: 84 104 130; --tinta-400: 134 152 176;
+    --tinta-500: 156 173 195; --tinta-600: 178 193 212; --tinta-700: 199 211 226; --tinta-800: 216 226 238; --tinta-900: 231 238 246; --tinta-950: 243 247 251;
+    --superficie: 19 31 46; --superficie-2: 25 40 58; --fondo: 11 20 32;
+  }
+  html.oscuro .tema-sd {
+    --menta-50: 14 46 38; --menta-100: 17 62 50; --menta-200: 24 88 68; --menta-300: 60 170 128; --menta-400: 38 178 122;
+    --menta-700: 112 222 172; --menta-800: 142 232 192; --menta-900: 182 242 214;
+    --lurima-50: 22 36 52; --lurima-100: 28 45 64; --lurima-200: 44 63 86; --lurima-300: 96 118 146; --lurima-400: 140 160 186;
+    --lurima-500: 166 184 206; --lurima-600: 94 214 166; --lurima-700: 112 222 172; --lurima-800: 0 107 69;
+    --bienestar-50: 14 46 38; --bienestar-100: 17 62 50; --bienestar-700: 112 222 172;
+  }
+  html.oscuro .tema-lu {
+    --menta-50: 18 44 28; --menta-100: 24 60 37; --menta-200: 34 84 50; --menta-700: 140 214 152; --menta-800: 166 226 176; --menta-900: 196 238 203;
+    --lurima-50: 22 35 54; --lurima-100: 30 46 70; --lurima-200: 46 66 96; --lurima-300: 104 132 170; --lurima-400: 132 164 206;
+    --lurima-500: 150 182 224;
+    --bienestar-50: 18 44 28; --bienestar-100: 24 60 37; --bienestar-600: 120 200 135; --bienestar-700: 140 214 152;
+    --barra-titulo: #6f9fe0;
+  }
+  html.oscuro body { background-color: rgb(var(--fondo)); }
+  /* Cambio de tema sin View Transitions: los colores se desvanecen en vez de saltar. */
+  html.tema-cambiando, html.tema-cambiando *, html.tema-cambiando *::before, html.tema-cambiando *::after {
+    transition: background-color .3s ease, color .3s ease, border-color .3s ease, fill .3s ease, box-shadow .3s ease !important;
+  }
+}
+/* La revelación circular la anima app/tema.ts; aquí se quita el fundido por defecto. */
+::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+
+@layer utilities {
+  /* --- superficies blancas → azul noche --- */
+  html.oscuro .bg-white { background-color: rgb(var(--superficie)); }
+  html.oscuro .bg-white\/95 { background-color: rgb(var(--superficie) / .95); }
+  html.oscuro .bg-white\/90 { background-color: rgb(var(--superficie) / .9); }
+  html.oscuro .bg-white\/85, html.oscuro .hover\:bg-white\/85:hover { background-color: rgb(var(--superficie-2) / .85); }
+  html.oscuro .bg-white\/80, html.oscuro .hover\:bg-white\/80:hover { background-color: rgb(var(--superficie-2) / .8); }
+  html.oscuro .bg-white\/70 { background-color: rgb(var(--superficie) / .7); }
+  html.oscuro .bg-white\/60 { background-color: rgb(var(--superficie) / .62); }
+  html.oscuro .bg-white\/55, html.oscuro .bg-white\/50 { background-color: rgb(var(--superficie) / .58); }
+  html.oscuro .hover\:bg-white:hover { background-color: rgb(var(--superficie-2)); }
+  html.oscuro .hover\:bg-white\/60:hover { background-color: rgb(var(--superficie-2) / .7); }
+  html.oscuro :is(.border-white, .border-white\/80, .border-white\/70, .border-white\/60, .border-white\/55) { border-color: rgb(255 255 255 / .09); }
+  html.oscuro .ring-white { --tw-ring-color: rgb(255 255 255 / .1); }
+  html.oscuro .shadow-suave { box-shadow: 0 1px 2px rgb(0 0 0 / .3), 0 8px 24px -12px rgb(0 0 0 / .5); }
+
+  /* --- bloques oscuros que en claro llevan texto blanco: se vuelven claros con texto oscuro --- */
+  html.oscuro :is(.bg-tinta-700, .bg-tinta-800, .bg-tinta-900, .bg-tinta-950):is(.text-white) { color: rgb(var(--fondo)); }
+  html.oscuro .bg-tinta-950\/50 { background-color: rgb(2 6 12 / .66); }
+  html.oscuro .bg-tinta-900\/80 { background-color: rgb(2 6 12 / .75); }
+
+  /* --- arena (fondos cálidos de la tienda reutilizados en los paneles) --- */
+  html.oscuro .bg-arena-50, html.oscuro .hover\:bg-arena-50:hover { background-color: rgb(var(--superficie-2)); }
+  html.oscuro .bg-arena-100 { background-color: rgb(var(--tinta-50)); }
+  html.oscuro .bg-arena-200, html.oscuro .hover\:bg-arena-200:hover { background-color: rgb(var(--tinta-100)); }
+  html.oscuro :is(.ring-arena-200, .ring-arena-300) { --tw-ring-color: rgb(255 255 255 / .1); }
+  html.oscuro .border-arena-200, html.oscuro .divide-arena-200 > :not([hidden]) ~ :not([hidden]) { border-color: rgb(255 255 255 / .09); }
+
+  /* --- Salud Digna (colores fijos) --- */
+  html.oscuro :is(.bg-sd-50, .bg-sd-100, .bg-sd-bg, .hover\:bg-sd-50:hover) { background-color: rgb(var(--menta-50)); }
+  html.oscuro :is(.text-sd-900, .text-sd-950) { color: rgb(var(--menta-800)); }
+  html.oscuro .ring-sd-100 { --tw-ring-color: rgb(255 255 255 / .1); }
+
+  /* --- estados y avisos (paleta estándar) --- */
+  html.oscuro :is(.bg-sky-50, .bg-sky-100) { background-color: rgb(56 189 248 / .14); }
+  html.oscuro :is(.text-sky-700, .text-sky-800, .text-sky-900) { color: rgb(125 211 252); }
+  html.oscuro :is(.bg-amber-50, .bg-amber-100, .bg-amber-50\/60, .bg-amber-50\/50) { background-color: rgb(245 158 11 / .14); }
+  html.oscuro :is(.text-amber-700, .text-amber-800, .text-amber-900, .text-amber-950) { color: rgb(252 211 77); }
+  html.oscuro .bg-amber-200 { background-color: rgb(245 158 11 / .3); }
+  html.oscuro .bg-violet-100 { background-color: rgb(139 92 246 / .18); }
+  html.oscuro :is(.text-violet-700, .text-violet-800) { color: rgb(196 181 253); }
+  html.oscuro .bg-emerald-100 { background-color: rgb(16 185 129 / .16); }
+  html.oscuro :is(.text-emerald-700, .text-emerald-800) { color: rgb(110 231 183); }
+  html.oscuro :is(.bg-coral-50, .bg-coral-100, .hover\:bg-coral-50:hover) { background-color: rgb(228 87 46 / .14); }
+  html.oscuro :is(.text-coral-600, .text-coral-700, .hover\:text-coral-600:hover) { color: rgb(255 154 122); }
+  html.oscuro :is(.ring-sky-100, .ring-amber-100, .ring-amber-200, .ring-amber-300, .ring-coral-100, .ring-coral-200) { --tw-ring-color: rgb(255 255 255 / .1); }
+
+  /* --- colores fijos de los layouts de los paneles --- */
+  html.oscuro :is(.bg-\[\#d9eee9\], .bg-\[\#e8eef8\]) { background-color: rgb(var(--fondo)); }
+  html.oscuro :is(.text-\[\#102a31\], .text-\[\#142d32\], .hover\:text-\[\#102a31\]:hover) { color: rgb(var(--tinta-900)); }
+  html.oscuro :is(.text-\[\#71858b\], .text-\[\#52636a\], .text-\[\#898781\]) { color: rgb(var(--tinta-400)); }
+  html.oscuro .hover\:bg-\[\#e6f6f8\]:hover { background-color: rgb(14 116 144 / .22); }
+  html.oscuro .bg-\[\#ffdfad\] { background-color: rgb(245 158 11 / .2); }
+  html.oscuro .text-\[\#8a5300\] { color: rgb(252 211 77); }
+  html.oscuro .bg-\[\#6be5b8a8\] { background-color: rgb(16 185 129 / .2); }
+  html.oscuro .text-\[\#00664a\] { color: rgb(110 231 183); }
+  html.oscuro .bg-\[\#b5d9ff\] { background-color: rgb(56 140 248 / .2); }
+  html.oscuro .text-\[\#0b4f86\] { color: rgb(147 197 253); }
+  html.oscuro .text-\[\#0e7490\] { color: rgb(103 213 232); }
+  html.oscuro .text-\[\#0b9b6d\] { color: rgb(80 220 160); }
+  html.oscuro .text-\[\#006300\] { color: rgb(110 231 140); }
+  html.oscuro .text-\[\#b42318\] { color: rgb(255 140 125); }
+  html.oscuro :is(.bg-\[\#f1f3f5\], .bg-\[\#e1e0d9\]) { background-color: rgb(var(--tinta-100)); }
+  html.oscuro .bg-\[\#5ec8d82b\] { background-color: rgb(94 200 216 / .08); }
+  html.oscuro .bg-\[\#5fe1b62b\] { background-color: rgb(95 225 182 / .08); }
+}
+
+@layer components {
+  html.oscuro .tema-sd .vidrio, html.oscuro .tema-lu .vidrio {
+    background-color: rgb(var(--superficie) / .74);
+    box-shadow: 0 18px 55px rgb(0 0 0 / .35), inset 0 0 0 1px rgb(255 255 255 / .07);
+  }
+  /* Fondo animado de los paneles: noche con brillos tenues de la marca. */
+  html.oscuro .fondo-portal-base { background: linear-gradient(120deg, #08131c, #0b2621 40%, #0a1828 72%, #0c2420); }
+  html.oscuro .tema-lu .fondo-portal-base { background: linear-gradient(120deg, #0a1220, #0f2140 38%, #0c1f17 70%, #0d1a30); }
+  html.oscuro .fondo-portal-esfera { opacity: .2; }
+  html.oscuro .fondo-portal-icono { opacity: .1; border-color: rgb(255 255 255 / .08); }
+}
+
+@layer utilities {
+  /* La insignia ámbar del menú conserva su texto oscuro (sobre ámbar intenso). */
+  html.oscuro .bg-amber-400.text-amber-950 { color: rgb(69 26 3); }
+  html.oscuro .bg-\[\#c3c2b7\] { background-color: rgb(var(--tinta-300)); }
+  /* Tarjeta de lema al pie del menú lateral. */
+  html.oscuro .lema-panel { background-image: linear-gradient(to bottom right, rgb(14 116 144 / .22), rgb(16 185 129 / .14)); box-shadow: inset 0 0 0 1px rgb(255 255 255 / .06); }
+}
+
+@layer utilities {
+  html.oscuro .bg-white\/75 { background-color: rgb(var(--superficie) / .75); }
+  html.oscuro .bg-white\/65 { background-color: rgb(var(--superficie-2) / .7); }
+  html.oscuro .bg-white\/45 { background-color: rgb(var(--superficie) / .5); }
+  html.oscuro .hover\:bg-white\/70:hover { background-color: rgb(var(--superficie-2) / .75); }
+  /* Textos de marca muy oscuros → claros (los fondos con esos tonos se conservan). */
+  html.oscuro :is(.text-lurima-900, .text-lurima-950, .hover\:text-lurima-900:hover, .group:hover .group-hover\:text-lurima-900) { color: rgb(226 236 250); }
+  html.oscuro :is(.text-lurima-800, .hover\:text-lurima-800:hover) { color: rgb(196 214 242); }
+  html.oscuro .tema-sd :is(.text-lurima-900, .text-lurima-950) { color: rgb(220 240 231); }
+  html.oscuro .tema-sd .text-lurima-800 { color: rgb(160 230 196); }
+  /* Fotos de los encabezados: más tenues de noche para no deslumbrar. */
+  html.oscuro .foto-encabezado { filter: brightness(.62) saturate(.9); }
+}
+
+/* Esqueletos de carga (claro y oscuro): una franja de luz recorre la silueta. Tienda: tonos arena; paneles: neutros. */
+@layer components {
+  .esqueleto { background-image: linear-gradient(90deg, #EDE7DC 0%, #F7F4EF 50%, #EDE7DC 100%); background-size: 200% 100%; }
+  .tema-sd .esqueleto, .tema-lu .esqueleto { background-image: linear-gradient(100deg, rgb(var(--tinta-100) / .85) 30%, rgb(var(--tinta-50) / .95) 50%, rgb(var(--tinta-100) / .85) 70%); }
+  html.oscuro .esqueleto { background-image: linear-gradient(100deg, rgb(var(--tinta-50)) 30%, rgb(var(--tinta-100)) 50%, rgb(var(--tinta-50)) 70%); }
 }

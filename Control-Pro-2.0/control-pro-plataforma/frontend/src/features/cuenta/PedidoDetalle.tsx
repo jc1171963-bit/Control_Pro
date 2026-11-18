@@ -138,7 +138,7 @@ export default function PedidoDetalle() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['pedido', id] }), onError: (e) => avisar(mensajeError(e), 'error'),
   });
 
-  if (q.isLoading) return <Cargando />;
+  if (q.isLoading) return <Cargando forma="pagina" />;
   if (!q.data) return <ErrorCaja error={q.error} />;
   const p = q.data;
   if (p.canal === 'corporativo') return <DetalleSolicitud p={p} />;

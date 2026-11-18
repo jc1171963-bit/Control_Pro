@@ -4,7 +4,9 @@ export default {
   theme: {
     extend: {
       colors: {
-        tinta: { DEFAULT: '#0F2238', 50: '#F2F5F9', 100: '#E3E9F1', 200: '#C5D1E1', 300: '#93A7C2', 400: '#5F7799', 500: '#3E5576', 600: '#2A3F5C', 700: '#1D3049', 800: '#142B4A', 900: '#0F2238', 950: '#09182A' },
+        // `tinta` es una variable CSS (valores en :root de index.css). En modo oscuro (html.oscuro) la escala se invierte:
+        // los tonos que eran texto oscuro pasan a texto claro y los fondos claros a superficies oscuras.
+        tinta: { DEFAULT: 'rgb(var(--tinta-900) / <alpha-value>)', ...Object.fromEntries([50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950].map((n) => [n, `rgb(var(--tinta-${n}) / <alpha-value>)`])) },
         // `menta` es una variable CSS: por defecto vale lo mismo que antes (ver :root en index.css) y el portal de
         // sucursales la redefine dentro de su layout (.tema-sd). Fuera del portal el resultado es idéntico.
         menta: { DEFAULT: 'rgb(var(--menta-500) / <alpha-value>)', ...Object.fromEntries([50, 100, 200, 300, 400, 500, 600, 700, 800, 900].map((n) => [n, `rgb(var(--menta-${n}) / <alpha-value>)`])) },
@@ -43,6 +45,9 @@ export default {
         destello: { '0%': { transform: 'translateX(-100%)' }, '55%,100%': { transform: 'translateX(100%)' } },
         // Acercamiento lento de las fotos de producto mientras se muestran (galería en movimiento).
         kenburns: { '0%': { transform: 'scale(1) translate(0,0)' }, '100%': { transform: 'scale(1.09) translate(-1.5%,-1%)' } },
+        // Celebración: la tarjeta entra con un pequeño rebote y sale desvaneciéndose; la onda se expande desde la palomita.
+        celebrar: { '0%': { opacity: '0', transform: 'scale(.6) translateY(20px)' }, '12%': { opacity: '1', transform: 'scale(1.04)' }, '18%': { transform: 'scale(1)' }, '86%': { opacity: '1', transform: 'scale(1)' }, '100%': { opacity: '0', transform: 'scale(.96) translateY(-8px)' } },
+        onda: { '0%': { transform: 'scale(1)', opacity: '.7' }, '100%': { transform: 'scale(1.75)', opacity: '0' } },
       },
       animation: {
         aparecer: 'aparecer .45s cubic-bezier(.2,.8,.2,1) both',
@@ -58,6 +63,8 @@ export default {
         deriva: 'deriva 17s ease-in-out infinite alternate',
         destello: 'destello 8s ease-in-out infinite',
         kenburns: 'kenburns 4.6s ease-out both',
+        celebrar: 'celebrar 3.4s cubic-bezier(.2,.8,.2,1) both',
+        onda: 'onda 1.1s ease-out .35s 2 both',
       },
     },
   },

@@ -10,6 +10,7 @@ import { AlertTriangle, ArrowLeft, ArrowRight, Check, Plus, Save, Search, Send, 
 import { claveIdempotencia, get, post, put } from '../../api/cliente';
 import type { Direccion, Pedido, ProductoDetalle, ProductoResumen } from '../../api/tipos';
 import { Aviso, Boton, Campo, Cargando, Entrada, ErrorCaja, Modal, Selector, Tarjeta, Texto, useAviso, Vacio } from '../../components/ui';
+import { useCelebrar } from '../../components/Celebracion';
 import Cantidad from '../../components/Cantidad';
 import SelectorVariante, { useSeleccionVariante } from '../../components/SelectorVariante';
 import Visor360 from '../../components/Visor360';
@@ -37,7 +38,7 @@ function SelectorArticulo({ producto, empleado, puestos, onAgregar, onCerrar }: 
   const [excepcion, setExcepcion] = useState('');
   const ok = elegible(puestos, empleado.puesto, producto.id);
   const giro = det.data?.giros.find((g) => g.color === color) ?? det.data?.giros.find((g) => g.color === null);
-  if (det.isLoading) return <Cargando />;
+  if (det.isLoading) return <Cargando forma="pagina" />;
   return (
     <div className="grid gap-5 sm:grid-cols-[220px_1fr]">
       <div className="aspect-square overflow-hidden rounded-2xl bg-white ring-1 ring-arena-200">
@@ -69,6 +70,7 @@ export default function ConstructorSolicitud() {
   const nav = useNavigate();
   const qc = useQueryClient();
   const avisar = useAviso();
+  const celebrar = useCelebrar();
   const empleados = useQuery({ queryKey: ['empleados'], queryFn: () => get<EmpleadoCorporativo[]>('/cuenta/empleados') });
   const catalogo = useQuery({ queryKey: ['catalogo-completo'], queryFn: catalogoCompleto, staleTime: 300_000 });
   const puestos = useQuery({ queryKey: ['puestos-autorizados'], queryFn: () => get<PuestosAutorizados>('/cuenta/puestos-autorizados') });
@@ -159,6 +161,7 @@ export default function ConstructorSolicitud() {
         if (!id) nav(`/cuenta/solicitudes/${p.id}/editar`, { replace: true });
       } else {
         avisar(enviar ? `Solicitud ${p.folio} enviada a revisión.` : 'Solicitud corregida y reenviada.');
+        celebrar({ titulo: enviar ? `¡Solicitud ${p.folio} enviada!` : `Solicitud ${p.folio} reenviada`, texto: 'Quedó en revisión con el aprobador corporativo. Te avisaremos de cada avance.' });
         setEnviada(true);
         nav(`/cuenta/pedidos/${p.id}?nuevo=1`);
       }
@@ -179,7 +182,7 @@ export default function ConstructorSolicitud() {
   const cambiar = (clave: string, cambios: Partial<Linea>) => { setLineas((ls) => ls.map((x) => (x.clave === clave ? { ...x, ...cambios } : x))); setSucio(true); };
   const quitar = (clave: string) => { setLineas((ls) => ls.filter((x) => x.clave !== clave)); setSucio(true); };
 
-  if (empleados.isLoading || catalogo.isLoading || (id && previo.isLoading)) return <Cargando texto="Preparando la solicitud…" />;
+  if (empleados.isLoading || catalogo.isLoading || (id && previo.isLoading)) return <Cargando forma="pagina" texto="Preparando la solicitud…" />;
   if (previo.data && !editable && !enviada) return <Navigate to={`/cuenta/pedidos/${id}`} replace />;
   if (!activos.length) return <Tarjeta titulo="Nueva solicitud"><Vacio titulo="Primero registra a tus empleados" texto="Cada artículo de la solicitud se asigna a una persona de tu sucursal." accion={<Link to="/cuenta/empleados" className="mt-2 font-semibold text-menta-700">Ir a Empleados →</Link>} /></Tarjeta>;
 

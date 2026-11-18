@@ -10,7 +10,7 @@ import type { Notificacion, Pagina, PedidoResumen, ResumenSucursal } from '../..
 import { useAuth } from '../../app/auth';
 import { useBorradores } from '../../app/borradores';
 import { Boton, ErrorCaja, Estado, Tarjeta, Vacio } from '../../components/ui';
-import { EsqueletoLista } from '../../components/movimiento';
+import { EsqueletoLista, NumeroAnimado } from '../../components/movimiento';
 import { cls, fecha, fechaHora } from '../../lib/formato';
 import ContactoZona from './ContactoZona';
 import { RUTA_CATALOGO_PORTAL } from './rutas';
@@ -42,7 +42,7 @@ function CifraPortal({ orden, etiqueta, valor, detalle, icono, alerta = false }:
       <span className="pointer-events-none absolute -right-6 -top-9 h-[90px] w-[90px] rounded-full bg-[#5fe1b62b]" aria-hidden />
       <span className={cls('grid h-11 w-11 shrink-0 place-items-center rounded-full sm:h-[58px] sm:w-[58px] [&>svg]:h-5 [&>svg]:w-5 sm:[&>svg]:h-6 sm:[&>svg]:w-6', alerta ? 'bg-amber-200 text-amber-800' : FONDOS_CIFRA[orden % 4])} aria-hidden>{icono}</span>
       <div className="relative min-w-0">
-        <div className="font-display text-[27px] font-extrabold leading-none sm:text-[34px]">{valor}</div>
+        <div className="font-display text-[27px] font-extrabold leading-none sm:text-[34px]"><NumeroAnimado valor={valor} /></div>
         <p className="mt-1.5 text-xs font-bold sm:text-sm">{etiqueta}</p>
         {detalle && <div className="mt-1 text-[11px] text-[#71858b]">{detalle}</div>}
       </div>
@@ -67,7 +67,7 @@ function Distribucion({ s }: { s: ResumenSucursal['solicitudes'] }) {
     <section aria-labelledby="t-distribucion" className="vidrio rounded-2xl bg-white p-5 sm:p-6">
       <header className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 id="t-distribucion" className="font-display text-base font-bold text-tinta-900">Distribución de solicitudes</h2>
-        <p className="text-sm text-tinta-500"><span className="font-display text-2xl font-extrabold text-tinta-900">{total}</span> en total</p>
+        <p className="text-sm text-tinta-500"><span className="font-display text-2xl font-extrabold text-tinta-900"><NumeroAnimado valor={total} /></span> en total</p>
       </header>
       {total === 0 ? <p className="mt-4 text-sm text-tinta-500">Aún no hay solicitudes para mostrar.</p> : (
         <>
@@ -135,7 +135,7 @@ function InicioEmpresa() {
   return (
     <div className="space-y-6">
       <section className="relative isolate flex min-h-[290px] items-center overflow-hidden rounded-[29px] border border-white/55 p-6 text-white shadow-[0_18px_55px_rgba(25,91,87,.13)] sm:px-10 sm:py-8">
-        <img src="/assets/escenas/pasillo-clinico.webp" alt="" width={1400} height={900} className="absolute inset-0 -z-20 h-full w-full object-cover object-[62%_center] sm:object-[center_42%]" aria-hidden />
+        <img src="/assets/escenas/pasillo-clinico.webp" alt="" width={1400} height={900} className="foto-encabezado absolute inset-0 -z-20 h-full w-full object-cover object-[62%_center] sm:object-[center_42%]" aria-hidden />
         <span className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,rgba(0,78,62,.97),rgba(0,92,74,.8))] sm:bg-[linear-gradient(90deg,rgba(0,78,62,.98),rgba(0,92,74,.86)_42%,rgba(0,92,74,.08))]" aria-hidden />
         <span className="pointer-events-none absolute inset-0 animate-destello bg-[linear-gradient(110deg,transparent_40%,#b7ffe41a_65%,transparent_82%)]" aria-hidden />
         <div className="relative max-w-[560px]">

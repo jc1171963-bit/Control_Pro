@@ -7,6 +7,7 @@ import { get, post } from '../../api/cliente';
 import type { Pagina, PermisoPadron } from '../../api/tipos';
 import { Boton, Campo, Cargando, Entrada, ErrorCaja, Modal, Paginacion, Selector, Tarjeta, useAviso, Vacio } from '../../components/ui';
 import { cls, fechaHora } from '../../lib/formato';
+import { NumeroAnimado } from '../../components/movimiento';
 
 type Respuesta = Pagina<PermisoPadron> & { conteo: { pendientes: number; vigentes: number } };
 
@@ -55,8 +56,8 @@ export default function Permisos() {
         <p className="text-sm text-tinta-500">Las sucursales necesitan tu autorización para dar de alta, editar o desactivar empleados.</p></div>
       {q.data && (
         <div className="grid grid-cols-2 gap-3 sm:max-w-md">
-          <div className="vidrio rounded-2xl bg-white p-4"><p className="font-display text-3xl font-extrabold">{q.data.conteo.pendientes}</p><p className="text-xs font-bold text-tinta-600">Por autorizar</p></div>
-          <div className="vidrio rounded-2xl bg-white p-4"><p className="font-display text-3xl font-extrabold">{q.data.conteo.vigentes}</p><p className="text-xs font-bold text-tinta-600">Vigentes ahora</p></div>
+          <div className="vidrio rounded-2xl bg-white p-4"><p className="font-display text-3xl font-extrabold"><NumeroAnimado valor={q.data.conteo.pendientes} /></p><p className="text-xs font-bold text-tinta-600">Por autorizar</p></div>
+          <div className="vidrio rounded-2xl bg-white p-4"><p className="font-display text-3xl font-extrabold"><NumeroAnimado valor={q.data.conteo.vigentes} /></p><p className="text-xs font-bold text-tinta-600">Vigentes ahora</p></div>
         </div>
       )}
       <Tarjeta>

@@ -7,7 +7,8 @@ import type { Pagina, Pedido, PedidoResumen } from '../../api/tipos';
 import { useAuth } from '../../app/auth';
 import { useConfig } from '../../app/config';
 import LineaTiempoSolicitud from '../../components/LineaTiempoSolicitud';
-import { esAprobador, useBasePanel } from '../../app/panel';
+import { BASE_APROBADOR, esAprobador, useBasePanel } from '../../app/panel';
+import { useCelebrar } from '../../components/Celebracion';
 import { BotonWhatsApp, ChatSolicitud } from '../colaboracion/Mensajes';
 import { Aviso, Boton, Campo, Cargando, Entrada, ErrorCaja, Estado, Modal, Paginacion, Selector, Tabla, Tarjeta, Td, Texto, useAviso } from '../../components/ui';
 import { cls, dinero, etiqueta, fechaHora, METODOS, mensajeError, PROBLEMAS_RECEPCION } from '../../lib/formato';
@@ -42,7 +43,7 @@ export function Pedidos() {
           {ESTADOS_FILTRO.map(([v, n]) => <button key={v} onClick={() => set('estado', v)} className={cls('rounded-full px-3 py-1 text-xs font-semibold ring-1', (params.get('estado') || '') === v ? 'bg-tinta-900 text-white ring-tinta-900' : 'ring-tinta-200 hover:bg-tinta-50')}>{n}</button>)}
         </div>
         <ErrorCaja error={q.error} />
-        {q.isLoading ? <Cargando /> : (
+        {q.isLoading ? <Cargando forma="tabla" /> : (
           <Tabla columnas={['Folio', 'Fecha', 'Cliente', 'Canal', 'Sucursales', 'Artículos', 'Total', 'Estado']} vacia={!q.data?.items.length}>
             {q.data?.items.map((p) => (
               <tr key={p.id} className="hover:bg-tinta-50/60">
@@ -154,6 +155,7 @@ export function PedidoAdmin() {
   const aprobador = esAprobador(usuario);
   const qc = useQueryClient();
   const avisar = useAviso();
+  const celebrar = useCelebrar();
   const q = useQuery({ queryKey: ['admin-pedido', id], queryFn: () => get<Pedido>(`/admin/pedidos/${id}`) });
   const [modal, setModal] = useState<'aprobar' | 'autorizar' | 'devuelto' | 'rechazado' | 'cancelar' | 'cerrar' | 'efectivo' | 'incidencia' | null>(null);
   const [texto, setTexto] = useState('');
@@ -175,12 +177,19 @@ export function PedidoAdmin() {
         case 'incidencia': return post('/admin/incidencias', { tipo: tipoInc, descripcion: texto, pedido_id: Number(id), prioridad: 'media' });
       }
     },
-    onSuccess: () => { refrescar(); avisar('Operación registrada.'); setModal(null); setTexto(''); setClave(claveIdempotencia('efectivo')); },
+    onSuccess: () => {
+      refrescar(); setTexto(''); setClave(claveIdempotencia('efectivo'));
+      const folio = q.data?.folio ?? '';
+      if (modal === 'aprobar') celebrar({ titulo: `Solicitud ${folio} aprobada`, texto: 'La sucursal y la distribuidora ya recibieron el aviso.', paleta: base === BASE_APROBADOR ? 'sd' : 'lurima' });
+      else if (modal === 'autorizar') celebrar({ titulo: `Solicitud ${folio} autorizada`, texto: 'Quedó confirmada y el almacén ya puede surtirla.', paleta: 'lurima' });
+      else avisar('Operación registrada.');
+      setModal(null);
+    },
   });
   const validar = useMutation({ mutationFn: ({ pid }: { pid: number }) => post(`/admin/pagos/${pid}/validar`, { nota: 'Validado desde el detalle del pedido' }),
     onSuccess: () => { refrescar(); avisar('Pago actualizado.'); }, onError: (e) => avisar(mensajeError(e), 'error') });
 
-  if (q.isLoading) return <Cargando />;
+  if (q.isLoading) return <Cargando forma="pagina" />;
   if (!q.data) return <ErrorCaja error={q.error} />;
   const p = q.data;
   const excepciones = p.detalles.some((d) => d.excepcion);

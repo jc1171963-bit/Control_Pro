@@ -28,7 +28,7 @@ export function CatalogoAdmin() {
       <Tarjeta>
         <form onSubmit={(e) => { e.preventDefault(); setBusqueda(texto); setPagina(1); }} className="relative mb-4 max-w-sm"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-tinta-300" />
           <Entrada value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Nombre o SKU" className="pl-9" /></form>
-        {q.isLoading ? <Cargando /> : (
+        {q.isLoading ? <Cargando forma="tabla" /> : (
           <Tabla columnas={['', 'Producto', 'Categoría', 'Variantes', 'Precio', 'Existencia', 'Estado']} vacia={!q.data?.items.length}>
             {q.data?.items.map((p) => (
               <tr key={p.id} className="hover:bg-tinta-50/60">
@@ -88,7 +88,7 @@ export function ProductoEditor() {
   const editable = puede('catalogo.gestionar');
   const colores = [...new Map(vars.filter((v) => v.color.trim()).map((v) => [v.color, v.color_hex])).entries()];
 
-  if (!nuevo && q.isLoading) return <Cargando />;
+  if (!nuevo && q.isLoading) return <Cargando forma="pagina" />;
   return (
     <>
       <Encabezado titulo={nuevo ? 'Nuevo producto' : f.nombre} sub={nuevo ? 'Alta en el catálogo maestro' : `SKU base ${f.sku_base} · ${vars.length} variante(s) activas`}>
@@ -261,7 +261,7 @@ export function Promociones() {
         {puede('promocion.gestionar') && <Boton icono={<Plus className="h-4 w-4" />} onClick={() => abrir('nueva')}>Nueva promoción</Boton>}
       </Encabezado>
       <Tarjeta>
-        {q.isLoading ? <Cargando /> : (
+        {q.isLoading ? <Cargando forma="tabla" /> : (
           <Tabla columnas={['Nombre', 'Descuento', 'Alcance', 'Vigencia', 'Productos', 'Estado', '']} vacia={!q.data?.length}>
             {q.data?.map((p) => {
               const vigente = p.activo && +new Date(p.inicio) <= ahora && +new Date(p.fin) > ahora;
