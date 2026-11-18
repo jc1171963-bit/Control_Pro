@@ -70,3 +70,18 @@ class Mensaje(db.Model):
         CheckConstraint("char_length(texto) between 1 and 2000", name="ck_mensaje_texto"),
         Index("ix_mensaje_conversacion", "conversacion_id", "id"),
     )
+
+
+class PushSuscripcion(db.Model):
+    """Dispositivo (navegador o app instalada) suscrito a notificaciones push de una cuenta. El `endpoint` lo da el
+    servicio push del navegador; `p256dh` y `auth` cifran el mensaje para ese dispositivo."""
+    __tablename__ = "push_suscripcion"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    usuario_id: Mapped[int | None] = mapped_column(ForeignKey("usuario.id", ondelete="CASCADE"), index=True)
+    cliente_id: Mapped[int | None] = mapped_column(ForeignKey("cliente.id", ondelete="CASCADE"), index=True)
+    endpoint: Mapped[str] = mapped_column(Text, unique=True)
+    p256dh: Mapped[str] = mapped_column(String(200))
+    auth: Mapped[str] = mapped_column(String(100))
+    agente: Mapped[str | None] = mapped_column(String(200))
+    creado: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    __table_args__ = (CheckConstraint("num_nonnulls(usuario_id, cliente_id) = 1", name="ck_push_dueno"),)

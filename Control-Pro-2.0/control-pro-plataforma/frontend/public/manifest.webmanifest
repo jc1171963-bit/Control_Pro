@@ -1,0 +1,25 @@
+{
+  "id": "/entrar",
+  "name": "LURIMA · Uniformes",
+  "short_name": "LURIMA",
+  "description": "Solicitudes de uniformes de las sucursales, aprobación corporativa y seguimiento de cada envío.",
+  "lang": "es-MX",
+  "dir": "ltr",
+  "start_url": "/entrar?origen=app",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#ffffff",
+  "theme_color": "#1c2b4a",
+  "categories": ["business", "productivity"],
+  "icons": [
+    { "src": "/icons/icono-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icono-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icono-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Mis solicitudes", "short_name": "Solicitudes", "url": "/cuenta/solicitudes", "icons": [{ "src": "/icons/icono-192.png", "sizes": "192x192" }] },
+    { "name": "Solicitudes por revisar", "short_name": "Por revisar", "url": "/aprobador/solicitudes?estado=en_revision", "icons": [{ "src": "/icons/icono-192.png", "sizes": "192x192" }] },
+    { "name": "Notificaciones", "url": "/cuenta/notificaciones", "icons": [{ "src": "/icons/icono-192.png", "sizes": "192x192" }] }
+  ]
+}

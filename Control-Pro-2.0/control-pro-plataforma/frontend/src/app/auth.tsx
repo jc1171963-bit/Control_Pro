@@ -2,6 +2,7 @@ import { createContext, ReactNode, useCallback, useContext, useEffect, useState 
 import { useQueryClient } from '@tanstack/react-query';
 import { post, renovar, sesion, TipoSesion, ultimaRenovacion } from '../api/cliente';
 import type { Cliente, Usuario } from '../api/tipos';
+import { olvidarDispositivo, revisarSuscripcion } from './pwa';
 
 type Estado = { tipo: TipoSesion | null; cliente: Cliente | null; usuario: Usuario | null; cargando: boolean };
 type Ctx = Estado & {
@@ -23,6 +24,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const aplicar = useCallback((tipo: TipoSesion, cuenta: any, token?: string) => {
     if (token) sesion.fijar(token);
+    void revisarSuscripcion(`${tipo}:${cuenta?.id ?? ''}`);
     setEstado({ tipo, cliente: tipo === 'cliente' ? cuenta : null, usuario: tipo === 'usuario' ? cuenta : null, cargando: false });
   }, []);
 
@@ -61,6 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       aplicar('cliente', d.cuenta, d.access_token);
     },
     async salir() {
+      await olvidarDispositivo(); // los avisos de esta cuenta no deben seguir llegando a este dispositivo
       const csrf = document.cookie.split('; ').find((c) => c.startsWith('csrf_refresh_token='))?.split('=')[1];
       await fetch('/api/auth/logout', {
         method: 'POST', credentials: 'include',

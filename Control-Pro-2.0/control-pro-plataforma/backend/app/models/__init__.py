@@ -2,7 +2,7 @@ from .base import ahora  # noqa: F401
 from .catalogo import (Categoria, Producto, ProductoGiro, ProductoImagen, ProductoPuesto, ProductoSucursal,  # noqa: F401
                        Promocion, Variante)
 from .clientes import Cliente, Direccion, Division, EmpleadoCorporativo, Zona  # noqa: F401
-from .colaboracion import Conversacion, Mensaje, PermisoPadron  # noqa: F401
+from .colaboracion import Conversacion, Mensaje, PermisoPadron, PushSuscripcion  # noqa: F401
 from .inventario import Inventario, MovimientoInventario, Transferencia, TransferenciaDetalle  # noqa: F401
 from .operacion import (Auditoria, Devolucion, DevolucionDetalle, EntregaIndividual, EntregaIndividualDetalle,  # noqa: F401
                         Envio, EventoEnvio, Incidencia, IncidenciaSeguimiento, Notificacion, Pago, Paquete,

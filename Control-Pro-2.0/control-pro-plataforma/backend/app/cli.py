@@ -54,6 +54,19 @@ def registrar_comandos(app):
         for antes, despues in r["correos_cambiados"]:
             click.echo(f"  {antes} -> {despues}")
 
+    @app.cli.command("simular-actividad")
+    @click.option("--semanas", default=12, show_default=True)
+    @click.option("--solicitudes", default=160, show_default=True)
+    @click.option("--borrar", is_flag=True, help="Elimina toda la actividad simulada (folios SIM-).")
+    def simular_actividad(semanas, solicitudes, borrar):
+        """Solicitudes SIMULADAS (folio SIM-) con historial realista, para demostrar el tablero. Solo demostraciones."""
+        from seeds.simular_actividad import borrar as borrar_sim, simular
+        if borrar:
+            click.echo(f"Solicitudes simuladas eliminadas: {borrar_sim()}.")
+            return
+        r = simular(semanas, solicitudes)
+        click.echo(f"Solicitudes simuladas: {r['solicitudes']} en {r['sucursales']} sucursales posibles.")
+
     @app.cli.command("cargar-fotos")
     def cargar_fotos():
         """Asigna a cada producto sus fotografías y video ilustrativos de stock (seeds/fotos_stock). Se puede repetir."""

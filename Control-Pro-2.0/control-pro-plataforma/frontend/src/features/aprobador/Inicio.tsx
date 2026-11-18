@@ -14,6 +14,7 @@ import { EsqueletoLista } from '../../components/movimiento';
 import { fechaHora } from '../../lib/formato';
 import PanelSolicitudes from '../admin/PanelSolicitudes';
 import { AREA_APROBADOR, useContadoresAprobador } from './AprobadorLayout';
+import Tablero from './Tablero';
 
 const fechaLarga = () => new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -72,6 +73,8 @@ export default function InicioAprobador() {
           <Pendiente a={`${BASE_APROBADOR}/mensajes`} icono={<MessagesSquare className="h-6 w-6" />} valor={c.mensajes} titulo="Mensajes sin leer" texto="Sucursales y distribuidora" fondo="bg-[#b5d9ff] text-[#0b4f86]" />
         </div>
       </section>
+
+      <Tablero />
 
       <div className="grid gap-5 lg:grid-cols-2">
         <Tarjeta titulo="Solicitudes por revisar" sub="Las más recientes de las sucursales"

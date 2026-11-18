@@ -86,10 +86,13 @@ def registrar_incidencia(**campos):
 
 
 def notificar_cliente(cliente_id: int, evento: str, entidad: str, entidad_id: int, mensaje: str, enlace: str | None = None):
-    db.session.execute(insert(Notificacion).values(
+    from .push_service import encolar
+    r = db.session.execute(insert(Notificacion).values(
         cliente_id=cliente_id, evento=evento, entidad=entidad, entidad_id=entidad_id, mensaje=mensaje[:300],
         enlace=enlace,
-    ).on_conflict_do_nothing(constraint="uq_notif_evento"))
+    ).on_conflict_do_nothing(constraint="uq_notif_evento").returning(Notificacion.id))
+    if r.first():  # solo avisos nuevos (los repetidos no vuelven a sonar)
+        encolar(cliente_ids=[cliente_id], evento=evento, mensaje=mensaje, enlace=enlace)
 
 
 def notificar_personal(permiso: str, evento: str, entidad: str, entidad_id: int, mensaje: str,
@@ -106,11 +109,17 @@ def notificar_personal(permiso: str, evento: str, entidad: str, entidad_id: int,
         consulta = consulta.where(or_(Rol.alcance_global.is_(True), Usuario.id.in_(en_sucursal)))
     else:
         consulta = consulta.where(Rol.alcance_global.is_(True))
+    from .push_service import encolar
+    nuevos = []
     for usuario_id in db.session.scalars(consulta.distinct()):
-        db.session.execute(insert(Notificacion).values(
+        r = db.session.execute(insert(Notificacion).values(
             usuario_id=usuario_id, evento=evento, entidad=entidad, entidad_id=entidad_id, mensaje=mensaje[:300],
             enlace=enlace,
-        ).on_conflict_do_nothing(constraint="uq_notif_evento"))
+        ).on_conflict_do_nothing(constraint="uq_notif_evento").returning(Notificacion.id))
+        if r.first():
+            nuevos.append(usuario_id)
+    if nuevos:
+        encolar(usuario_ids=nuevos, evento=evento, mensaje=mensaje, enlace=enlace)
 
 
 def paginar(consulta, pagina: int, por_pagina: int, serializar):

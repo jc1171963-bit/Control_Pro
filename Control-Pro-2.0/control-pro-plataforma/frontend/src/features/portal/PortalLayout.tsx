@@ -19,6 +19,7 @@ import { useMensajesNoLeidos } from '../colaboracion/Mensajes';
 import FondoPortal from './FondoPortal';
 import MarcaPortal from './MarcaPortal';
 import { CONTEXTO_CATALOGO_PORTAL, RUTA_CATALOGO_PORTAL } from './rutas';
+import { OpcionesAppMenu } from '../../components/AppDispositivo';
 
 // "Catálogo" abre el catálogo dentro del portal (/cuenta/catalogo).
 // "Dirección de entrega" vive dentro de "Mi cuenta"; /cuenta/direcciones redirige allí.
@@ -61,6 +62,7 @@ function MenuUsuario({ nombre, onSalir }: { nombre: string; onSalir: () => void 
       {abierto && (
         <div className="absolute right-0 z-30 mt-2 w-56 rounded-2xl border border-white/80 bg-white/90 p-1 shadow-[0_18px_55px_rgba(25,91,87,.18)] backdrop-blur-xl">
           <Link to="/cuenta/perfil" onClick={() => setAbierto(false)} className={opcion}>Mi cuenta</Link>
+          <OpcionesAppMenu claseOpcion={opcion} alTerminar={() => setAbierto(false)} />
           <button type="button" onClick={onSalir} className={cls(opcion, 'text-coral-600 hover:bg-coral-50')}>Cerrar sesión</button>
         </div>
       )}

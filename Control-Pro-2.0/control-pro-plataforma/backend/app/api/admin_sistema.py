@@ -223,6 +223,14 @@ def dashboard():
     return jsonify(rep.dashboard(request.args.get("desde"), request.args.get("hasta"), sid))
 
 
+@bp.get("/reportes/aprobador")
+@requiere_usuario("pedido.aprobar")
+def tablero_aprobador():
+    """Tablero ejecutivo del aprobador: tiempo de aprobación, ritmo semanal, mapa por estado y ranking."""
+    dias = request.args.get("dias", 30, type=int)
+    return jsonify(rep.tablero_aprobador(dias if dias in (7, 30, 90, 180) else 30))
+
+
 @bp.get("/reportes/solicitudes")
 @requiere_usuario("pedido.ver")
 def panel_solicitudes():

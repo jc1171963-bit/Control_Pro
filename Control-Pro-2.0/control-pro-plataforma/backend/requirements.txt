@@ -12,3 +12,5 @@ python-dotenv==1.2.3
 openpyxl==3.1.5
 reportlab==5.0.1
 gunicorn==26.2.0
+pywebpush==2.5.0
+truststore==0.10.5

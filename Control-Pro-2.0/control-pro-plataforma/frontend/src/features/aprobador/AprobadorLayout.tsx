@@ -20,6 +20,7 @@ import { cls } from '../../lib/formato';
 import { useMensajesNoLeidos } from '../colaboracion/Mensajes';
 import FondoPortal from '../portal/FondoPortal';
 import MarcaPortal from '../portal/MarcaPortal';
+import { OpcionesAppMenu } from '../../components/AppDispositivo';
 
 /** Área del aprobador corporativo dentro de Salud Digna (se muestra junto a su nombre). */
 export const AREA_APROBADOR = 'Gerencia de Compras';
@@ -78,6 +79,7 @@ function MenuUsuario({ nombre, foto, onSalir }: { nombre: string; foto?: string 
             <Camera className="h-4 w-4" aria-hidden />{fotoPerfil.subiendo ? 'Subiendo foto…' : foto ? 'Cambiar foto' : 'Subir foto'}</button>
           {foto && <button type="button" onClick={fotoPerfil.quitar} className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 text-left text-sm font-semibold text-tinta-600 hover:bg-tinta-50">
             <Trash2 className="h-4 w-4" aria-hidden />Quitar foto</button>}
+          <OpcionesAppMenu claseOpcion="flex min-h-11 w-full items-center rounded-lg px-3 text-left text-sm font-semibold text-tinta-800 hover:bg-[#e6f6f8]" alTerminar={() => setAbierto(false)} />
           <button type="button" onClick={onSalir} className="flex min-h-11 w-full items-center rounded-lg px-3 text-left text-sm font-semibold text-coral-600 hover:bg-coral-50">Cerrar sesión</button>
         </div>
       )}

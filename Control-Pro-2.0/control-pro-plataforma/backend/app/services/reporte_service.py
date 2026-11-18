@@ -241,3 +241,124 @@ def panel_solicitudes(dias: int = 30) -> dict:
                    "solicitudes": next((n for d, n in serie.items() if d.date() == desde.date() + timedelta(days=i)), 0)}
                   for i in range(dias)],
     }
+
+
+# ---------------------------------------------------------------- tablero ejecutivo del aprobador
+
+def _horas(a, b):
+    return (b - a).total_seconds() / 3600
+
+
+def _mediana(valores):
+    v = sorted(valores)
+    if not v:
+        return None
+    m = len(v) // 2
+    return v[m] if len(v) % 2 else (v[m - 1] + v[m]) / 2
+
+
+def tablero_aprobador(dias: int = 30) -> dict:
+    """Tablero ejecutivo del aprobador: tiempo de aprobación, ritmo semanal, mapa por estado y ranking de zonas y
+    divisiones. Cada indicador se compara con el periodo inmediato anterior de la misma duración. Los hitos salen del
+    historial de estados de cada solicitud (envío = primer paso a revisión; aprobación = primer «aprobado»)."""
+    from ..models import Direccion, Division, HistorialEstado, Zona
+
+    ahora_ = datetime.now(timezone.utc)
+    fin = ahora_
+    inicio = fin - timedelta(days=dias)
+    inicio_ant = inicio - timedelta(days=dias)
+    h = HistorialEstado
+    hitos = (select(h.entidad_id.label("pid"),
+                    func.min(case((h.nuevo == "en_revision", h.creado))).label("enviado"),
+                    func.min(case((h.nuevo == "aprobado", h.creado))).label("aprobado"),
+                    func.min(case((h.nuevo == "rechazado", h.creado))).label("rechazado"))
+             .where(h.entidad == "pedido").group_by(h.entidad_id).subquery())
+    unidades = (select(PedidoDetalle.pedido_id.label("pid"),
+                       func.sum(PedidoDetalle.cantidad - PedidoDetalle.cantidad_cancelada).label("u"))
+                .group_by(PedidoDetalle.pedido_id).subquery())
+    filas = db.session.execute(
+        select(Pedido.id, Pedido.cliente_id, Pedido.estado, hitos.c.enviado, hitos.c.aprobado, hitos.c.rechazado,
+               func.coalesce(unidades.c.u, 0))
+        .join(hitos, hitos.c.pid == Pedido.id).outerjoin(unidades, unidades.c.pid == Pedido.id)
+        .where(Pedido.canal == "corporativo", Pedido.estado != "borrador", hitos.c.enviado.is_not(None))).all()
+
+    # Sucursales: zona, división y estado (de su dirección principal)
+    clientes = db.session.execute(
+        select(Cliente.id, Cliente.activo, Zona.id, Zona.nombre, Division.id, Division.nombre)
+        .outerjoin(Zona, Zona.id == Cliente.zona_id).outerjoin(Division, Division.id == Zona.division_id)
+        .where(Cliente.tipo == "empresa")).all()
+    estado_de = {}
+    for cid, est in db.session.execute(select(Direccion.cliente_id, Direccion.estado).where(Direccion.activo.is_(True))
+                                       .order_by(Direccion.predeterminada.desc(), Direccion.id.desc())):
+        estado_de.setdefault(cid, est)
+    info = {c[0]: {"activo": c[1], "zona": (c[2], c[3]), "division": (c[4], c[5]), "estado": estado_de.get(c[0])} for c in clientes}
+
+    en = lambda t, a, b: t is not None and a <= t < b  # noqa: E731
+    act = [f for f in filas if en(f.enviado, inicio, fin)]
+    ant = [f for f in filas if en(f.enviado, inicio_ant, inicio)]
+
+    def tiempos(a, b):
+        return [_horas(f.enviado, f.aprobado) for f in filas if en(f.aprobado, a, b) and f.aprobado >= f.enviado]
+
+    def tasa(a, b):
+        decididas = [f for f in filas if en(f.aprobado or f.rechazado, a, b)]
+        return round(100 * sum(1 for f in decididas if f.aprobado) / len(decididas), 1) if decididas else None
+
+    t_act, t_ant = tiempos(inicio, fin), tiempos(inicio_ant, inicio)
+    pendientes = [f for f in filas if f.estado == "en_revision"]
+
+    # Ritmo semanal: 12 semanas (lunes a domingo) que terminan en la semana actual
+    lunes = (fin - timedelta(days=fin.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+    semanas = []
+    for i in range(11, -1, -1):
+        a = lunes - timedelta(weeks=i)
+        b = a + timedelta(weeks=1)
+        semanas.append({"inicio": a.date().isoformat(), "enviadas": sum(1 for f in filas if en(f.enviado, a, b)),
+                        "aprobadas": sum(1 for f in filas if en(f.aprobado, a, b)), "actual": i == 0})
+
+    def agrupar(clave):
+        grupos = {}
+        for cid, d in info.items():
+            k = d[clave] if clave == "estado" else d[clave]
+            if not k or (clave != "estado" and k[0] is None):
+                continue
+            g = grupos.setdefault(k, {"sucursales": 0, "solicitudes": 0, "anterior": 0, "unidades": 0, "por_revisar": 0})
+            g["sucursales"] += 1
+        for lista, campo in ((act, "solicitudes"), (ant, "anterior")):
+            for f in lista:
+                k = info.get(f.cliente_id, {}).get(clave)
+                if k in grupos:
+                    grupos[k][campo] += 1
+                    if campo == "solicitudes":
+                        grupos[k]["unidades"] += int(f[6])
+        for f in pendientes:
+            k = info.get(f.cliente_id, {}).get(clave)
+            if k in grupos:
+                grupos[k]["por_revisar"] += 1
+        return grupos
+
+    estados = [{"estado": k, **v} for k, v in sorted(agrupar("estado").items())]
+    zonas = [{"id": k[0], "nombre": k[1], **v} for k, v in agrupar("zona").items()]
+    divisiones = [{"id": k[0], "nombre": k[1], **v} for k, v in agrupar("division").items()]
+    for lista in (zonas, divisiones):
+        lista.sort(key=lambda x: (-x["solicitudes"], -x["unidades"], x["nombre"]))
+
+    activas = lambda lista: len({f.cliente_id for f in lista})  # noqa: E731
+    redondo = lambda x: round(x, 1) if x is not None else None  # noqa: E731
+    return {
+        "periodo": {"dias": dias, "desde": inicio.isoformat(), "hasta": fin.isoformat()},
+        "tiempo_aprobacion": {"promedio_h": redondo(sum(t_act) / len(t_act)) if t_act else None,
+                              "mediana_h": redondo(_mediana(t_act)), "aprobadas": len(t_act),
+                              "anterior_promedio_h": redondo(sum(t_ant) / len(t_ant)) if t_ant else None},
+        "enviadas": {"actual": len(act), "anterior": len(ant)},
+        "unidades": {"actual": sum(int(f[6]) for f in act), "anterior": sum(int(f[6]) for f in ant)},
+        "tasa_aprobacion": {"actual": tasa(inicio, fin), "anterior": tasa(inicio_ant, inicio)},
+        "sucursales_activas": {"actual": activas(act), "anterior": activas(ant),
+                               "total": sum(1 for d in info.values() if d["activo"])},
+        "por_revisar": {"total": len(pendientes),
+                        "mas_antigua_h": redondo(max((_horas(f.enviado, ahora_) for f in pendientes), default=0)) if pendientes else None},
+        "semanas": semanas,
+        "estados": estados,
+        "zonas": zonas,
+        "divisiones": divisiones,
+    }

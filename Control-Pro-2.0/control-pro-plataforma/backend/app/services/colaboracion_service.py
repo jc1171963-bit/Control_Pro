@@ -18,10 +18,16 @@ def notificar_aprobadores(evento: str, entidad: str, entidad_id: int, mensaje: s
     """Avisa solo a las cuentas con rol aprobador (el administrador opera del lado de la distribuidora)."""
     ids = db.session.scalars(select(Usuario.id).join(Rol, Usuario.rol_id == Rol.id)
                              .where(Rol.codigo == "aprobador", Usuario.activo.is_(True)))
+    from .push_service import encolar
+    nuevos = []
     for usuario_id in ids:
-        db.session.execute(insert(Notificacion).values(
+        r = db.session.execute(insert(Notificacion).values(
             usuario_id=usuario_id, evento=evento, entidad=entidad, entidad_id=entidad_id, mensaje=mensaje[:300],
-            enlace=enlace).on_conflict_do_nothing(constraint="uq_notif_evento"))
+            enlace=enlace).on_conflict_do_nothing(constraint="uq_notif_evento").returning(Notificacion.id))
+        if r.first():
+            nuevos.append(usuario_id)
+    if nuevos:
+        encolar(usuario_ids=nuevos, evento=evento, mensaje=mensaje, enlace=enlace)
 
 
 def es_aprobador(usuario) -> bool:

@@ -6,6 +6,7 @@ import { claveIdempotencia, descargar, get, post } from '../../api/cliente';
 import type { Pagina, Pedido, PedidoResumen } from '../../api/tipos';
 import { useAuth } from '../../app/auth';
 import { useConfig } from '../../app/config';
+import LineaTiempoSolicitud from '../../components/LineaTiempoSolicitud';
 import { esAprobador, useBasePanel } from '../../app/panel';
 import { BotonWhatsApp, ChatSolicitud } from '../colaboracion/Mensajes';
 import { Aviso, Boton, Campo, Cargando, Entrada, ErrorCaja, Estado, Modal, Paginacion, Selector, Tabla, Tarjeta, Td, Texto, useAviso } from '../../components/ui';
@@ -204,6 +205,7 @@ export function PedidoAdmin() {
         {puede('incidencia.gestionar') && <Boton variante="fantasma" onClick={() => setModal('incidencia')}>Incidencia</Boton>}
       </Encabezado>
 
+      {p.canal === 'corporativo' && p.estado !== 'borrador' && <Tarjeta titulo="Trazabilidad de la solicitud" className="mb-5"><LineaTiempoSolicitud p={p} /></Tarjeta>}
       <div className="grid gap-5 xl:grid-cols-[1fr_340px]">
         <div className="space-y-5">
           <Tarjeta titulo={<span className="flex items-center gap-2">Estado <Estado valor={p.estado} /></span>} sub={`${METODOS[p.metodo_pago]} · ${p.modalidad === 'recoger' ? `Recoge en ${p.sucursal_recoger?.nombre}` : 'Envío a domicilio'}`}>

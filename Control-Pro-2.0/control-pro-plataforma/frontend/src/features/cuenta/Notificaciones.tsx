@@ -7,6 +7,7 @@ import type { Notificacion, Pagina } from '../../api/tipos';
 import { Boton, Cargando, ErrorCaja, Paginacion, Tarjeta, Vacio } from '../../components/ui';
 import { cls, fechaHora } from '../../lib/formato';
 import { enlacePanel, useBasePanel } from '../../app/panel';
+import { AvisosDispositivo } from '../../components/AppDispositivo';
 
 export function ListaNotificaciones({ base, clave }: { base: string; clave: string }) {
   const qc = useQueryClient();
@@ -15,6 +16,8 @@ export function ListaNotificaciones({ base, clave }: { base: string; clave: stri
   const q = useQuery({ queryKey: [clave, pagina], queryFn: () => get<Pagina<Notificacion> & { no_leidas: number }>(`${base}/notificaciones?pagina=${pagina}`) });
   const leer = useMutation({ mutationFn: (ids?: number[]) => post(`${base}/notificaciones/leer`, ids ? { ids } : {}), onSuccess: () => qc.invalidateQueries({ queryKey: [clave] }) });
   return (
+    <>
+    <AvisosDispositivo />
     <Tarjeta titulo="Notificaciones" sub={q.data ? `${q.data.no_leidas} sin leer` : undefined}
       accion={<Boton tam="sm" variante="secundario" disabled={!q.data?.no_leidas || leer.isPending} onClick={() => leer.mutate(undefined)}>Marcar todas como leídas</Boton>}>
       <ErrorCaja error={q.error ?? leer.error} />
@@ -34,6 +37,7 @@ export function ListaNotificaciones({ base, clave }: { base: string; clave: stri
       )}
       {q.data && <Paginacion pagina={q.data.pagina} paginas={q.data.paginas} total={q.data.total} onCambio={setPagina} />}
     </Tarjeta>
+    </>
   );
 }
 
