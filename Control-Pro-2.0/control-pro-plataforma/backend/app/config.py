@@ -60,6 +60,10 @@ class Config:
     INTENTOS_MAXIMOS = int(os.getenv("INTENTOS_MAXIMOS", "5"))
     BLOQUEO_MINUTOS = int(os.getenv("BLOQUEO_MINUTOS", "15"))
     RECUPERACION_MINUTOS = int(os.getenv("RECUPERACION_MINUTOS", "30"))
+    SESION_MAXIMA_HORAS = int(os.getenv("SESION_MAXIMA_HORAS", "12"))  # tope absoluto, no se extiende con actividad
+    REFRESH_GRACIA_SEG = int(os.getenv("REFRESH_GRACIA_SEG", "30"))  # reintento de la generación anterior
+    SESION_INACTIVIDAD_MIN = int(os.getenv("SESION_INACTIVIDAD_MIN", "30"))  # sin interacción humana reportada
+    SESION_AVISO_MIN = int(os.getenv("SESION_AVISO_MIN", "28"))  # aviso previo al cierre por inactividad
     FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
     # Mientras no haya SMTP, los correos se escriben en el log.
     CORREO_PROVEEDOR = os.getenv("CORREO_PROVEEDOR", "consola")

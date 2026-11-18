@@ -12,6 +12,7 @@ from ..models import Carrito, Cliente, Direccion, Division, EmpleadoCorporativo,
 from ..schemas import (CuentaSucursalSchema, DireccionSucursalSchema, DivisionSchema, EdicionCuentaSucursalSchema,
                        NuevaPasswordSchema, ZonaSchema, cargar)
 from ..security.auth import hash_password, requiere_usuario, validar_fortaleza
+from ..services import auth_service
 from ..services.comun import auditar, paginar
 from . import serial
 from .util import cuerpo, pagina
@@ -225,6 +226,7 @@ def crear():
 @requiere_usuario("cliente.gestionar")
 def editar(cliente_id):
     c = _sucursal(cliente_id)
+    c = auth_service.bloquear_cuenta(Cliente, c.id)  # serializa con inicios de sesión concurrentes
     d = cargar(EdicionCuentaSucursalSchema, cuerpo())
     if "zona_id" in d:
         _zona_valida(d["zona_id"])
@@ -232,9 +234,11 @@ def editar(cliente_id):
         _correo_libre(d["correo"], excepto=c.id)
         d["correo"] = d["correo"].strip().lower()
     antes = {k: getattr(c, k) for k in d}
+    estaba_activa = c.activo
     for k, v in d.items():
         setattr(c, k, v)
-    auditar("sucursal_cliente.editar", "cliente", c.id, antes=antes, despues=d)
+    n = auth_service.revocar_sesiones_de_cuenta("cliente", c.id, "desactivacion") if estaba_activa and not c.activo else 0
+    auditar("sucursal_cliente.editar", "cliente", c.id, antes=antes, despues={**d, "sesiones_revocadas": n})
     db.session.commit()
     return jsonify(_resumen(c))
 
@@ -260,11 +264,13 @@ def editar_direccion(cliente_id):
 @requiere_usuario("cliente.gestionar")
 def cambiar_password(cliente_id):
     c = _sucursal(cliente_id)
+    c = auth_service.bloquear_cuenta(Cliente, c.id)  # serializa con inicios de sesión concurrentes
     d = cargar(NuevaPasswordSchema, cuerpo())
     validar_fortaleza(d["password"])
     c.hash_password = hash_password(d["password"])
     c.intentos_fallidos, c.bloqueado_hasta = 0, None
-    auditar("sucursal_cliente.password", "cliente", c.id)
+    n = auth_service.revocar_sesiones_de_cuenta("cliente", c.id, "admin")  # todas, en todos los dispositivos
+    auditar("sucursal_cliente.password", "cliente", c.id, despues={"sesiones_revocadas": n})
     db.session.commit()
     return jsonify(_resumen(c))
 
