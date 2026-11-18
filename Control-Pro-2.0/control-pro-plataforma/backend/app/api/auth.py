@@ -113,6 +113,45 @@ def yo():
     return jsonify({"tipo": "cliente", "cuenta": serial.cliente(_cargar_cliente())})
 
 
+def _cuenta_actual():
+    return _cargar_usuario() if get_jwt().get("tipo") == "usuario" else _cargar_cliente()
+
+
+def _borrar_foto(url: str | None):
+    """Elimina del disco la foto anterior (solo archivos propios de /publicos, nunca rutas externas)."""
+    import os
+    from flask import current_app
+    if url and url.startswith("/api/archivos/publicos/"):
+        ruta = os.path.join(current_app.config["UPLOAD_DIR"], "publicos", os.path.basename(url))
+        if os.path.exists(ruta):
+            os.remove(ruta)
+
+
+@bp.post("/foto")
+@jwt_required()
+def subir_foto():
+    """Foto de perfil de la cuenta que inició sesión (PNG, JPG o WebP; se valida la firma del archivo)."""
+    from .archivos import _guardar
+    cuenta = _cuenta_actual()
+    nombre = _guardar("publicos", {"png", "jpg", "jpeg", "webp"})
+    _borrar_foto(cuenta.foto_url)
+    cuenta.foto_url = f"/api/archivos/publicos/{nombre}"
+    db.session.commit()
+    tipo = get_jwt().get("tipo")
+    return jsonify({"tipo": tipo, "cuenta": serial.usuario(cuenta) if tipo == "usuario" else serial.cliente(cuenta)})
+
+
+@bp.delete("/foto")
+@jwt_required()
+def quitar_foto():
+    cuenta = _cuenta_actual()
+    _borrar_foto(cuenta.foto_url)
+    cuenta.foto_url = None
+    db.session.commit()
+    tipo = get_jwt().get("tipo")
+    return jsonify({"tipo": tipo, "cuenta": serial.usuario(cuenta) if tipo == "usuario" else serial.cliente(cuenta)})
+
+
 @bp.post("/password")
 @jwt_required()
 def cambiar_password():

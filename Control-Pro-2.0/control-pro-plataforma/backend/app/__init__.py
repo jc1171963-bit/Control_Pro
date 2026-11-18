@@ -16,6 +16,14 @@ def create_app(nombre_config: str | None = None) -> Flask:
     if config is ProdConfig:
         ProdConfig.validar()
 
+    # Confía en los certificados del sistema operativo (p. ej. antivirus que inspeccionan HTTPS o CA corporativas)
+    # para las conexiones salientes, como el envío de notificaciones push.
+    try:
+        import truststore
+        truststore.inject_into_ssl()
+    except ImportError:
+        pass
+
     app = Flask(__name__)
     app.config.from_object(config)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")

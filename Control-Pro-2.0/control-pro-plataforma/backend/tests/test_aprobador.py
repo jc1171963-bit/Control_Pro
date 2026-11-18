@@ -172,3 +172,19 @@ def test_carga_masiva_de_sucursales(app, como, client):
     p = _solicitud(suc, [{"empleado_id": emp["id"], "variante_id": var("MAN-001", "Unitalla"), "cantidad": 2}])
     assert p["estado"] == "en_revision"
     assert aprob.post(f"/api/admin/pedidos/{p['id']}/decision", {"decision": "aprobado"}).get_json()["estado"] == "aprobado"
+
+
+def test_homologar_accesos_de_sucursales(app, client):
+    """Todas las sucursales quedan con un correo formado por su nombre y la misma contraseña (se puede repetir)."""
+    from seeds.cargar_sucursales import cargar, homologar_accesos
+    with app.app_context():
+        cargar("ControlPro2026")
+        r = homologar_accesos("Sucursales2026")
+        assert r["sucursales"] == 237 and ("empresa@demo.mx", "clinica.san.rafael@sucursal.controlpro.mx") in r["correos_cambiados"]
+        assert homologar_accesos("Sucursales2026")["correos_cambiados"] == []
+        # Los nombres que terminan en «sa» no se confunden con «S.A.»
+        assert not [c for c in r["correos_cambiados"] if c[0] != "empresa@demo.mx"]
+    entrar = lambda correo, clave: client.post("/api/auth/portal/login", json={"correo": correo, "password": clave}).status_code
+    assert entrar("clinica.san.rafael@sucursal.controlpro.mx", "Sucursales2026") == 200
+    assert entrar("puebla.capu@sucursal.controlpro.mx", "Sucursales2026") == 200
+    assert entrar("empresa@demo.mx", "ControlPro2026") == 401

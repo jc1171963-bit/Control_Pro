@@ -12,35 +12,11 @@ import type { EntregaIndividual, Incidencia, Paquete, Pedido } from '../../api/t
 import { Aviso, Boton, Campo, Entrada, ErrorCaja, Estado, Firma, Modal, Selector, Tarjeta, Texto, useAviso } from '../../components/ui';
 import { Aparecer, Etapa, LineaProceso, Palomita } from '../../components/movimiento';
 import ComprobanteEntrega from './ComprobanteEntrega';
+import LineaTiempoSolicitud from '../../components/LineaTiempoSolicitud';
 import { useConfig } from '../../app/config';
 import { BotonWhatsApp, ChatSolicitud } from '../colaboracion/Mensajes';
 import { cls, etiqueta, fechaHora, PROBLEMAS_CONFORMIDAD, PROBLEMAS_RECEPCION, tipoIncidencia, TIPOS_INCIDENCIA } from '../../lib/formato';
 
-const LOGISTICA = ['confirmado', 'en_preparacion', 'parcialmente_enviado', 'enviado', 'parcialmente_entregado', 'entregado', 'cerrado'];
-const nivel = (estado: string) => LOGISTICA.indexOf(estado);
-
-function etapasSolicitud(p: Pedido): Etapa[] {
-  const n = nivel(p.estado);
-  const paquetes = p.paquetes.length;
-  const enRuta = p.paquetes.filter((x) => ['despachado', 'en_transito', 'entregado'].includes(x.estado)).length;
-  const llegados = p.paquetes.filter((x) => x.estado === 'entregado').length;
-  const recibidos = p.paquetes.filter((x) => x.recepcion).length;
-  const entregas = p.entregas_individuales || [];
-  const entregadas = entregas.filter((e) => e.estado !== 'pendiente').length;
-  const conformes = entregas.filter((e) => e.conformidad_en).length;
-  const rechazada = ['rechazado', 'cancelado'].includes(p.estado);
-  return [
-    { clave: 'sol', titulo: 'Solicitud', detalle: p.estado === 'borrador' ? 'Borrador' : 'Enviada', estado: p.estado === 'borrador' ? 'actual' : 'hecha' },
-    { clave: 'rev', titulo: 'Revisión', detalle: rechazada ? etiqueta(p.estado) : p.estado === 'devuelto' ? 'Requiere corrección' : p.estado === 'aprobado' ? 'Aprobada · falta autorización' : n >= 0 ? 'Aprobada' : p.estado === 'en_revision' ? 'En revisión' : '',
-      estado: rechazada || p.estado === 'devuelto' ? 'alerta' : n >= 0 || p.estado === 'aprobado' ? 'hecha' : p.estado === 'en_revision' ? 'actual' : 'pendiente' },
-    { clave: 'sur', titulo: 'Surtido', detalle: n === 0 ? 'Pendiente de surtir' : n === 1 ? 'En preparación' : n > 1 ? 'Preparado' : '',
-      estado: n > 1 ? 'hecha' : n >= 0 ? 'actual' : 'pendiente' },
-    { clave: 'env', titulo: 'Envío', detalle: paquetes ? `${enRuta} de ${paquetes} paquete(s)` : '', estado: paquetes && enRuta === paquetes ? 'hecha' : enRuta ? 'actual' : 'pendiente' },
-    { clave: 'rec', titulo: 'Recepción', detalle: llegados ? `${recibidos} de ${paquetes} recibido(s)` : '', estado: paquetes && recibidos === paquetes ? 'hecha' : llegados ? 'actual' : 'pendiente' },
-    { clave: 'ent', titulo: 'Entrega', detalle: entregas.length ? `${entregadas} de ${entregas.length}` : '', estado: entregas.length && entregadas === entregas.length ? 'hecha' : entregadas || recibidos ? 'actual' : 'pendiente' },
-    { clave: 'con', titulo: 'Conformidad', detalle: entregadas ? `${conformes} de ${entregadas}` : '', estado: entregadas && conformes === entregas.length ? 'hecha' : conformes ? 'actual' : 'pendiente' },
-  ];
-}
 
 function etapasPaquete(pq: Paquete): Etapa[] {
   const orden = ['preparado', 'despachado', 'en_transito', 'entregado'];
@@ -377,7 +353,7 @@ export default function DetalleSolicitud({ p }: { p: Pedido }) {
           <Aparecer key={i} orden={i}><div className="mb-3"><Aviso tipo="alerta"><b>Cambio del distribuidor</b> · {fechaHora(h.fecha)} · {h.actor}<br />{h.motivo!.replace('Modificada por el distribuidor: ', '')}</Aviso></div></Aparecer>
         ))}
         {/* En móvil la línea se desplaza en horizontal: la región es enfocable para poder recorrerla con el teclado. */}
-        {!['borrador', 'cancelado'].includes(p.estado) && <div className="overflow-x-auto rounded-lg pb-1" tabIndex={0} role="region" aria-label="Avance de la solicitud"><div className="min-w-[560px]"><LineaProceso etapas={etapasSolicitud(p)} /></div></div>}
+        {p.estado !== 'borrador' && <LineaTiempoSolicitud p={p} />}
         {p.notas && <p className="mt-4 rounded-lg bg-tinta-50 p-3 text-xs"><b>Notas:</b> {p.notas}</p>}
       </Tarjeta>
 

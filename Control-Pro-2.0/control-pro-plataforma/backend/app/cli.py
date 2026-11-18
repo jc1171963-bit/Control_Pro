@@ -44,6 +44,29 @@ def registrar_comandos(app):
         click.echo(f"Divisiones: {r['divisiones']}. Zonas: {r['zonas']}. Sucursales creadas: {r['creadas']}, ya existían: "
                    f"{r['existentes']}. Direcciones reales aplicadas: {r['direcciones_reales']}.")
 
+    @app.cli.command("homologar-accesos-sucursales")
+    @click.option("--password", default="ControlPro2026", show_default=True, help="Contraseña para todas las sucursales.")
+    def homologar_accesos(password):
+        """Pone a TODAS las sucursales un correo con su nombre (@sucursal.controlpro.mx) y la misma contraseña."""
+        from seeds.cargar_sucursales import homologar_accesos as homologar
+        r = homologar(password)
+        click.echo(f"Sucursales: {r['sucursales']}. Correos cambiados: {len(r['correos_cambiados'])}.")
+        for antes, despues in r["correos_cambiados"]:
+            click.echo(f"  {antes} -> {despues}")
+
+    @app.cli.command("simular-actividad")
+    @click.option("--semanas", default=12, show_default=True)
+    @click.option("--solicitudes", default=160, show_default=True)
+    @click.option("--borrar", is_flag=True, help="Elimina toda la actividad simulada (folios SIM-).")
+    def simular_actividad(semanas, solicitudes, borrar):
+        """Solicitudes SIMULADAS (folio SIM-) con historial realista, para demostrar el tablero. Solo demostraciones."""
+        from seeds.simular_actividad import borrar as borrar_sim, simular
+        if borrar:
+            click.echo(f"Solicitudes simuladas eliminadas: {borrar_sim()}.")
+            return
+        r = simular(semanas, solicitudes)
+        click.echo(f"Solicitudes simuladas: {r['solicitudes']} en {r['sucursales']} sucursales posibles.")
+
     @app.cli.command("cargar-fotos")
     def cargar_fotos():
         """Asigna a cada producto sus fotografías y video ilustrativos de stock (seeds/fotos_stock). Se puede repetir."""

@@ -4,6 +4,7 @@ import { cabeceraCsrf, post, renovar, sesion, TipoSesion, ultimaRenovacion } fro
 import type { Cliente, Usuario } from '../api/tipos';
 import { AvisoSesion } from '../components/AvisoSesion';
 import * as actividad from './actividad';
+import { olvidarDispositivo, revisarSuscripcion } from './pwa';
 
 type Estado = { tipo: TipoSesion | null; cliente: Cliente | null; usuario: Usuario | null; cargando: boolean };
 type Ctx = Estado & {
@@ -25,6 +26,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const aplicar = useCallback((tipo: TipoSesion, cuenta: any, token?: string) => {
     if (token) sesion.fijar(token);
+    void revisarSuscripcion(`${tipo}:${cuenta?.id ?? ''}`);
     setEstado({ tipo, cliente: tipo === 'cliente' ? cuenta : null, usuario: tipo === 'usuario' ? cuenta : null, cargando: false });
   }, []);
 
@@ -39,6 +41,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     actividad.instalar();
     actividad.configurar({
       async cierreGlobal() { // el usuario cerró o el servidor confirmó el fin: revoca el sid y limpia
+        // Antes de revocar (aún hay sesión para avisar al servidor): los avisos push de esta cuenta no deben seguir
+        // llegando a este dispositivo. Si la sesión ya no sirve, igual se cancela la suscripción en el navegador.
+        await olvidarDispositivo();
         await fetch('/api/auth/logout', {
           method: 'POST', credentials: 'include',
           headers: { ...(sesion.token() ? { Authorization: `Bearer ${sesion.token()}` } : {}), ...cabeceraCsrf() },
@@ -89,7 +94,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       entrar(await post('/auth/cliente/registro', datos), 'cliente');
     },
     async salir() {
-      await actividad.cierreGlobal('cierre'); // revoca en el servidor y cierra todas las pestañas
+      // Cierre global: olvida este dispositivo para push, revoca la sesión en el servidor y cierra todas las pestañas.
+      await actividad.cierreGlobal('cierre');
     },
     puede: (...permisos) => !!estado.usuario && permisos.every((p) => estado.usuario!.permisos.includes(p)),
     actualizarCuenta: (c) => setEstado((e) => (e.tipo === 'cliente' ? { ...e, cliente: c as Cliente } : { ...e, usuario: c as Usuario })),

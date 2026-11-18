@@ -37,6 +37,8 @@ class Cliente(ConFechas, db.Model):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     correo: Mapped[str] = mapped_column(String(120))
     hash_password: Mapped[str] = mapped_column(String(100))
+    # Foto de perfil (archivo público subido por la propia cuenta); nula = se muestran las iniciales.
+    foto_url: Mapped[str | None] = mapped_column(String(300))
     nombre: Mapped[str] = mapped_column(String(120))
     telefono: Mapped[str | None] = mapped_column(String(20))
     tipo: Mapped[str] = mapped_column(String(10), default="persona")

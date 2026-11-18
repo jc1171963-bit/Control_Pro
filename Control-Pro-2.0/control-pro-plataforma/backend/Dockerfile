@@ -3,9 +3,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 FLASK_ENV_CONFIG=production
 WORKDIR /app
 COPY requirements.txt .
 # Opcional: certificado raíz extra para redes o antivirus que inspeccionan HTTPS (docker build --secret id=ca_extra,src=archivo.pem).
+# Se agrega al almacén del sistema: lo usan pip y también las conexiones salientes de la app (notificaciones push,
+# vía truststore).
 RUN --mount=type=secret,id=ca_extra,required=false \
-    if [ -s /run/secrets/ca_extra ]; then cat /etc/ssl/certs/ca-certificates.crt /run/secrets/ca_extra > /tmp/ca.pem; export PIP_CERT=/tmp/ca.pem; fi; \
-    pip install --no-cache-dir -r requirements.txt && rm -f /tmp/ca.pem
+    if [ -s /run/secrets/ca_extra ]; then cat /run/secrets/ca_extra >> /etc/ssl/certs/ca-certificates.crt; fi; \
+    PIP_CERT=/etc/ssl/certs/ca-certificates.crt pip install --no-cache-dir -r requirements.txt
 COPY . .
 RUN useradd --create-home controlpro && mkdir -p /app/uploads && chown -R controlpro /app/uploads && chmod -R u+rwX /app/uploads
 USER controlpro

@@ -44,8 +44,12 @@ class Config:
 
     # Números de WhatsApp para el botón de contacto directo (enlace wa.me). Vacío = no se muestra el botón.
     WHATSAPP_APROBADOR = os.getenv("WHATSAPP_APROBADOR", "")
-    # Línea de la distribuidora para acordar cotización y precios con el aprobador.
-    WHATSAPP_DISTRIBUIDORA = os.getenv("WHATSAPP_DISTRIBUIDORA", "7291320001")
+    # Línea de la distribuidora para acordar cotización y precios con el aprobador (+52 55 4293 9183).
+    WHATSAPP_DISTRIBUIDORA = os.getenv("WHATSAPP_DISTRIBUIDORA", "5542939183")
+    # Notificaciones push (Web Push). Sin VAPID_PRIVATE_KEY las claves se generan una vez en UPLOAD_DIR/.vapid.pem.
+    PUSH_ACTIVO = _bool("PUSH_ACTIVO", True)
+    VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY", "")
+    VAPID_CONTACTO = os.getenv("VAPID_CONTACTO", "mailto:soporte@controlpro.mx")
     # Horas que dura un permiso de padrón si el aprobador no indica otra cosa.
     PERMISO_PADRON_HORAS = int(os.getenv("PERMISO_PADRON_HORAS", "24"))
 
@@ -99,6 +103,7 @@ class TestConfig(Config):
     JWT_COOKIE_SECURE = False
     JWT_COOKIE_CSRF_PROTECT = False
     EXPONER_TOKEN_RECUPERACION = True
+    PUSH_ACTIVO = False  # las pruebas no salen a internet; la de push lo activa con el envío simulado
     UPLOAD_DIR = "/tmp/control-pro-test-uploads"
 
 

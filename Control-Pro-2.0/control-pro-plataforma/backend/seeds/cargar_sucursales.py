@@ -100,3 +100,33 @@ def cargar(password: str = "ControlPro2026") -> dict:
     db.session.commit()
     r["zonas"], r["divisiones"] = len(zonas), len({d for d, *_ in ESTRUCTURA if d})
     return r
+
+
+def _nombre_base(c: Cliente) -> str:
+    """Nombre corto de la sucursal para su correo: sin la razón social legal (`Clínica San Rafael S.A. de C.V.` → `Clínica San Rafael`)."""
+    nombre = c.razon_social or c.nombre
+    # Solo la forma legal escrita con puntos y separada del nombre: «Reynosa» o «Vista Hermosa» no se recortan.
+    return re.sub(r"[\s,]+S\.\s?A\.(\s*de\s*C\.\s?V\.)?\s*$", "", nombre, flags=re.IGNORECASE).strip() or nombre
+
+
+def homologar_accesos(password: str = "ControlPro2026") -> dict:
+    """Deja TODAS las sucursales (cuentas empresa) con un correo formado por su nombre y la misma contraseña; además
+    las desbloquea. Si dos sucursales producirían el mismo correo, la segunda lleva un número (`.2`). Se puede repetir."""
+    validar_fortaleza(password)
+    hash_ = hash_password(password)
+    cuentas = db.session.scalars(select(Cliente).where(Cliente.tipo == "empresa").order_by(Cliente.id)).all()
+    usados, cambiados = set(), []
+    for c in cuentas:
+        base = correo_de(_nombre_base(c))
+        usuario, dominio = base.split("@")
+        correo, n = base, 2
+        while correo in usados:
+            correo, n = f"{usuario}.{n}@{dominio}", n + 1
+        usados.add(correo)
+        if c.correo != correo:
+            cambiados.append((c.correo, correo))
+            c.correo = correo
+        c.hash_password = hash_
+        c.intentos_fallidos, c.bloqueado_hasta = 0, None
+    db.session.commit()
+    return {"sucursales": len(cuentas), "correos_cambiados": cambiados}
