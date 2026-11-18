@@ -80,7 +80,8 @@ El panel interno está en `/admin/entrar`.
 ## Pruebas
 
 ```bash
-cd backend && python -m pytest --cov=app/services      # 37 pruebas contra PostgreSQL real (base control_pro_test)
+cd backend && python -m pytest --cov=app/services      # pruebas contra PostgreSQL real (base control_pro_test)
+cd backend && python scripts/pytest_desechable.py      # igual, sobre una base temporal que se crea y se elimina (docs/pruebas-base-desechable.md)
 cd frontend && npm test && npm run typecheck           # pruebas unitarias y verificación de tipos
 # E2E en navegador (backend en :5000 y `npm run build && npx vite preview` en :4173, base recién sembrada):
 node frontend/e2e/flujo-completo.cjs /carpeta/capturas  # requiere Playwright

@@ -1,7 +1,9 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { post, renovar, sesion, TipoSesion, ultimaRenovacion } from '../api/cliente';
+import { cabeceraCsrf, post, renovar, sesion, TipoSesion, ultimaRenovacion } from '../api/cliente';
 import type { Cliente, Usuario } from '../api/tipos';
+import { AvisoSesion } from '../components/AvisoSesion';
+import * as actividad from './actividad';
 import { olvidarDispositivo, revisarSuscripcion } from './pwa';
 
 type Estado = { tipo: TipoSesion | null; cliente: Cliente | null; usuario: Usuario | null; cargando: boolean };
@@ -28,55 +30,82 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setEstado({ tipo, cliente: tipo === 'cliente' ? cuenta : null, usuario: tipo === 'usuario' ? cuenta : null, cargando: false });
   }, []);
 
+  /** Limpia solo esta pestaña (sin llamar al servidor). */
+  const limpiarLocal = useCallback(() => {
+    sesion.fijar(null);
+    qc.clear();
+    setEstado({ tipo: null, cliente: null, usuario: null, cargando: false });
+  }, [qc]);
+
   useEffect(() => {
-    renovar().then((ok) => {
-      if (ok && ultimaRenovacion) aplicar(ultimaRenovacion.tipo, ultimaRenovacion.cuenta);
-      else setEstado((e) => ({ ...e, cargando: false }));
+    actividad.instalar();
+    actividad.configurar({
+      async cierreGlobal() { // el usuario cerró o el servidor confirmó el fin: revoca el sid y limpia
+        // Antes de revocar (aún hay sesión para avisar al servidor): los avisos push de esta cuenta no deben seguir
+        // llegando a este dispositivo. Si la sesión ya no sirve, igual se cancela la suscripción en el navegador.
+        await olvidarDispositivo();
+        await fetch('/api/auth/logout', {
+          method: 'POST', credentials: 'include',
+          headers: { ...(sesion.token() ? { Authorization: `Bearer ${sesion.token()}` } : {}), ...cabeceraCsrf() },
+        }).catch(() => undefined);
+        limpiarLocal();
+      },
+      cierreRemoto: limpiarLocal, // otra pestaña ya cerró la sesión
+      pausa: () => qc.clear(),
+      reanudado: (d) => aplicar(d.tipo, d.cuenta),
     });
     const quitar = sesion.alExpirar(() => {
-      if (!sesion.token()) setEstado({ tipo: null, cliente: null, usuario: null, cargando: false });
+      if (sesion.token()) return;
+      setEstado({ tipo: null, cliente: null, usuario: null, cargando: false });
+      actividad.sesionPerdida(sesion.motivo()); // 401 confirmado al renovar: cierre global
     });
+    // Una pestaña en pausa no se recupera sola: espera a que el servidor confirme y la renovación se complete.
+    if (actividad.obtenerFase() !== 'pausada') {
+      renovar().then((ok) => {
+        if (ok && ultimaRenovacion) {
+          aplicar(ultimaRenovacion.tipo, ultimaRenovacion.cuenta);
+          actividad.iniciar(ultimaRenovacion.sesion);
+        } else setEstado((e) => ({ ...e, cargando: false }));
+      });
+    }
     return () => { quitar(); };
-  }, [aplicar]);
+  }, [aplicar, limpiarLocal, qc]);
+
+  const entrar = (d: any, tipo: TipoSesion) => {
+    qc.clear();
+    aplicar(tipo, d.cuenta, d.access_token);
+    actividad.iniciar(d.sesion);
+  };
 
   const valor: Ctx = {
     ...estado,
     async entrarCliente(correo, password) {
-      const d = await post('/auth/cliente/login', { correo, password });
-      qc.clear();
-      aplicar('cliente', d.cuenta, d.access_token);
+      entrar(await post('/auth/cliente/login', { correo, password }), 'cliente');
     },
     async entrarUsuario(correo, password) {
-      const d = await post('/auth/login', { correo, password });
-      qc.clear();
-      aplicar('usuario', d.cuenta, d.access_token);
+      entrar(await post('/auth/login', { correo, password }), 'usuario');
     },
     async entrarPortal(correo, password) {
       const d = await post('/auth/portal/login', { correo, password });
-      qc.clear();
-      aplicar(d.tipo, d.cuenta, d.access_token);
+      entrar(d, d.tipo);
       return { tipo: d.tipo, cuenta: d.cuenta };
     },
     async registrar(datos) {
-      const d = await post('/auth/cliente/registro', datos);
-      qc.clear();
-      aplicar('cliente', d.cuenta, d.access_token);
+      entrar(await post('/auth/cliente/registro', datos), 'cliente');
     },
     async salir() {
-      await olvidarDispositivo(); // los avisos de esta cuenta no deben seguir llegando a este dispositivo
-      const csrf = document.cookie.split('; ').find((c) => c.startsWith('csrf_refresh_token='))?.split('=')[1];
-      await fetch('/api/auth/logout', {
-        method: 'POST', credentials: 'include',
-        headers: { ...(sesion.token() ? { Authorization: `Bearer ${sesion.token()}` } : {}), ...(csrf ? { 'X-CSRF-TOKEN': decodeURIComponent(csrf) } : {}) },
-      }).catch(() => undefined);
-      sesion.fijar(null);
-      qc.clear();
-      setEstado({ tipo: null, cliente: null, usuario: null, cargando: false });
+      // Cierre global: olvida este dispositivo para push, revoca la sesión en el servidor y cierra todas las pestañas.
+      await actividad.cierreGlobal('cierre');
     },
     puede: (...permisos) => !!estado.usuario && permisos.every((p) => estado.usuario!.permisos.includes(p)),
     actualizarCuenta: (c) => setEstado((e) => (e.tipo === 'cliente' ? { ...e, cliente: c as Cliente } : { ...e, usuario: c as Usuario })),
   };
-  return <AuthCtx.Provider value={valor}>{children}</AuthCtx.Provider>;
+  return (
+    <AuthCtx.Provider value={valor}>
+      {children}
+      <AvisoSesion onCerrarSesion={() => void valor.salir()} />
+    </AuthCtx.Provider>
+  );
 }
 
 export function useAuth() {

@@ -4,6 +4,7 @@ import io
 from datetime import datetime
 
 from flask import Blueprint, Response, g, jsonify, request, send_file
+from flask_jwt_extended import get_jwt
 from sqlalchemy import func, or_, select, update
 
 from ..errors import AppError, NoEncontrado
@@ -11,8 +12,9 @@ from ..extensions import db
 from ..models import (Auditoria, Cliente, Devolucion, Inventario, MovimientoInventario, Notificacion, Pago, Pedido,
                       Rol, Sucursal, SucursalZona, Usuario, Variante)
 from ..schemas import SucursalSchema, UsuarioSchema, cargar
-from ..security.auth import (filtro_sucursal, hash_password, requiere_usuario, sucursales_permitidas, validar_fortaleza,
-                             verificar_alcance)
+from ..security.auth import (canales_permitidos, filtro_sucursal, hash_password, requiere_usuario, sucursales_permitidas,
+                             validar_fortaleza, verificar_alcance)
+from ..services import auth_service
 from ..services import reporte_service as rep
 from ..services.comun import auditar, paginar
 from . import serial
@@ -117,13 +119,22 @@ def crear_usuario():
 @bp.put("/usuarios/<int:usuario_id>")
 @requiere_usuario("usuario.gestionar")
 def editar_usuario(usuario_id):
-    u = obtener(Usuario, usuario_id, "Usuario no encontrado.")
+    u = auth_service.bloquear_cuenta(Usuario, usuario_id)  # serializa con inicios de sesión concurrentes
+    if not u:
+        raise NoEncontrado("Usuario no encontrado.")
     antes = serial.usuario(u)
     d = cargar(UsuarioSchema, cuerpo())
     _aplicar_usuario(u, d)
+    n = 0
+    if antes["activo"] and not u.activo:  # la desactivación prevalece sobre un cambio de contraseña simultáneo
+        n = auth_service.revocar_sesiones_de_cuenta("usuario", u.id, "desactivacion")
+    elif d.get("password"):
+        propio = u.id == g.usuario.id  # el administrador cambiando la suya: como cambio propio, conserva esta sesión
+        n = auth_service.revocar_sesiones_de_cuenta("usuario", u.id, "password" if propio else "admin",
+                                                    excepto_sid=get_jwt().get("sid") if propio else None)
     auditar("usuario.editar", "usuario", u.id, antes={k: antes[k] for k in ("rol", "sucursales", "activo")},
             despues={"rol": d["rol"], "sucursales": d["sucursales"], "activo": d["activo"],
-                     "password_cambiada": bool(d.get("password"))})
+                     "password_cambiada": bool(d.get("password")), "sesiones_revocadas": n})
     db.session.commit()
     return jsonify(serial.usuario(u))
 
@@ -149,6 +160,8 @@ def clientes():
                         Cliente.razon_social.ilike(f"%{texto}%")))
     if tipo := request.args.get("tipo"):
         q = q.where(Cliente.tipo == tipo)
+    if canales_permitidos() is not None:  # el aprobador solo ve cuentas de sucursal, nunca clientes de la tienda
+        q = q.where(Cliente.tipo == "empresa")
     return jsonify(paginar(q, *pagina(), serial.cliente))
 
 
@@ -156,6 +169,8 @@ def clientes():
 @requiere_usuario("cliente.ver")
 def cliente(cliente_id):
     c = obtener(Cliente, cliente_id, "Cliente no encontrado.")
+    if canales_permitidos() is not None and c.tipo != "empresa":
+        raise NoEncontrado("Cliente no encontrado.")
     pedidos = db.session.scalars(select(Pedido).where(Pedido.cliente_id == c.id, Pedido.estado != "borrador")
                                  .order_by(Pedido.id.desc()).limit(50)).unique()
     pagos = db.session.scalars(select(Pago).join(Pedido).where(Pedido.cliente_id == c.id).order_by(Pago.id.desc()).limit(50)).unique()
@@ -355,5 +370,8 @@ def pdf_pedido(pedido_id):
     from ..services.documentos import pdf_pedido as generar
     from ..services.pedido_service import sucursales_de
     p = obtener(Pedido, pedido_id, "Pedido no encontrado.")
+    if canales_permitidos() is not None:
+        from .admin_pedidos import _pedido
+        _pedido(pedido_id)  # aprobador: 404 si el pedido es de otro canal, igual que el detalle
     verificar_alcance(sucursales_de(p) or None)
     return send_file(io.BytesIO(generar(p)), as_attachment=True, download_name=f"{p.folio}.pdf", mimetype="application/pdf")

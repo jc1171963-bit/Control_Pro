@@ -1,9 +1,11 @@
 """Contraseñas, identidad JWT y decoradores de autenticación/permisos."""
+import uuid
+from datetime import datetime, timedelta
 from functools import wraps
 from typing import Iterable
 
 import bcrypt
-from flask import g, request
+from flask import g, has_request_context, request
 from flask_jwt_extended import get_jwt, get_jwt_identity, verify_jwt_in_request
 
 from ..errors import NoAutenticado, NoEncontrado, SinPermiso
@@ -30,12 +32,61 @@ def validar_fortaleza(plano: str) -> None:
                        codigo="password_debil", status=422)
 
 
-def registrar_callbacks_jwt(jwt):
-    from ..models import TokenRevocado
+MENSAJES_SESION = {
+    "sesion_invalida": "Tu sesión ya no es válida. Inicia sesión de nuevo.",
+    "sesion_revocada": "La sesión fue cerrada.",
+    "sesion_expirada": "Tu sesión expiró. Inicia sesión de nuevo.",
+    "sesion_inactiva": "Tu sesión se cerró por inactividad. Inicia sesión de nuevo.",
+}
 
+# Endpoints que resuelven la inactividad en su propia lógica (y no deben ser rechazados antes de ejecutarla):
+# refresh, actividad y logout revocan con motivo `inactividad`; sesion solo informa. Lista cerrada: cualquier otra ruta,
+# presente o futura, rechaza por omisión una sesión inactiva.
+ENDPOINTS_CON_INACTIVIDAD_PROPIA = frozenset({"auth.refresh", "auth.actividad", "auth.sesion", "auth.logout"})
+
+
+def limite_inactividad() -> timedelta:
+    from flask import current_app
+    return timedelta(minutes=current_app.config["SESION_INACTIVIDAD_MIN"])
+
+
+def inactiva(s, t: datetime) -> bool:
+    """Única frontera temporal de la inactividad: activa ⟺ t ≤ actividad_en + límite (en el límite exacto, activa)."""
+    return t > s.actividad_en + limite_inactividad()
+
+
+def motivo_rechazo_sesion(payload: dict, comprobar_inactividad: bool | None = None) -> str | None:
+    """Por qué la sesión del token ya no sirve (código de error), o None si sigue vigente. Una consulta por clave primaria.
+
+    Identidad, revocación y tope absoluto se comprueban siempre; la inactividad, salvo en ENDPOINTS_CON_INACTIVIDAD_PROPIA.
+    """
+    from ..models import SesionAuth, ahora
+    if comprobar_inactividad is None:
+        endpoint = request.endpoint if has_request_context() else None
+        comprobar_inactividad = endpoint not in ENDPOINTS_CON_INACTIVIDAD_PROPIA
+    try:
+        sid = uuid.UUID(str(payload.get("sid")))
+    except ValueError:
+        return "sesion_invalida"  # tokens sin sesión (emitidos antes de S2): obligan a iniciar sesión de nuevo
+    s = db.session.get(SesionAuth, sid)
+    _, _, cuenta_id = str(payload.get("sub", "")).partition(":")
+    if not s or s.tipo_cuenta != payload.get("tipo") or str(s.cuenta_id) != cuenta_id:
+        return "sesion_invalida"
+    if s.revocada_en is not None:
+        return "sesion_revocada"
+    t = ahora()
+    if t > s.expira_absoluta:
+        return "sesion_expirada"
+    if comprobar_inactividad and inactiva(s, t):
+        return "sesion_inactiva"  # solo lectura: la revocación la hacen refresh, actividad y logout
+    return None
+
+
+def registrar_callbacks_jwt(jwt):
     @jwt.token_in_blocklist_loader
     def _revocado(_header, payload):
-        return db.session.get(TokenRevocado, payload["jti"]) is not None
+        g.motivo_sesion = motivo_rechazo_sesion(payload)
+        return g.motivo_sesion is not None
 
     def _error(mensaje, codigo="no_autenticado"):
         from flask import jsonify
@@ -55,7 +106,8 @@ def registrar_callbacks_jwt(jwt):
 
     @jwt.revoked_token_loader
     def _revocado_resp(_h, _p):
-        return _error("La sesión fue cerrada.", "token_revocado")
+        codigo = g.pop("motivo_sesion", None) or "sesion_invalida"
+        return _error(MENSAJES_SESION[codigo], codigo)
 
 
 def _cargar_usuario():
@@ -127,6 +179,12 @@ def sucursales_permitidas() -> set[int] | None:
     if es_global():
         return None
     return g.usuario.sucursal_ids
+
+
+def canales_permitidos() -> set[str] | None:
+    """None = todos los canales. El aprobador corporativo (lado Salud Digna) solo ve y opera el canal corporativo."""
+    u = getattr(g, "usuario", None)
+    return {"corporativo"} if u and u.rol.codigo == "aprobador" else None
 
 
 def verificar_alcance(sucursal_ids: int | Iterable[int | None] | None) -> None:

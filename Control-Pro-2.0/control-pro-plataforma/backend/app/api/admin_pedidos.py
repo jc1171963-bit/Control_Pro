@@ -2,12 +2,13 @@
 from flask import Blueprint, jsonify, request
 from sqlalchemy import or_, select
 
-from ..errors import NoEncontrado
+from ..errors import NoEncontrado, SinPermiso
 from ..extensions import db
 from ..models import AsignacionSurtido, Cliente, EntregaIndividual, Paquete, Pedido
 from ..schemas import (DecisionSchema, DespachoSchema, EdicionDistribuidorSchema, EntregaSucursalSchema, EventoSchema, MotivoSchema, NotaSchema,
                        PaqueteSchema, SurtidoSchema, cargar)
-from ..security.auth import es_global, filtro_sucursal, requiere_usuario, sucursales_permitidas, verificar_alcance
+from ..security.auth import (canales_permitidos, es_global, filtro_sucursal, requiere_usuario, sucursales_permitidas,
+                             verificar_alcance)
 from ..services import logistica_service as log
 from ..services import pedido_service as ped
 from ..services.comun import paginar
@@ -19,6 +20,8 @@ bp = Blueprint("admin_pedidos", __name__, url_prefix="/api/admin")
 
 def _filtro_pedidos(q):
     q = q.where(Pedido.estado != "borrador")  # el borrador aún no se envía: solo lo ve la sucursal
+    if (canales := canales_permitidos()) is not None:
+        q = q.where(Pedido.canal.in_(canales))
     permitidas = sucursales_permitidas()
     if permitidas is None:
         return q
@@ -28,8 +31,9 @@ def _filtro_pedidos(q):
 
 def _pedido(pedido_id, bloquear=False) -> Pedido:
     p = ped.bloquear_pedido(pedido_id) if bloquear else db.session.get(Pedido, pedido_id)
-    if not p or p.estado == "borrador":
-        raise NoEncontrado("Pedido no encontrado.")
+    canales = canales_permitidos()
+    if not p or p.estado == "borrador" or (canales is not None and p.canal not in canales):
+        raise NoEncontrado("Pedido no encontrado.")  # mismo 404: no revela pedidos de otro canal
     if not es_global():
         verificar_alcance(ped.sucursales_de(p) or None)
     return p
@@ -110,6 +114,8 @@ def cerrar(pedido_id):
 @bp.post("/pedidos/expirar-reservas")
 @requiere_usuario("pedido.cancelar")
 def expirar():
+    if canales_permitidos() is not None:  # mantenimiento global de ambos canales: no es del aprobador
+        raise SinPermiso("No tienes permiso para realizar esta operación.")
     return jsonify({"expirados": ped.expirar_reservas()})
 
 
