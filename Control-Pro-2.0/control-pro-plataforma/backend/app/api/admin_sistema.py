@@ -11,8 +11,8 @@ from ..extensions import db
 from ..models import (Auditoria, Cliente, Devolucion, Inventario, MovimientoInventario, Notificacion, Pago, Pedido,
                       Rol, Sucursal, SucursalZona, Usuario, Variante)
 from ..schemas import SucursalSchema, UsuarioSchema, cargar
-from ..security.auth import (filtro_sucursal, hash_password, requiere_usuario, sucursales_permitidas, validar_fortaleza,
-                             verificar_alcance)
+from ..security.auth import (canales_permitidos, filtro_sucursal, hash_password, requiere_usuario, sucursales_permitidas,
+                             validar_fortaleza, verificar_alcance)
 from ..services import reporte_service as rep
 from ..services.comun import auditar, paginar
 from . import serial
@@ -149,6 +149,8 @@ def clientes():
                         Cliente.razon_social.ilike(f"%{texto}%")))
     if tipo := request.args.get("tipo"):
         q = q.where(Cliente.tipo == tipo)
+    if canales_permitidos() is not None:  # el aprobador solo ve cuentas de sucursal, nunca clientes de la tienda
+        q = q.where(Cliente.tipo == "empresa")
     return jsonify(paginar(q, *pagina(), serial.cliente))
 
 
@@ -156,6 +158,8 @@ def clientes():
 @requiere_usuario("cliente.ver")
 def cliente(cliente_id):
     c = obtener(Cliente, cliente_id, "Cliente no encontrado.")
+    if canales_permitidos() is not None and c.tipo != "empresa":
+        raise NoEncontrado("Cliente no encontrado.")
     pedidos = db.session.scalars(select(Pedido).where(Pedido.cliente_id == c.id, Pedido.estado != "borrador")
                                  .order_by(Pedido.id.desc()).limit(50)).unique()
     pagos = db.session.scalars(select(Pago).join(Pedido).where(Pedido.cliente_id == c.id).order_by(Pago.id.desc()).limit(50)).unique()
@@ -347,5 +351,8 @@ def pdf_pedido(pedido_id):
     from ..services.documentos import pdf_pedido as generar
     from ..services.pedido_service import sucursales_de
     p = obtener(Pedido, pedido_id, "Pedido no encontrado.")
+    if canales_permitidos() is not None:
+        from .admin_pedidos import _pedido
+        _pedido(pedido_id)  # aprobador: 404 si el pedido es de otro canal, igual que el detalle
     verificar_alcance(sucursales_de(p) or None)
     return send_file(io.BytesIO(generar(p)), as_attachment=True, download_name=f"{p.folio}.pdf", mimetype="application/pdf")

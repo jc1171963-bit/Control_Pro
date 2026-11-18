@@ -129,6 +129,12 @@ def sucursales_permitidas() -> set[int] | None:
     return g.usuario.sucursal_ids
 
 
+def canales_permitidos() -> set[str] | None:
+    """None = todos los canales. El aprobador corporativo (lado Salud Digna) solo ve y opera el canal corporativo."""
+    u = getattr(g, "usuario", None)
+    return {"corporativo"} if u and u.rol.codigo == "aprobador" else None
+
+
 def verificar_alcance(sucursal_ids: int | Iterable[int | None] | None) -> None:
     """Responde 404 si ninguna de las sucursales del recurso pertenece al usuario (no revela que existe)."""
     permitidas = sucursales_permitidas()

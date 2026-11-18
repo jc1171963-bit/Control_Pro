@@ -7,7 +7,8 @@ from ..extensions import db
 from ..models import Devolucion, Incidencia, Pago, Pedido, Reembolso, Usuario
 from ..schemas import (AutorizarDevolucionSchema, CantidadesSchema, IncidenciaCambioSchema, IncidenciaSchema,
                        InspeccionSchema, MotivoSchema, NotaSchema, PagoEfectivoSchema, ReferenciaSchema, cargar)
-from ..security.auth import es_global, filtro_sucursal, requiere_usuario, sucursales_permitidas, verificar_alcance
+from ..security.auth import (canales_permitidos, es_global, filtro_sucursal, requiere_usuario, sucursales_permitidas,
+                             verificar_alcance)
 from ..services import devolucion_service as dev
 from ..services import pago_service as pagos
 from ..services import pedido_service as ped
@@ -109,6 +110,8 @@ def devoluciones():
     permitidas = sucursales_permitidas()
     if permitidas is not None:
         q = q.where(or_(Devolucion.sucursal_recibe_id.in_(permitidas or {-1}), Devolucion.pedido_id.in_(_ids_pedidos_visibles())))
+    if canales_permitidos() is not None:  # solo devoluciones de pedidos de sus canales
+        q = q.where(Devolucion.pedido_id.in_(_ids_pedidos_visibles()))
     if estado := request.args.get("estado"):
         q = q.where(Devolucion.estado.in_(estado.split(",")))
     return jsonify(paginar(q, *pagina(), serial.devolucion))
@@ -127,7 +130,8 @@ def _dev(did, recibir=False):
 @requiere_usuario("pedido.ver")
 def devolucion(did):
     d = db.session.get(Devolucion, did)
-    if not d:
+    canales = canales_permitidos()
+    if not d or (canales is not None and d.pedido.canal not in canales):  # mismo 404: no revela las de otro canal
         raise NoEncontrado("Devolución no encontrada.")
     if not es_global():
         verificar_alcance({d.sucursal_recibe_id, *ped.sucursales_de(d.pedido)})
