@@ -26,7 +26,7 @@ def enviados(app, monkeypatch):
     lista, codigos = [], {}
 
     def falso_webpush(info, datos, **kw):
-        assert kw["vapid_claims"]["sub"].startswith("mailto:") and kw["ttl"] == 86400
+        assert kw["vapid_claims"]["sub"].startswith("mailto:") and kw["ttl"] == 900
         lista.append((info["endpoint"], json.loads(datos)))
         if info["endpoint"] in codigos:
             from pywebpush import WebPushException
@@ -86,8 +86,8 @@ def test_aviso_solo_tras_commit_y_limpieza_de_vencidas(como, app, enviados):
         db.session.commit()
         assert {e for e, _ in lista} == {SUB["endpoint"], otra["endpoint"]}
         datos = next(d for e, d in lista if e == SUB["endpoint"])
-        assert datos == {"titulo": "Tu solicitud", "cuerpo": "Se aprobó tu solicitud", "url": "/cuenta/solicitudes/999",
-                         "etiqueta": "pedido_aprobado:999"}
+        assert datos == {"titulo": "LURIMA", "cuerpo": "Tienes un aviso nuevo. Abre LURIMA para verlo.",
+                         "url": "/cuenta/notificaciones", "etiqueta": "lurima-aviso"}  # genérico (H1.6)
         # La vencida (410) se eliminó; la vigente sigue
         assert db.session.scalars(select(PushSuscripcion.endpoint)).all() == [SUB["endpoint"]]
         # Un aviso repetido (mismo evento) no vuelve a sonar
@@ -104,4 +104,4 @@ def test_aprobador_recibe_enlaces_de_su_portal(como, app, enviados):
         from app.services.colaboracion_service import notificar_aprobadores
         notificar_aprobadores("pedido_en_revision:777", "pedido", 777, "Nueva solicitud por revisar", "/admin/pedidos/777")
         db.session.commit()
-    assert lista and lista[-1][1]["url"] == "/aprobador/pedidos/777" and lista[-1][1]["titulo"] == "Solicitud por revisar"
+    assert lista and lista[-1][1]["url"] == "/aprobador/notificaciones" and lista[-1][1]["titulo"] == "LURIMA"

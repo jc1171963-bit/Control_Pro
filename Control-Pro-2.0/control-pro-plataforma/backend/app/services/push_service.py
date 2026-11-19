@@ -16,7 +16,7 @@ import os
 import threading
 
 from flask import current_app
-from sqlalchemy import event, or_, select
+from sqlalchemy import and_, event, or_, select
 from sqlalchemy.orm import Session
 
 from ..extensions import db
@@ -25,14 +25,18 @@ log = logging.getLogger(__name__)
 _cache: dict = {}
 _candado = threading.Lock()
 
-# Título de la notificación según el prefijo del evento (el primero que coincide).
-TITULOS = [("mensaje", "Nuevo mensaje"), ("permiso_padron", "Permiso de padrón"), ("orden_aprobada", "Orden aprobada"),
-           ("orden_expirada", "Orden expirada"), ("pedido_por_aprobar", "Solicitud por revisar"),
-           ("pedido_en_revision", "Solicitud por revisar"), ("pedido_creado", "Nueva solicitud"),
-           ("pedido_reenviado", "Solicitud reenviada"), ("pedido", "Tu solicitud"), ("paquete", "Envío"),
-           ("envio", "Envío"), ("guia", "Envío"), ("incidencia", "Incidencia"), ("asignacion", "Surtido"),
-           ("devolucion", "Devolución"), ("reembolso", "Reembolso"), ("pago", "Pago"), ("transferencia", "Transferencia"),
-           ("existencia_baja", "Inventario")]
+# Lo único que muestra un aviso push: puede verse en la pantalla bloqueada, así que nunca lleva datos de la operación.
+# El detalle queda en la bandeja de notificaciones de la app, con sesión.
+TITULO = "LURIMA"
+CUERPO = "Tienes un aviso nuevo. Abre LURIMA para verlo."
+ETIQUETA = "lurima-aviso"
+TTL_SEG = 900  # el servicio push descarta el aviso si el dispositivo no lo recibe en 15 min
+BANDEJA = {"cliente": "/cuenta/notificaciones", "personal": "/admin/notificaciones", "aprobador": "/aprobador/notificaciones"}
+
+
+def payload(bandeja: str) -> str:
+    """Payload de TODOS los avisos push (reales y de prueba): genérico; solo cambia la bandeja según el tipo de cuenta."""
+    return json.dumps({"titulo": TITULO, "cuerpo": CUERPO, "url": BANDEJA[bandeja], "etiqueta": ETIQUETA})
 
 
 def _vapid():
@@ -66,17 +70,14 @@ def clave_publica() -> str:
     return _vapid()[1]
 
 
-def titulo_de(evento: str) -> str:
-    return next((t for prefijo, t in TITULOS if evento.startswith(prefijo)), "LURIMA")
-
-
 def encolar(*, usuario_ids=(), cliente_ids=(), evento: str, mensaje: str, enlace: str | None):
-    """Agrega un aviso push a la transacción en curso; se envía solo si la transacción se confirma."""
+    """Agrega un aviso push a la transacción en curso; se envía solo si la transacción se confirma.
+
+    `evento`, `mensaje` y `enlace` se aceptan por compatibilidad con los llamadores, pero NO se guardan ni se envían: el
+    aviso es siempre el genérico de `payload()`. El detalle ya quedó en la notificación interna (tabla notificacion)."""
     if not current_app.config.get("PUSH_ACTIVO", True):
         return
-    db.session.info.setdefault("push", []).append({
-        "usuarios": list(usuario_ids), "clientes": list(cliente_ids), "titulo": titulo_de(evento), "cuerpo": mensaje[:240],
-        "url": enlace or "/", "etiqueta": evento})
+    db.session.info.setdefault("push", []).append({"usuarios": list(usuario_ids), "clientes": list(cliente_ids)})
 
 
 @event.listens_for(Session, "after_commit")
@@ -99,27 +100,34 @@ def _tras_revertir(session):
 def _enviar(app, pendientes):
     from pywebpush import WebPushException, webpush
 
-    from ..models import PushSuscripcion, Rol, Usuario
+    from ..models import PushSuscripcion, Rol, SesionAuth, Usuario, ahora
+    from ..security.auth import inactiva
     with app.app_context():
         try:
             vapid, _ = _vapid()
             contacto = app.config.get("VAPID_CONTACTO") or "mailto:soporte@controlpro.mx"
             aprobadores = set(db.session.scalars(select(Usuario.id).join(Rol, Rol.id == Usuario.rol_id).where(Rol.codigo == "aprobador")))
             vencidas = []
+            t = ahora()  # un solo instante de referencia para todo el lote
+            # Solo suscripciones cuya sesión sigue vigente (misma frontera que motivo_rechazo_sesion) y es del mismo
+            # dueño. El join interno excluye sid NULL. shortcut: una revocación posterior a esta consulta no detiene el
+            # envío ya seleccionado (D4); el payload genérico (H1.6) es la protección de fondo.
+            vigentes = (PushSuscripcion.sid.is_not(None), SesionAuth.revocada_en.is_(None), t <= SesionAuth.expira_absoluta,
+                        ~inactiva(SesionAuth, t),
+                        or_(and_(SesionAuth.tipo_cuenta == "usuario", SesionAuth.cuenta_id == PushSuscripcion.usuario_id),
+                            and_(SesionAuth.tipo_cuenta == "cliente", SesionAuth.cuenta_id == PushSuscripcion.cliente_id)))
             for p in pendientes:
                 if not p["usuarios"] and not p["clientes"]:
                     continue
-                subs = db.session.scalars(select(PushSuscripcion).where(or_(
-                    PushSuscripcion.usuario_id.in_(p["usuarios"] or [-1]), PushSuscripcion.cliente_id.in_(p["clientes"] or [-1])))).all()
+                subs = db.session.scalars(select(PushSuscripcion).join(SesionAuth, SesionAuth.id == PushSuscripcion.sid).where(
+                    or_(PushSuscripcion.usuario_id.in_(p["usuarios"] or [-1]), PushSuscripcion.cliente_id.in_(p["clientes"] or [-1])),
+                    *vigentes)).all()
                 for s in subs:
-                    url = p["url"]
-                    # Los avisos del personal enlazan a /admin; el aprobador trabaja en su propio portal.
-                    if s.usuario_id in aprobadores and url.startswith("/admin"):
-                        url = "/aprobador" + url[len("/admin"):]
-                    datos = json.dumps({"titulo": p["titulo"], "cuerpo": p["cuerpo"], "url": url, "etiqueta": p["etiqueta"]})
+                    # La bandeja de su portal: sucursal o cliente, personal, o aprobador (que trabaja en su propio portal).
+                    bandeja = "cliente" if s.cliente_id else "aprobador" if s.usuario_id in aprobadores else "personal"
                     try:
-                        webpush({"endpoint": s.endpoint, "keys": {"p256dh": s.p256dh, "auth": s.auth}}, datos,
-                                vapid_private_key=vapid, vapid_claims={"sub": contacto}, ttl=86400, timeout=10)
+                        webpush({"endpoint": s.endpoint, "keys": {"p256dh": s.p256dh, "auth": s.auth}}, payload(bandeja),
+                                vapid_private_key=vapid, vapid_claims={"sub": contacto}, ttl=TTL_SEG, timeout=10)
                     except WebPushException as e:
                         estado = getattr(e.response, "status_code", None)
                         if estado in (404, 410):

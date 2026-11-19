@@ -68,6 +68,11 @@ export function registrarServiceWorker(navegar: (ruta: string) => void) {
   // Instalada, la ventana de la app lleva el nombre de la distribuidora.
   if (estado.instalada) document.title = 'LURIMA · Uniformes';
   if (!('serviceWorker' in navigator) || !window.isSecureContext) return;
+  // Cada cambio del token (inicio, renovación, cierre, cierre remoto): sin sesión se olvida la marca; con otra, se registra.
+  sesion.alExpirar(() => {
+    if (!sesion.sid()) sincronizado = '';
+    void revisarSuscripcion();
+  });
   // Al tocar un aviso con la app abierta, el service worker pide navegar sin recargar.
   navigator.serviceWorker.addEventListener('message', (ev) => {
     if (ev.data?.tipo === 'actividad') { window.dispatchEvent(new Event('cp-actividad')); return; }
@@ -95,20 +100,29 @@ async function suscripcionActual() {
   return (await reg?.pushManager.getSubscription()) ?? null;
 }
 
-let cuentaActual = '';
-let ultimaSincronizada = '';
-/** Revisa si este dispositivo ya recibe avisos y, si hay sesión, asocia la suscripción a la cuenta actual
- *  (`cuenta` = "tipo:id"; el mismo navegador puede pasar de una cuenta a otra). */
-export async function revisarSuscripcion(cuenta?: string) {
-  if (cuenta !== undefined) cuentaActual = cuenta;
+// La suscripción se asocia a la SESIÓN (sid del token en memoria): una sesión nueva, aunque sea de la misma cuenta,
+// vuelve a registrarla; una renovación (mismo sid, otra `gen`) no. El servidor toma el sid de su propio token verificado.
+let sincronizado = ''; // sid cuyo registro confirmó el servidor
+let enCurso: { sid: string; p: Promise<void> } | null = null;
+
+async function registrar(sub: PushSubscription, sid: string) {
+  await post('/push/suscripcion', sub.toJSON());
+  if (sesion.sid() === sid) sincronizado = sid; // una respuesta tardía no marca una sesión que ya cambió
+}
+
+/** Revisa si este dispositivo ya recibe avisos y, si hay sesión, asocia la suscripción a la sesión actual. */
+export async function revisarSuscripcion() {
   if (!pushSoportado()) { fijar({ activo: false, permiso: 'no-soportado' }); return; }
   try {
     const sub = await suscripcionActual();
     fijar({ permiso: Notification.permission, activo: !!sub && Notification.permission === 'granted' });
-    if (sub && cuentaActual && sesion.token() && Notification.permission === 'granted' && ultimaSincronizada !== cuentaActual) {
-      ultimaSincronizada = cuentaActual;
-      await post('/push/suscripcion', sub.toJSON());
-    }
+    const sid = sesion.sid();
+    if (!sub || !sid || Notification.permission !== 'granted' || sincronizado === sid) return;
+    if (enCurso?.sid === sid) return enCurso.p; // ya se está registrando en esta pestaña
+    const p = registrar(sub, sid).catch(() => undefined) // sin marcar: se reintenta en la próxima revisión
+      .finally(() => { if (enCurso?.p === p) enCurso = null; });
+    enCurso = { sid, p };
+    return p;
   } catch { /* se reintenta en la próxima revisión */ }
 }
 
@@ -130,8 +144,9 @@ async function activar(): Promise<'ok' | 'denegado' | 'error'> {
       await sub?.unsubscribe();
       sub = await reg.pushManager.subscribe(opciones);
     }
-    await post('/push/suscripcion', sub.toJSON());
-    ultimaSincronizada = cuentaActual;
+    const sid = sesion.sid();
+    if (!sid) return 'error';
+    await registrar(sub, sid);
     fijar({ activo: true });
     return 'ok';
   } catch {
@@ -148,14 +163,13 @@ async function desactivar() {
 
 /** El dispositivo deja de recibir avisos (en el servidor y en el navegador). Nunca bloquea el cierre de sesión. */
 export async function olvidarDispositivo() {
+  sincronizado = ''; // la marca local no depende de que el servidor confirme el borrado
   try {
     const sub = await suscripcionActual();
     if (!sub) return;
     const limite = new Promise((r) => setTimeout(r, 2500));
     await Promise.race([api('/push/suscripcion', { metodo: 'DELETE', cuerpo: { endpoint: sub.endpoint } }).catch(() => undefined), limite]);
     await sub.unsubscribe();
-    ultimaSincronizada = '';
-    cuentaActual = '';
     fijar({ activo: false });
   } catch { /* sin conexión: el servidor la limpiará cuando el servicio push la rechace */ }
 }
