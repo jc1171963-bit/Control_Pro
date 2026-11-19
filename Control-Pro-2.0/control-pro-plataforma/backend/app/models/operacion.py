@@ -253,6 +253,8 @@ class Incidencia(ConFechas, db.Model):
     responsable_id: Mapped[int | None] = mapped_column(ForeignKey("usuario.id"))
     creado_por_usuario: Mapped[int | None] = mapped_column(ForeignKey("usuario.id"))
     creado_por_cliente: Mapped[int | None] = mapped_column(ForeignKey("cliente.id"))
+    # Fotos o PDF de evidencia (URLs de /api/archivos/privados), como en las devoluciones.
+    evidencias: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
     empleado = relationship("EmpleadoCorporativo", lazy="joined")
     pedido_detalle = relationship("PedidoDetalle", lazy="joined")
     seguimiento = relationship("IncidenciaSeguimiento", order_by="IncidenciaSeguimiento.id", lazy="selectin")
@@ -318,3 +320,32 @@ class Auditoria(db.Model):
     creado: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
     usuario = relationship("Usuario", lazy="joined")
     __table_args__ = (Index("ix_auditoria_entidad", "entidad", "entidad_id"),)
+
+
+TIPOS_DOCUMENTO = ("orden_compra", "cotizacion", "factura", "comprobante", "evidencia", "otro")
+
+
+class Documento(db.Model):
+    """Documento del expediente de una solicitud (orden de compra, cotización, factura...). Lo sube la sucursal, el
+    aprobador o la distribuidora; el archivo vive en /api/archivos/privados y queda ligado a la solicitud."""
+    __tablename__ = "documento"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    pedido_id: Mapped[int] = mapped_column(ForeignKey("pedido.id", ondelete="CASCADE"), index=True)
+    nombre: Mapped[str] = mapped_column(String(160))
+    tipo: Mapped[str] = mapped_column(String(20), default="otro")
+    url: Mapped[str] = mapped_column(String(300))
+    subido_por_usuario: Mapped[int | None] = mapped_column(ForeignKey("usuario.id", ondelete="SET NULL"))
+    subido_por_cliente: Mapped[int | None] = mapped_column(ForeignKey("cliente.id", ondelete="SET NULL"))
+    creado: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    usuario = relationship("Usuario", lazy="joined")
+    cliente = relationship("Cliente", lazy="joined")
+    __table_args__ = (CheckConstraint("tipo in ('orden_compra','cotizacion','factura','comprobante','evidencia','otro')",
+                                      name="ck_documento_tipo"),)
+
+
+class Configuracion(db.Model):
+    """Ajustes generales clave → valor (p. ej. el logo CNR)."""
+    __tablename__ = "configuracion"
+    clave: Mapped[str] = mapped_column(String(60), primary_key=True)
+    valor: Mapped[dict | list | str | None] = mapped_column(JSONB)
+    actualizado: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

@@ -5,7 +5,7 @@
  * - /api nunca se guarda: los datos son privados y deben estar al día.
  * - push: muestra el aviso; al tocarlo enfoca una ventana abierta de la app o abre una nueva en la página del aviso.
  */
-const VERSION = 'v2';
+const VERSION = 'v3';
 const CACHE_PAGINAS = `cp-paginas-${VERSION}`;
 const CACHE_RECURSOS = `cp-recursos-${VERSION}`;
 const MAX_RECURSOS = 400;
@@ -65,6 +65,8 @@ self.addEventListener('push', (e) => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch { d = { cuerpo: e.data && e.data.text() }; }
   const titulo = d.titulo || 'LURIMA';
+  // Las ventanas abiertas de la app se actualizan al instante (sin esperar su siguiente consulta).
+  e.waitUntil(self.clients.matchAll({ type: 'window' }).then((vs) => vs.forEach((v) => v.postMessage({ tipo: 'actividad' }))));
   e.waitUntil(self.registration.showNotification(titulo, {
     body: d.cuerpo || '',
     icon: '/icons/icono-192.png',

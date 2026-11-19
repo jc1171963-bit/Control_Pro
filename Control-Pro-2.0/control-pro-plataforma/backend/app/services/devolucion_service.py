@@ -175,7 +175,7 @@ def cerrar(dev: Devolucion, nota: str | None):
 
 def crear_incidencia(tipo: str, descripcion: str, prioridad: str = "media", pedido_id=None, paquete_id=None,
                      devolucion_id=None, transferencia_id=None, sucursal_id=None, empleado_id=None,
-                     pedido_detalle_id=None) -> Incidencia:
+                     pedido_detalle_id=None, evidencias: list[str] | None = None) -> Incidencia:
     if not descripcion or len(descripcion.strip()) < 10:
         raise AppError("Describe la incidencia (mínimo 10 caracteres).")
     if not any([pedido_id, paquete_id, devolucion_id, transferencia_id]):
@@ -197,7 +197,11 @@ def crear_incidencia(tipo: str, descripcion: str, prioridad: str = "media", pedi
             raise NoEncontrado("El empleado no está incluido en la solicitud.")
     inc = registrar_incidencia(tipo=tipo, prioridad=prioridad, descripcion=descripcion.strip(), pedido_id=pedido_id,
                                paquete_id=paquete_id, devolucion_id=devolucion_id, transferencia_id=transferencia_id,
-                               sucursal_id=sucursal_id, empleado_id=empleado_id, pedido_detalle_id=pedido_detalle_id)
+                               sucursal_id=sucursal_id, empleado_id=empleado_id, pedido_detalle_id=pedido_detalle_id,
+                               evidencias=list(evidencias or []))
+    if evidencias and pedido_id:
+        from ..api.archivos import dueno_actual, vincular_a_pedido
+        vincular_a_pedido(evidencias, pedido_id, dueno_actual())
     auditar("incidencia.crear", "incidencia", inc.id, despues={"tipo": tipo, "prioridad": prioridad},
             sucursal_id=sucursal_id)
     notificar_personal("incidencia.gestionar", "incidencia_nueva", "incidencia", inc.id,

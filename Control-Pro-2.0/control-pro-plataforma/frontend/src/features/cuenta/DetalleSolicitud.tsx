@@ -5,12 +5,15 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, ArrowDown, ArrowRightCircle, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, Clock, FileSignature, Package, PenLine, Send, ShieldAlert, Star, Truck } from 'lucide-react';
+import { AlertTriangle, ArrowDown, ArrowRightCircle, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, Clock, Package, PenLine, Send, ShieldAlert, Star, Truck } from 'lucide-react';
 import ConfirmarEnvio from '../portal/ConfirmarEnvio';
 import { post } from '../../api/cliente';
 import type { EntregaIndividual, Incidencia, Paquete, Pedido } from '../../api/tipos';
 import { Aviso, Boton, Campo, Entrada, ErrorCaja, Estado, Firma, Modal, Selector, Tarjeta, Texto, useAviso } from '../../components/ui';
 import { useCelebrar } from '../../components/Celebracion';
+import { AdjuntarEvidencias, GaleriaEvidencias } from '../../components/Archivos';
+import FirmaEnLinea from '../../components/FirmaEnLinea';
+import Expediente from '../../components/Expediente';
 import { Aparecer, Etapa, LineaProceso, Palomita } from '../../components/movimiento';
 import ComprobanteEntrega from './ComprobanteEntrega';
 import LineaTiempoSolicitud from '../../components/LineaTiempoSolicitud';
@@ -173,7 +176,7 @@ function EntregaConFirma({ e, p, onCerrar }: { e: EntregaIndividual; p: Pedido; 
       ))}
       <Campo etiqueta="¿Quién entrega?" ayuda="Nombre de la persona de la sucursal que hace la entrega"><Entrada value={quien} onChange={(ev) => setQuien(ev.target.value)} /></Campo>
       <Campo etiqueta="Observaciones (opcional)"><Texto value={obs} onChange={(ev) => setObs(ev.target.value)} /></Campo>
-      <div><p className="mb-1 text-sm font-semibold">Firma de {e.empleado.nombre}</p><Firma onCambio={setFirma} /></div>
+      <div><p className="mb-1 text-sm font-semibold">Firma de {e.empleado.nombre}</p><Firma titulo={`Firma de ${e.empleado.nombre}`} onCambio={setFirma} /></div>
       <ErrorCaja error={m.error} />
       <div className="flex justify-end gap-2"><Boton variante="secundario" onClick={onCerrar}>Cancelar</Boton>
         <Boton disabled={!firma || quien.trim().length < 3} cargando={m.isPending} onClick={() => m.mutate()}>Registrar entrega</Boton></div>
@@ -240,10 +243,11 @@ function NuevaIncidencia({ p, onCerrar }: { p: Pedido; onCerrar: () => void }) {
   const [articulo, setArticulo] = useState<number | ''>('');
   const [paquete, setPaquete] = useState<number | ''>('');
   const [desc, setDesc] = useState('');
+  const [evidencias, setEvidencias] = useState<string[]>([]);
   const empleados = [...new Map(p.detalles.filter((d) => d.empleado).map((d) => [d.empleado!.id, d.empleado!])).values()];
   const m = useMutation({
     mutationFn: () => post(`/cuenta/pedidos/${p.id}/incidencias`, { tipo, descripcion: desc, prioridad: 'media',
-      empleado_id: empleado || null, pedido_detalle_id: articulo || null, paquete_id: paquete || null }),
+      empleado_id: empleado || null, pedido_detalle_id: articulo || null, paquete_id: paquete || null, evidencias }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['pedido', String(p.id)] }); avisar('Incidencia registrada.'); onCerrar(); },
   });
   const tipos = ['articulo_faltante', 'articulo_danado', 'talla_incorrecta', 'articulo_incorrecto', 'paquete_no_recibido', 'otro'];
@@ -259,6 +263,8 @@ function NuevaIncidencia({ p, onCerrar }: { p: Pedido; onCerrar: () => void }) {
           <option value="">General</option>{p.detalles.filter((d) => !empleado || d.empleado?.id === empleado).map((d) => <option key={d.id} value={d.id}>{d.nombre} · {d.talla}{empleado ? '' : ` · ${d.empleado?.nombre}`}</option>)}</Selector></Campo>
       </div>
       <Campo etiqueta="Descripción" ayuda="Mínimo 10 caracteres"><Texto value={desc} onChange={(e) => setDesc(e.target.value)} /></Campo>
+      <div><p className="mb-1.5 text-sm font-semibold text-tinta-800">Foto de evidencia <span className="font-normal text-tinta-400">(recomendada)</span></p>
+        <AdjuntarEvidencias valor={evidencias} onCambio={setEvidencias} /></div>
       <ErrorCaja error={m.error} />
       <div className="flex justify-end gap-2"><Boton variante="secundario" onClick={onCerrar}>Cancelar</Boton><Boton cargando={m.isPending} disabled={desc.trim().length < 10} onClick={() => m.mutate()}>Registrar incidencia</Boton></div>
     </div>
@@ -290,6 +296,7 @@ function TarjetaIncidencia({ i }: { i: Incidencia }) {
         <span className="flex items-center gap-2"><Estado valor={i.estado} />{abierta ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</span>
       </button>
       <p className="mt-1 text-xs text-tinta-600">{i.descripcion}</p>
+      {!!i.evidencias?.length && <div className="mt-2"><GaleriaEvidencias urls={i.evidencias} titulo={`Evidencia de ${i.folio}`} /></div>}
       {abierta && <HistorialIncidencia i={i} />}
     </div>
   );
@@ -396,7 +403,7 @@ export default function DetalleSolicitud({ p }: { p: Pedido }) {
                           : <span className="text-tinta-400">Recibe primero el paquete</span>
                       ) : (
                         <span className="flex flex-wrap gap-1.5">
-                          <Boton tam="sm" variante="secundario" icono={<FileSignature className="h-3.5 w-3.5" />} onClick={() => setComprobante(e.id)}>Ver firma</Boton>
+                          <FirmaEnLinea entregaId={e.id} origen="cuenta" onAbrir={() => setComprobante(e.id)} />
                           {!e.conformidad_en && <Boton tam="sm" variante="menta" icono={<ClipboardCheck className="h-3.5 w-3.5" />} onClick={() => setConformidad(e)}>Conformidad</Boton>}
                         </span>
                       )}
@@ -449,7 +456,9 @@ export default function DetalleSolicitud({ p }: { p: Pedido }) {
         </section>
       )}
 
-      <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
+      {p.estado !== 'borrador' && <Expediente pedidoId={p.id} folio={p.folio} origen="cuenta" onComprobante={setComprobante} />}
+
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px] [&>*]:min-w-0">
         <Tarjeta titulo="Incidencias" sub="Cada actualización queda en su historial">
           {!p.incidencias?.length ? <p className="text-sm text-tinta-400">Sin incidencias registradas.</p> : (
             <div className="space-y-2">{p.incidencias.map((i) => <TarjetaIncidencia key={i.id} i={i} />)}</div>

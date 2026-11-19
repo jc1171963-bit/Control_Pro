@@ -14,6 +14,7 @@ import { EsqueletoLista, NumeroAnimado } from '../../components/movimiento';
 import { cls, fecha, fechaHora } from '../../lib/formato';
 import ContactoZona from './ContactoZona';
 import { RUTA_CATALOGO_PORTAL } from './rutas';
+import SelloCNR from '../../components/SelloCNR';
 
 const fechaLarga = () => new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' });
 const verde = 'bg-menta-50 text-menta-700';
@@ -142,6 +143,7 @@ function InicioEmpresa() {
           <p className="inline-flex items-center gap-2 rounded-full border border-[#3be3aa88] bg-[#008a646b] px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.06em]">
             <span className="h-2 w-2 rounded-full bg-[#54e8b6]" aria-hidden />Portal empresarial · {fechaLarga()}
           </p>
+          {cliente?.cnr && <SelloCNR tam="md" className="ml-2 align-middle" />}
           <h1 className="mt-3.5 font-display text-[36px] font-extrabold tracking-[-0.04em] sm:text-[44px]">Hola, <span className="text-[#54e8b6]">{nombre}</span></h1>
           <p className="mt-2 max-w-[470px] text-[15px] leading-relaxed sm:text-lg">{cliente?.razon_social ? `${cliente.razon_social}. ` : ''}Consulta el estado de tus solicitudes y continúa donde te quedaste.</p>
           <div className="mt-5 flex flex-wrap gap-3">

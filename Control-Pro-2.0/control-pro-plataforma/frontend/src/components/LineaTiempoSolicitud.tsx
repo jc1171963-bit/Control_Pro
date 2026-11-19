@@ -59,7 +59,10 @@ export function hitosSolicitud(p: Pedido, ahora = Date.now()): Hito[] {
     desdeHist('surtido', 'Surtida', PackageOpen, ['en_preparacion']),
     { ...desdeHist('camino', 'En camino', Truck, ['parcialmente_enviado', 'enviado']),
       detalle: paquetes.length ? `${enRuta.length} de ${paquetes.length} paquete(s)` : null, nota: guias.length ? `Guía ${guias.join(' · ')}` : null },
-    conteo('recibida', 'Recibida', PackageCheck, paquetes.length, recibidos.length, maxFecha(recibidos.map((x) => x.recepcion!.fecha)), 'paquete(s)'),
+    // Sin paquetes registrados (p. ej. entregas capturadas solo con el cambio de estado), la recepción se toma del historial.
+    paquetes.length
+      ? conteo('recibida', 'Recibida', PackageCheck, paquetes.length, recibidos.length, maxFecha(recibidos.map((x) => x.recepcion!.fecha)), 'paquete(s)')
+      : desdeHist('recibida', 'Recibida', PackageCheck, ['parcialmente_entregado', 'entregado']),
     conteo('entregada', 'Entregada', PenLine, entregas.length, entregadas.length, maxFecha(entregadas.map((e) => e.entregado_en)), 'empleado(s)'),
     conteo('conformidad', 'Conformidad', ClipboardCheck, entregas.length, conformes.length, maxFecha(conformes.map((e) => e.conformidad_en)), 'firmada(s)'),
     desdeHist('cerrada', 'Cerrada', Lock, ['cerrado']),

@@ -1,7 +1,8 @@
 import { ButtonHTMLAttributes, createContext, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes,
-  useCallback, useContext, useRef, useState } from 'react';
+  useCallback, useContext, useEffect, useId, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Inbox, Loader2, X } from 'lucide-react';
 import { cls, etiqueta, mensajeError, tono } from '../lib/formato';
+import { createPortal } from 'react-dom';
 import { useAtraparFoco } from './useAtraparFoco';
 import { EsqueletoLista, EsqueletoPagina, EsqueletoTabla, NumeroAnimado } from './movimiento';
 
@@ -141,21 +142,57 @@ export function Paginacion({ pagina, paginas, total, onCambio }: { pagina: numbe
 
 // ---------------------------------------------------------------- modal
 
-export function Modal({ abierto, titulo, onCerrar, children, ancho = 'max-w-lg' }: { abierto: boolean; titulo: string; onCerrar: () => void; children: ReactNode; ancho?: string }) {
+/** Bloqueo del desplazamiento del fondo mientras haya al menos un diálogo abierto (admite diálogos anidados). */
+let dialogosAbiertos = 0;
+function bloquearFondo() {
+  if (dialogosAbiertos++ === 0) {
+    const barra = window.innerWidth - document.documentElement.clientWidth; // evita el salto al ocultar la barra de desplazamiento
+    document.documentElement.style.overflow = 'hidden';
+    if (barra > 0) document.body.style.paddingRight = `${barra}px`;
+  }
+  return () => {
+    if (--dialogosAbiertos === 0) { document.documentElement.style.overflow = ''; document.body.style.paddingRight = ''; }
+  };
+}
+
+/**
+ * Diálogo de todo el sistema.
+ * - Celular: hoja que sube desde abajo, con asa, esquinas redondeadas y respeto del área segura (iPhone).
+ * - Escritorio: tarjeta centrada que aparece con un leve acercamiento.
+ * - El fondo no se desplaza mientras está abierto; foco atrapado, Escape y clic fuera para cerrar.
+ * - Se dibuja dentro del panel activo (conserva sus colores de marca y el modo oscuro) aunque la página tenga transformaciones.
+ * - `sub` (subtítulo) y `pie` (acciones fijas abajo, siempre visibles aunque el contenido sea largo) son opcionales.
+ */
+export function Modal({ abierto, titulo, onCerrar, children, ancho = 'max-w-lg', sub, pie }:
+  { abierto: boolean; titulo: string; onCerrar: () => void; children: ReactNode; ancho?: string; sub?: ReactNode; pie?: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   // Foco atrapado dentro del diálogo, Escape para cerrar y devolución del foco al elemento que lo abrió.
   useAtraparFoco(ref, abierto, onCerrar);
+  useEffect(() => (abierto ? bloquearFondo() : undefined), [abierto]);
+  const idTitulo = useId();
   if (!abierto) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-tinta-950/50 p-0 backdrop-blur-sm sm:items-center sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && onCerrar()}>
-      <div ref={ref} role="dialog" aria-modal="true" aria-label={titulo} className={cls('max-h-[92vh] w-full overflow-y-auto rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl', ancho)}>
-        <header className="sticky top-0 z-10 flex items-center justify-between border-b border-tinta-100 bg-white px-5 py-4">
-          <h2 className="font-display text-lg font-bold text-tinta-900">{titulo}</h2>
-          <button onClick={onCerrar} className="rounded-lg p-1.5 text-tinta-400 hover:bg-tinta-50" aria-label="Cerrar"><X className="h-5 w-5" /></button>
+  const destino = (typeof document !== 'undefined' && document.querySelector('.tema-sd, .tema-lu')) || document.body;
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-tinta-950/50 p-0 backdrop-blur-[3px] animate-fundido sm:items-center sm:p-6"
+      onMouseDown={(e) => e.target === e.currentTarget && onCerrar()}>
+      <div ref={ref} role="dialog" aria-modal="true" aria-labelledby={idTitulo}
+        className={cls('flex max-h-[94dvh] w-full flex-col overflow-hidden rounded-t-[26px] bg-white shadow-[0_-10px_50px_rgba(8,30,40,.25)] ring-1 ring-black/5 animate-hoja',
+          'sm:max-h-[88vh] sm:rounded-[24px] sm:shadow-[0_30px_80px_rgba(8,30,40,.32)] sm:animate-emerger', ancho)}>
+        <span className="mx-auto mt-2.5 h-1.5 w-11 shrink-0 rounded-full bg-tinta-200 sm:hidden" aria-hidden />
+        <header className="flex shrink-0 items-start justify-between gap-3 border-b border-tinta-100 px-5 pb-3.5 pt-3 sm:px-6 sm:pt-5">
+          <div className="min-w-0">
+            <h2 id={idTitulo} className="font-display text-lg font-bold leading-snug text-tinta-900">{titulo}</h2>
+            {sub && <p className="mt-0.5 text-sm text-tinta-500">{sub}</p>}
+          </div>
+          <button type="button" onClick={onCerrar} className="-mr-2 -mt-1 grid h-10 w-10 shrink-0 place-items-center rounded-full text-tinta-400 transition hover:bg-tinta-50 hover:text-tinta-700" aria-label="Cerrar">
+            <X className="h-5 w-5" /></button>
         </header>
-        <div className="p-5">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">{children}</div>
+        {pie && <footer className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-tinta-100 bg-tinta-50/50 px-5 py-3.5 pb-[max(.875rem,env(safe-area-inset-bottom))] sm:px-6">{pie}</footer>}
+        {!pie && <span className="block shrink-0 pb-[env(safe-area-inset-bottom)] sm:hidden" aria-hidden />}
       </div>
-    </div>
+    </div>,
+    destino,
   );
 }
 
@@ -188,52 +225,8 @@ export const useAviso = () => useContext(ToastCtx);
 
 // ---------------------------------------------------------------- firma en canvas
 
-export function Firma({ onCambio }: { onCambio: (dataUrl: string | null) => void }) {
-  const ref = useRef<HTMLCanvasElement>(null);
-  const dibujando = useRef(false);
-  const tinta = useRef(false);
-  const punto = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    const c = ref.current!;
-    const r = c.getBoundingClientRect();
-    return [((e.clientX - r.left) * c.width) / r.width, ((e.clientY - r.top) * c.height) / r.height] as const;
-  };
-  const inicio = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    const ctx = ref.current!.getContext('2d')!;
-    ctx.lineWidth = 2.4; ctx.lineCap = 'round'; ctx.strokeStyle = '#0F2238';
-    dibujando.current = true;
-    ref.current!.setPointerCapture(e.pointerId);
-    const [x, y] = punto(e);
-    ctx.beginPath(); ctx.moveTo(x, y);
-  };
-  const mover = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!dibujando.current) return;
-    const ctx = ref.current!.getContext('2d')!;
-    const [x, y] = punto(e);
-    ctx.lineTo(x, y); ctx.stroke();
-    tinta.current = true;
-  };
-  const fin = () => {
-    if (!dibujando.current) return;
-    dibujando.current = false;
-    onCambio(tinta.current ? ref.current!.toDataURL('image/png') : null);
-  };
-  const limpiar = () => {
-    const c = ref.current!;
-    c.getContext('2d')!.clearRect(0, 0, c.width, c.height);
-    tinta.current = false;
-    onCambio(null);
-  };
-  return (
-    <div>
-      <canvas ref={ref} width={560} height={180} onPointerDown={inicio} onPointerMove={mover} onPointerUp={fin} onPointerLeave={fin}
-        className="h-40 w-full touch-none rounded-xl border-2 border-dashed border-tinta-200 bg-arena-50" aria-label="Área de firma" />
-      <div className="mt-1 flex justify-between text-xs text-tinta-400">
-        <span>Firma con el dedo o el mouse. Es una firma simple, no una firma electrónica avanzada.</span>
-        <button type="button" onClick={limpiar} className="font-semibold text-tinta-600 hover:underline">Borrar</button>
-      </div>
-    </div>
-  );
-}
+// La captura de firma vive en su propio módulo (pantalla completa en celular).
+export { default as Firma } from './Firma';
 
 export function Cifra({ etiqueta: et, valor, detalle, icono, acento }: { etiqueta: string; valor: ReactNode; detalle?: ReactNode; icono?: ReactNode; acento?: string }) {
   return (

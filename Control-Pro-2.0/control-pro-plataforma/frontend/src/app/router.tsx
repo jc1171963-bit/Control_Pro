@@ -109,6 +109,8 @@ export const router = createBrowserRouter([
         children: [
           { index: true, lazy: () => c(import('../features/aprobador/Inicio')) },
           { path: 'solicitudes', lazy: () => c(import('../features/admin/Pedidos'), 'Solicitudes') },
+          { path: 'seguimiento', lazy: () => c(import('../features/aprobador/Seguimiento')) },
+          { path: 'perfil', lazy: () => c(import('../features/perfil/Perfil')) },
           { path: 'pedidos/:id', lazy: () => c(import('../features/admin/Pedidos'), 'PedidoAdmin') },
           { path: 'sucursales-cliente', lazy: () => c(import('../features/admin/SucursalesCliente'), 'SucursalesCliente') },
           { path: 'sucursales-cliente/:id', lazy: () => c(import('../features/admin/SucursalesCliente'), 'SucursalCliente') },
@@ -155,6 +157,7 @@ export const router = createBrowserRouter([
           { path: 'notificaciones', lazy: () => c(import('../features/admin/Sistema'), 'NotificacionesAdmin') },
           { path: 'mensajes', lazy: () => c(import('../features/colaboracion/Mensajes')) },
           { path: 'reportes', lazy: () => c(import('../features/admin/Reportes')) },
+          { path: 'perfil', lazy: () => c(import('../features/perfil/Perfil')) },
         ],
       },
     ],

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Ban, Check, CheckCheck, ChevronRight, FileDown, FileSignature, PencilLine, Search, Undo2, X } from 'lucide-react';
+import { AlertTriangle, Ban, Check, CheckCheck, ChevronRight, FileDown, PencilLine, Search, Undo2, X } from 'lucide-react';
 import { claveIdempotencia, descargar, get, post } from '../../api/cliente';
 import type { Pagina, Pedido, PedidoResumen } from '../../api/tipos';
 import { useAuth } from '../../app/auth';
@@ -9,6 +9,9 @@ import { useConfig } from '../../app/config';
 import LineaTiempoSolicitud from '../../components/LineaTiempoSolicitud';
 import { BASE_APROBADOR, esAprobador, useBasePanel } from '../../app/panel';
 import { useCelebrar } from '../../components/Celebracion';
+import { AdjuntarEvidencias, GaleriaEvidencias } from '../../components/Archivos';
+import FirmaEnLinea from '../../components/FirmaEnLinea';
+import Expediente from '../../components/Expediente';
 import { BotonWhatsApp, ChatSolicitud } from '../colaboracion/Mensajes';
 import { Aviso, Boton, Campo, Cargando, Entrada, ErrorCaja, Estado, Modal, Paginacion, Selector, Tabla, Tarjeta, Td, Texto, useAviso } from '../../components/ui';
 import { cls, dinero, etiqueta, fechaHora, METODOS, mensajeError, PROBLEMAS_RECEPCION } from '../../lib/formato';
@@ -16,6 +19,7 @@ import { Aparecer, EsqueletoLista, Palomita } from '../../components/movimiento'
 import ComprobanteEntrega from '../cuenta/ComprobanteEntrega';
 import EditarSolicitud from './EditarSolicitud';
 import { Encabezado, FiltroSucursal } from './AdminLayout';
+import SelloCNR from '../../components/SelloCNR';
 
 const ESTADOS_FILTRO = [['', 'Todos'], ['en_revision', 'Por aprobar'], ['pendiente_pago,pago_en_revision', 'Por pagar'], ['confirmado,en_preparacion', 'Por surtir'],
   ['parcialmente_enviado,enviado', 'En camino'], ['parcialmente_entregado,entregado', 'Entregados'], ['cerrado', 'Cerrados'], ['cancelado,expirado,rechazado', 'Cancelados']];
@@ -140,7 +144,7 @@ function TrazabilidadArticulos({ p, onFirma }: { p: Pedido; onFirma: (entregaId:
           <Td className="text-xs">{paquetes.some((pq) => pq.recepcion) ? (recepciones.length ? recepciones.map((r, i) => <p key={i} className={r.problema ? 'text-coral-600' : 'text-menta-700'}>{r.recibida}/{r.esperada}{r.problema ? ` · ${PROBLEMAS_RECEPCION[r.problema]}` : ' recibidas'}</p>)
             : <p className="text-menta-700">Recibido</p>) : <span className="text-tinta-300">—</span>}</Td>
           <Td className="text-xs">{entregas.length ? entregas.map(({ e, entregada, esperada }) => <p key={e.id}>{e.estado === 'pendiente' ? <span className="text-tinta-400">Pendiente</span> : <>{entregada}/{esperada} · {fechaHora(e.entregado_en)}<span className="block text-tinta-400">Entregó {e.registrado_por || '—'}</span>
-            {e.tiene_firma && <button type="button" onClick={() => onFirma(e.id)} className="mt-0.5 inline-flex items-center gap-1 font-semibold text-menta-700 hover:underline"><FileSignature className="h-3 w-3" />Ver firma</button>}</>}</p>) : <span className="text-tinta-300">—</span>}</Td>
+            {e.tiene_firma && <FirmaEnLinea entregaId={e.id} origen="admin" onAbrir={() => onFirma(e.id)} className="mt-1" />}</>}</p>) : <span className="text-tinta-300">—</span>}</Td>
           <Td className="text-xs">{entregas.map(({ e }) => <p key={e.id}>{e.conformidad_en ? <><span className="text-amber-500">{'★'.repeat(e.valoracion || 0)}</span> <Estado valor={e.estado} className="ml-1" /></> : e.estado !== 'pendiente' ? <span className="text-tinta-400">Pendiente</span> : ''}</p>)}</Td>
         </tr>
       ))}
@@ -162,6 +166,7 @@ export function PedidoAdmin() {
   const [aceptar, setAceptar] = useState(false);
   const [clave, setClave] = useState(() => claveIdempotencia('efectivo'));
   const [tipoInc, setTipoInc] = useState('seguimiento');
+  const [evidencias, setEvidencias] = useState<string[]>([]);
   const [comprobante, setComprobante] = useState<number | null>(null);
   const [editando, setEditando] = useState(false);
   const refrescar = () => { qc.invalidateQueries({ queryKey: ['admin-pedido', id] }); qc.invalidateQueries({ queryKey: ['admin-pedidos'] }); };
@@ -174,11 +179,11 @@ export function PedidoAdmin() {
         case 'cancelar': return post(`/admin/pedidos/${id}/cancelar`, { motivo: texto });
         case 'cerrar': return post(`/admin/pedidos/${id}/cerrar`, { nota: texto || null });
         case 'efectivo': return post(`/admin/pedidos/${id}/efectivo`, { monto: q.data!.saldo, referencia: texto || null, clave_idempotencia: clave });
-        case 'incidencia': return post('/admin/incidencias', { tipo: tipoInc, descripcion: texto, pedido_id: Number(id), prioridad: 'media' });
+        case 'incidencia': return post('/admin/incidencias', { tipo: tipoInc, descripcion: texto, pedido_id: Number(id), prioridad: 'media', evidencias });
       }
     },
     onSuccess: () => {
-      refrescar(); setTexto(''); setClave(claveIdempotencia('efectivo'));
+      refrescar(); setTexto(''); setEvidencias([]); setClave(claveIdempotencia('efectivo'));
       const folio = q.data?.folio ?? '';
       if (modal === 'aprobar') celebrar({ titulo: `Solicitud ${folio} aprobada`, texto: 'La sucursal y la distribuidora ya recibieron el aviso.', paleta: base === BASE_APROBADOR ? 'sd' : 'lurima' });
       else if (modal === 'autorizar') celebrar({ titulo: `Solicitud ${folio} autorizada`, texto: 'Quedó confirmada y el almacén ya puede surtirla.', paleta: 'lurima' });
@@ -198,7 +203,7 @@ export function PedidoAdmin() {
 
   return (
     <>
-      <Encabezado titulo={`${p.canal === 'corporativo' ? 'Solicitud' : 'Pedido'} ${p.folio}`} sub={`${p.canal === 'corporativo' ? `Sucursal ${p.cliente.razon_social || p.cliente.nombre}` : 'Tienda en línea'} · ${fechaHora(p.creado)}`}>
+      <Encabezado titulo={`${p.canal === 'corporativo' ? 'Solicitud' : 'Pedido'} ${p.folio}`} sub={<span className="inline-flex flex-wrap items-center gap-1.5">{p.canal === 'corporativo' ? `Sucursal ${p.cliente.razon_social || p.cliente.nombre}` : 'Tienda en línea'}{p.cliente.cnr && <SelloCNR />} · {fechaHora(p.creado)}</span>}>
         <Boton variante="secundario" icono={<FileDown className="h-4 w-4" />} onClick={() => descargar(`/admin/pedidos/${p.id}/pdf`, `${p.folio}.pdf`)}>PDF</Boton>
         {p.estado === 'en_revision' && puede('pedido.aprobar') && <>
           {p.canal === 'corporativo' && <Boton variante="secundario" icono={<PencilLine className="h-4 w-4" />} onClick={() => setEditando(true)}>Editar</Boton>}
@@ -215,7 +220,7 @@ export function PedidoAdmin() {
       </Encabezado>
 
       {p.canal === 'corporativo' && p.estado !== 'borrador' && <Tarjeta titulo="Trazabilidad de la solicitud" className="mb-5"><LineaTiempoSolicitud p={p} /></Tarjeta>}
-      <div className="grid gap-5 xl:grid-cols-[1fr_340px]">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px] [&>*]:min-w-0">
         <div className="space-y-5">
           <Tarjeta titulo={<span className="flex items-center gap-2">Estado <Estado valor={p.estado} /></span>} sub={`${METODOS[p.metodo_pago]} · ${p.modalidad === 'recoger' ? `Recoge en ${p.sucursal_recoger?.nombre}` : 'Envío a domicilio'}`}>
             {excepciones && p.estado === 'en_revision' && <div className="mb-3"><Aviso tipo="alerta">Este pedido incluye productos fuera de la regla por puesto; revisa las justificaciones antes de aprobar.</Aviso></div>}
@@ -290,10 +295,11 @@ export function PedidoAdmin() {
                   <Td className="text-xs">{e.detalles.map((d) => `${d.entregada}/${d.esperada} ${d.sku}`).join(', ')}</Td><Td className="text-xs">{e.registrado_por || '—'}</Td>
                   <Td className="text-xs">{e.conformidad_en ? <>{'★'.repeat(e.valoracion || 0)}<span className="block text-tinta-400">{e.conformidad_comentario}</span></> : '—'}</Td>
                   <Td className="text-xs">{fechaHora(e.entregado_en)}</Td><Td><Estado valor={e.estado} /></Td>
-                  <Td>{e.tiene_firma ? <Boton tam="sm" variante="secundario" icono={<FileSignature className="h-3.5 w-3.5" />} onClick={() => setComprobante(e.id)}>Ver firma</Boton> : <span className="text-xs text-tinta-300">—</span>}</Td></tr>)}
+                  <Td>{e.tiene_firma ? <FirmaEnLinea entregaId={e.id} origen="admin" onAbrir={() => setComprobante(e.id)} /> : <span className="text-xs text-tinta-300">—</span>}</Td></tr>)}
               </Tabla>
             </Tarjeta>
           )}
+          {p.canal === 'corporativo' && <Expediente pedidoId={p.id} folio={p.folio} origen="admin" onComprobante={setComprobante} />}
         </div>
 
         <div className="space-y-5">
@@ -319,7 +325,8 @@ export function PedidoAdmin() {
             <Tarjeta titulo="Incidencias">
               {p.incidencias.map((i) => <div key={i.id} className="mb-2 rounded-lg p-3 text-sm ring-1 ring-tinta-100"><div className="flex justify-between"><b>{i.folio}</b><Estado valor={i.estado} /></div>
                 {(i.empleado || i.articulo) && <p className="text-xs font-semibold text-tinta-600">{[i.empleado?.nombre, i.articulo && `${i.articulo.nombre} (${i.articulo.talla})`].filter(Boolean).join(' · ')}</p>}
-                <p className="text-xs">{i.descripcion}</p></div>)}
+                <p className="text-xs">{i.descripcion}</p>
+                {!!i.evidencias?.length && <div className="mt-2"><GaleriaEvidencias urls={i.evidencias} titulo={`Evidencia de ${i.folio}`} /></div>}</div>)}
               {puede('incidencia.gestionar') && <Link to="/admin/incidencias" className="text-xs font-semibold text-menta-700">Gestionar →</Link>}
             </Tarjeta>
           )}
@@ -347,6 +354,8 @@ export function PedidoAdmin() {
           {modal === 'cerrar' && <p className="text-sm text-tinta-500">Solo se cierra si no hay incidencias abiertas, devoluciones en trámite, reembolsos pendientes ni entregas individuales pendientes.</p>}
           {modal === 'incidencia' && <Campo etiqueta="Tipo"><Selector value={tipoInc} onChange={(e) => setTipoInc(e.target.value)}>
             {['seguimiento', 'talla_incorrecta', 'articulo_faltante', 'articulo_danado', 'paquete_no_recibido', 'error_preparacion', 'otro'].map((t) => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}</Selector></Campo>}
+          {modal === 'incidencia' && <div><p className="mb-1.5 text-sm font-semibold text-tinta-800">Foto de evidencia <span className="font-normal text-tinta-400">(opcional)</span></p>
+            <AdjuntarEvidencias valor={evidencias} onCambio={setEvidencias} /></div>}
           <Campo etiqueta={modal === 'efectivo' ? 'Folio de caja (opcional)' : requiereTexto ? 'Motivo / descripción (obligatorio)' : 'Comentario (opcional)'}>
             {modal === 'efectivo' ? <Entrada value={texto} onChange={(e) => setTexto(e.target.value)} /> : <Texto value={texto} onChange={(e) => setTexto(e.target.value)} />}
           </Campo>

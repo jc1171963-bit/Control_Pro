@@ -12,6 +12,7 @@ import FondoPortal from '../portal/FondoPortal';
 import { useMensajesNoLeidos } from '../colaboracion/Mensajes';
 import InterruptorTema from '../../components/InterruptorTema';
 import { useAplicarTema } from '../../app/tema';
+import { useActividadEnVivo } from '../../app/enVivo';
 
 export function useSucursalesAdmin() {
   return useQuery({ queryKey: ['admin-sucursales'], queryFn: () => get<Sucursal[]>('/admin/sucursales'), staleTime: 120_000 });
@@ -36,6 +37,7 @@ const GRUPOS: { titulo: string; items: [string, string, any, string][] }[] = [
  */
 export default function AdminLayout() {
   useAplicarTema();
+  useActividadEnVivo();
   const { usuario, puede, salir } = useAuth();
   const [abierto, setAbierto] = useState(false);
   const loc = useLocation();
@@ -122,18 +124,18 @@ export default function AdminLayout() {
           <Link to="/admin/notificaciones" className="relative grid h-11 w-11 place-items-center rounded-full border border-white/80 bg-white/60 text-lurima-900 backdrop-blur-md transition hover:bg-white/85" aria-label="Notificaciones">
             <Bell className="h-5 w-5" />{noLeidas > 0 && <span className="absolute right-1 top-1 grid h-4 min-w-4 place-items-center rounded-full bg-coral-500 px-1 text-[10px] font-bold text-white" aria-hidden>{noLeidas}</span>}
           </Link>
-          <span className="hidden min-h-11 items-center gap-2 rounded-full border border-white/80 bg-white/60 pl-1.5 pr-4 text-sm font-semibold backdrop-blur-md md:flex">
+          <Link to="/admin/perfil" title="Mi perfil" className="hidden min-h-11 items-center gap-2 rounded-full border border-white/80 bg-white/60 pl-1.5 pr-4 text-sm font-semibold backdrop-blur-md transition hover:bg-white/85 md:flex">
             <span className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-lurima-800 to-bienestar-500 text-xs font-bold text-white" aria-hidden>{iniciales}</span>
             <span className="max-w-[12rem] truncate">{usuario?.nombre}</span>
-          </span>
+          </Link>
         </div>
       </header>
-      <main className="mx-auto max-w-[1500px] animate-aparecer px-4 pb-8 pt-3 sm:px-6 lg:pl-0 lg:pr-8" key={loc.pathname.split('/')[2] || 'inicio'}><Outlet /></main>
+      <main className="mx-auto max-w-[1500px] animate-aparecer overflow-x-clip px-4 pb-8 pt-3 sm:px-6 lg:pl-0 lg:pr-8" key={loc.pathname.split('/')[2] || 'inicio'}><Outlet /></main>
     </div>
   );
 }
 
-export function Encabezado({ titulo, sub, children }: { titulo: string; sub?: string; children?: React.ReactNode }) {
+export function Encabezado({ titulo, sub, children }: { titulo: React.ReactNode; sub?: React.ReactNode; children?: React.ReactNode }) {
   return (
     <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
       <div><h1 className="font-display text-2xl font-extrabold tracking-tight text-lurima-950 sm:text-[28px]">{titulo}</h1>{sub && <p className="text-sm text-tinta-500">{sub}</p>}</div>

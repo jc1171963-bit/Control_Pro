@@ -70,6 +70,7 @@ export function registrarServiceWorker(navegar: (ruta: string) => void) {
   if (!('serviceWorker' in navigator) || !window.isSecureContext) return;
   // Al tocar un aviso con la app abierta, el service worker pide navegar sin recargar.
   navigator.serviceWorker.addEventListener('message', (ev) => {
+    if (ev.data?.tipo === 'actividad') { window.dispatchEvent(new Event('cp-actividad')); return; }
     if (ev.data?.tipo !== 'navegar') return;
     const u = new URL(ev.data.url, location.origin);
     if (u.origin === location.origin) navegar(u.pathname + u.search + u.hash);

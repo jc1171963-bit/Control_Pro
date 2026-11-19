@@ -205,7 +205,7 @@ def crear_incidencia():
         sucursal_id = next(iter(sucs)) if len(sucs) == 1 else None
     inc = dev.crear_incidencia(d["tipo"], d["descripcion"], d["prioridad"], d.get("pedido_id"), d.get("paquete_id"),
                                d.get("devolucion_id"), d.get("transferencia_id"), sucursal_id, d.get("empleado_id"),
-                               d.get("pedido_detalle_id"))
+                               d.get("pedido_detalle_id"), evidencias=d["evidencias"])
     return jsonify(serial.incidencia(inc)), 201
 
 

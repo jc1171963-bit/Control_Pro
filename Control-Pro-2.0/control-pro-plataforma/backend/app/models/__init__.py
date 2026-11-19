@@ -4,7 +4,7 @@ from .catalogo import (Categoria, Producto, ProductoGiro, ProductoImagen, Produc
 from .clientes import Cliente, Direccion, Division, EmpleadoCorporativo, Zona  # noqa: F401
 from .colaboracion import Conversacion, Mensaje, PermisoPadron, PushSuscripcion  # noqa: F401
 from .inventario import Inventario, MovimientoInventario, Transferencia, TransferenciaDetalle  # noqa: F401
-from .operacion import (Auditoria, Devolucion, DevolucionDetalle, EntregaIndividual, EntregaIndividualDetalle,  # noqa: F401
+from .operacion import (Auditoria, Configuracion, Documento, Devolucion, DevolucionDetalle, EntregaIndividual, EntregaIndividualDetalle,  # noqa: F401
                         Envio, EventoEnvio, Incidencia, IncidenciaSeguimiento, Notificacion, Pago, Paquete,
                         PaqueteDetalle, Recepcion, RecepcionDetalle, Reembolso)
 from .pedidos import (AsignacionDetalle, AsignacionSurtido, Aprobacion, Carrito, CarritoItem, Favorito,  # noqa: F401

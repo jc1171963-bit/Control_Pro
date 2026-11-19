@@ -48,6 +48,10 @@ export default {
         // Celebración: la tarjeta entra con un pequeño rebote y sale desvaneciéndose; la onda se expande desde la palomita.
         celebrar: { '0%': { opacity: '0', transform: 'scale(.6) translateY(20px)' }, '12%': { opacity: '1', transform: 'scale(1.04)' }, '18%': { transform: 'scale(1)' }, '86%': { opacity: '1', transform: 'scale(1)' }, '100%': { opacity: '0', transform: 'scale(.96) translateY(-8px)' } },
         onda: { '0%': { transform: 'scale(1)', opacity: '.7' }, '100%': { transform: 'scale(1.75)', opacity: '0' } },
+        // Diálogos: fondo que se oscurece, hoja que sube (celular) y tarjeta que emerge (escritorio).
+        fundido: { from: { opacity: '0' }, to: { opacity: '1' } },
+        hoja: { from: { transform: 'translateY(100%)' }, to: { transform: 'none' } },
+        emerger: { from: { opacity: '0', transform: 'translateY(10px) scale(.97)' }, to: { opacity: '1', transform: 'none' } },
       },
       animation: {
         aparecer: 'aparecer .45s cubic-bezier(.2,.8,.2,1) both',
@@ -65,6 +69,9 @@ export default {
         kenburns: 'kenburns 4.6s ease-out both',
         celebrar: 'celebrar 3.4s cubic-bezier(.2,.8,.2,1) both',
         onda: 'onda 1.1s ease-out .35s 2 both',
+        fundido: 'fundido .2s ease-out both',
+        hoja: 'hoja .32s cubic-bezier(.2,.8,.2,1) both',
+        emerger: 'emerger .24s cubic-bezier(.2,.8,.2,1) both',
       },
     },
   },

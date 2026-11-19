@@ -8,6 +8,7 @@ import { useAuth } from '../../app/auth';
 import { Aviso, Boton, Campo, Cargando, Entrada, ErrorCaja, Estado, Modal, Paginacion, Selector, Tabla, Tarjeta, Td, Texto, useAviso } from '../../components/ui';
 import { cls, dinero, etiqueta, fechaHora, MOTIVOS_DEVOLUCION, tipoIncidencia } from '../../lib/formato';
 import { HistorialIncidencia } from '../cuenta/DetalleSolicitud';
+import { GaleriaEvidencias } from '../../components/Archivos';
 import { Encabezado, useSucursalesAdmin } from './AdminLayout';
 
 const FILTROS_DEV = [['solicitada', 'Por autorizar'], ['autorizada,en_camino', 'Por recibir'], ['recibida', 'Por inspeccionar'], ['inspeccionada,reembolsada', 'Por cerrar'], ['', 'Todas']];
@@ -126,7 +127,7 @@ export function Incidencias() {
               <tr key={i.id}><Td><p className="font-semibold">{i.folio}</p><p className="text-xs text-tinta-400">{fechaHora(i.creado)}</p></Td><Td className="text-xs">{tipoIncidencia(i.tipo)}</Td>
                 <Td className="text-xs">{i.pedido_id ? <Link to={`/admin/pedidos/${i.pedido_id}`} className="text-menta-700">Pedido #{i.pedido_id}</Link> : i.transferencia_id ? `Transferencia #${i.transferencia_id}` : i.devolucion_id ? `Devolución #${i.devolucion_id}` : '—'}</Td>
                 <Td className="text-xs">{i.empleado?.nombre || '—'}{i.articulo && <span className="block text-tinta-400">{i.articulo.nombre} ({i.articulo.talla})</span>}</Td>
-                <Td className="max-w-sm text-xs">{i.descripcion}</Td><Td><Estado valor={i.prioridad} /></Td><Td><Estado valor={i.estado} /></Td>
+                <Td className="max-w-sm text-xs">{i.descripcion}{!!i.evidencias?.length && <div className="mt-2"><GaleriaEvidencias urls={i.evidencias} titulo={`Evidencia de ${i.folio}`} /></div>}</Td><Td><Estado valor={i.prioridad} /></Td><Td><Estado valor={i.estado} /></Td>
                 <Td><Boton tam="sm" variante="secundario" onClick={() => { setSel(i); setNuevoEstado(''); }}>Gestionar</Boton></Td></tr>
             ))}
           </Tabla>
@@ -138,6 +139,7 @@ export function Incidencias() {
           <div className="space-y-4 text-sm">
             <div className="flex items-center gap-2"><Estado valor={sel.estado} /><Estado valor={sel.prioridad} /></div>
             <p className="rounded-lg bg-tinta-50 p-3"><b>Descripción original:</b> {sel.descripcion}</p>
+            {!!sel.evidencias?.length && <div><p className="mb-1.5 text-xs font-semibold uppercase text-tinta-400">Evidencia</p><GaleriaEvidencias urls={sel.evidencias} titulo={`Evidencia de ${sel.folio}`} /></div>}
             {(sel.empleado || sel.articulo) && <p className="text-xs"><b>Relacionada con:</b> {[sel.empleado && `${sel.empleado.nombre} (${sel.empleado.puesto})`, sel.articulo && `${sel.articulo.nombre} talla ${sel.articulo.talla}`].filter(Boolean).join(' · ')}</p>}
             <div><p className="text-xs font-semibold uppercase text-tinta-400">Historial</p><HistorialIncidencia i={sel} /></div>
             <Campo etiqueta="Agregar comentario o resolución" ayuda="Se agrega al historial; no reemplaza lo anterior."><Texto value={comentario} onChange={(e) => setComentario(e.target.value)} /></Campo>

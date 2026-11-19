@@ -31,12 +31,14 @@ def usuario(u):
     return {"id": u.id, "correo": u.correo, "nombre": u.nombre, "activo": u.activo,
             "rol": {"codigo": u.rol.codigo, "nombre": u.rol.nombre, "alcance_global": u.rol.alcance_global},
             "permisos": sorted(u.codigos_permiso), "sucursales": [{"id": s.id, "nombre": s.nombre} for s in u.sucursales],
-            "ultimo_acceso": f(u.ultimo_acceso), "bloqueado_hasta": f(u.bloqueado_hasta), "foto": u.foto_url}
+            "ultimo_acceso": f(u.ultimo_acceso), "bloqueado_hasta": f(u.bloqueado_hasta), "foto": u.foto_url,
+            "telefono": u.telefono, "area": u.area, "cargo": u.cargo}
 
 
 def cliente(c):
     return {"id": c.id, "correo": c.correo, "nombre": c.nombre, "telefono": c.telefono, "tipo": c.tipo,
-            "razon_social": c.razon_social, "rfc": c.rfc, "activo": c.activo, "creado": f(c.creado), "foto": c.foto_url}
+            "razon_social": c.razon_social, "rfc": c.rfc, "activo": c.activo, "creado": f(c.creado), "foto": c.foto_url,
+            "cnr": c.cnr}
 
 
 def direccion(d):
@@ -183,7 +185,7 @@ def asignacion(a, con_pedido=False):
 def pedido_resumen(p):
     return {"id": p.id, "folio": p.folio, "canal": p.canal, "estado": p.estado, "modalidad": p.modalidad,
             "metodo_pago": p.metodo_pago, "total": m(p.total), "creado": f(p.creado),
-            "cliente": {"id": p.cliente.id, "nombre": p.cliente.razon_social or p.cliente.nombre},
+            "cliente": {"id": p.cliente.id, "nombre": p.cliente.razon_social or p.cliente.nombre, "cnr": p.cliente.cnr},
             "articulos": sum(d.cantidad for d in p.detalles),
             "sucursales": sorted({a.sucursal.nombre for a in p.asignaciones if a.estado != "cancelada"}),
             "reserva_expira": f(p.reserva_expira)}
@@ -267,7 +269,7 @@ def incidencia(i, interno=True):
     return {"id": i.id, "folio": i.folio, "tipo": i.tipo, "prioridad": i.prioridad, "estado": i.estado,
             "pedido_id": i.pedido_id, "paquete_id": i.paquete_id, "devolucion_id": i.devolucion_id,
             "transferencia_id": i.transferencia_id, "sucursal_id": i.sucursal_id, "descripcion": i.descripcion,
-            "resolucion": i.resolucion, "responsable_id": i.responsable_id, "creado": f(i.creado),
+            "resolucion": i.resolucion, "responsable_id": i.responsable_id, "creado": f(i.creado), "evidencias": i.evidencias or [],
             "actualizado": f(i.actualizado),
             "empleado": {"id": i.empleado.id, "nombre": i.empleado.nombre, "puesto": i.empleado.puesto} if i.empleado else None,
             "articulo": {"pedido_detalle_id": i.pedido_detalle_id, "nombre": i.pedido_detalle.nombre,

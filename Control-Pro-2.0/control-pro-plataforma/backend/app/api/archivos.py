@@ -53,6 +53,31 @@ def subir_privado():
     return jsonify({"url": f"/api/archivos/privados/{nombre}"}), 201
 
 
+def _meta(url: str) -> tuple[str, dict]:
+    nombre = os.path.basename(url)
+    ruta = os.path.join(current_app.config["UPLOAD_DIR"], "privados", nombre + ".meta")
+    if not url.startswith("/api/archivos/privados/") or not os.path.exists(ruta):
+        raise NoEncontrado("Archivo no encontrado.")
+    with open(ruta) as fh:
+        return ruta, json.load(fh)
+
+
+def vincular_a_pedido(urls: list[str], pedido_id: int, dueno: str):
+    """Liga archivos recién subidos a una solicitud para que la sucursal dueña también pueda verlos (p. ej. la evidencia
+    que sube la distribuidora). Solo quien subió el archivo puede ligarlo."""
+    for url in urls:
+        ruta, meta = _meta(url)
+        if meta.get("dueno") != dueno:
+            raise SinPermiso("Solo puedes adjuntar archivos que tú subiste.")
+        meta["pedido_id"] = pedido_id
+        with open(ruta, "w") as fh:
+            json.dump(meta, fh)
+
+
+def dueno_actual() -> str:
+    return f"c{_cargar_cliente().id}" if get_jwt().get("tipo") == "cliente" else f"u{_cargar_usuario().id}"
+
+
 @bp.get("/privados/<nombre>")
 def ver_privado(nombre):
     verify_jwt_in_request()
@@ -62,8 +87,16 @@ def ver_privado(nombre):
         raise NoEncontrado("Archivo no encontrado.")
     if get_jwt().get("tipo") == "cliente":
         with open(meta) as fh:
-            if json.load(fh)["dueno"] != f"c{_cargar_cliente().id}":
-                raise NoEncontrado("Archivo no encontrado.")
+            datos = json.load(fh)
+        cliente = _cargar_cliente()
+        propio = datos["dueno"] == f"c{cliente.id}"
+        if not propio and datos.get("pedido_id"):
+            from ..extensions import db
+            from ..models import Pedido
+            p = db.session.get(Pedido, datos["pedido_id"])
+            propio = bool(p and p.cliente_id == cliente.id)
+        if not propio:
+            raise NoEncontrado("Archivo no encontrado.")
     else:
         _cargar_usuario()
     return send_from_directory(ruta, os.path.basename(nombre), max_age=0)
