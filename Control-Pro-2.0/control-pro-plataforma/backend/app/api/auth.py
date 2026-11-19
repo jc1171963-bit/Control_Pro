@@ -1,7 +1,9 @@
 """Autenticación de personal interno y de clientes."""
-from flask import Blueprint, g, jsonify
-from flask_jwt_extended import (get_jwt, get_jwt_identity, jwt_required, set_refresh_cookies, unset_jwt_cookies,
-                                verify_jwt_in_request)
+import uuid
+
+from flask import Blueprint, current_app, g, jsonify, request
+from flask_jwt_extended import (decode_token, get_jwt, get_jwt_identity, jwt_required, set_refresh_cookies,
+                                unset_jwt_cookies, verify_jwt_in_request)
 
 from ..errors import SinPermiso
 from ..extensions import db
@@ -15,10 +17,28 @@ from .util import cuerpo
 bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
 
+def _sesion_de_la_cookie():
+    """(sid, tipo, cuenta_id) de la sesión de ESTE navegador según su cookie de refresh, o None.
+
+    Solo con la firma y el vencimiento verificados (`decode_token`) y si es un refresh coherente. Una cookie ausente,
+    malformada, vencida o con otra firma se ignora: nunca impide iniciar sesión ni revela nada al cliente."""
+    crudo = request.cookies.get(current_app.config["JWT_REFRESH_COOKIE_NAME"])
+    if not crudo:
+        return None
+    try:
+        d = decode_token(crudo)
+        letra, _, cuenta_id = str(d["sub"]).partition(":")
+        if d.get("type") != "refresh" or d.get("tipo") not in ("usuario", "cliente") or letra != d["tipo"][0]:
+            return None
+        return uuid.UUID(str(d["sid"])), d["tipo"], int(cuenta_id)
+    except Exception:  # token inválido de cualquier forma: se trata como si no hubiera cookie
+        return None
+
+
 def _respuesta_sesion(tipo, cuenta, status=200, sesion=None, huella=None):
-    """Sin `sesion` es un inicio de sesión: abre una nueva (con `huella`, la contraseña verificada). En la renovación se
-    recibe la generación vigente ya rotada."""
-    vigente = sesion or auth_service.crear_sesion(tipo, cuenta, huella)
+    """Sin `sesion` es un inicio de sesión (o registro): abre una nueva (con `huella`, la contraseña verificada) y
+    reemplaza la que tenía este navegador (H-05). En la renovación se recibe la generación vigente ya rotada."""
+    vigente = sesion or auth_service.crear_sesion(tipo, cuenta, huella, reemplaza=_sesion_de_la_cookie())
     tokens = auth_service.emitir_tokens(tipo, cuenta, vigente)
     datos = serial.usuario(cuenta) if tipo == "usuario" else serial.cliente(cuenta)
     resp = jsonify({"access_token": tokens["access_token"], "tipo": tipo, "cuenta": datos,

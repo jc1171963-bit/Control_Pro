@@ -116,9 +116,10 @@ def test_concurrencia_no_sobrevende(app, client):
     apis = []
     for i in range(20):
         correo = f"conc{i}@demo.mx"
-        client.post("/api/auth/cliente/registro", json={"correo": correo, "password": "Segura123", "nombre": f"Cliente {i}"})
-        tok = client.post("/api/auth/cliente/login", json={"correo": correo, "password": "Segura123"}).get_json()["access_token"]
-        api = Api(app.test_client(), tok)
+        navegador = app.test_client()  # un navegador por comprador: un login en el mismo navegador reemplaza el anterior
+        navegador.post("/api/auth/cliente/registro", json={"correo": correo, "password": "Segura123", "nombre": f"Cliente {i}"})
+        tok = navegador.post("/api/auth/cliente/login", json={"correo": correo, "password": "Segura123"}).get_json()["access_token"]
+        api = Api(navegador, tok)
         api.post("/api/cuenta/direcciones", {"alias": "Casa", "destinatario": "X Y Z", "telefono": "7221002000",
                                             "calle": "Uno", "numero": "1", "colonia": "Centro", "ciudad": "Toluca",
                                             "estado": "México", "cp": "50000"})

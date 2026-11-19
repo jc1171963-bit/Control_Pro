@@ -151,8 +151,11 @@ class Api:
 
 
 @pytest.fixture()
-def como(client):
-    """como('admin') → Api autenticada. Acepta alias de usuarios internos o 'cliente' / 'empresa'."""
+def como(app):
+    """como('admin') → Api autenticada. Acepta alias de usuarios internos o 'cliente' / 'empresa'.
+
+    Cada llamada es un dispositivo propio (su cliente y su cookie): un login en el mismo navegador reemplaza la sesión
+    anterior de ese navegador (H-05), y las pruebas usan varias cuentas a la vez."""
     alias = {
         "admin": "admin@controlpro.mx", "finanzas": "finanzas@controlpro.mx", "atencion": "atencion@controlpro.mx",
         "aprobador": "aprobador@controlpro.mx", "auditor": "auditor@controlpro.mx",
@@ -162,6 +165,7 @@ def como(client):
     }
 
     def _login(quien):
+        client = app.test_client()
         if quien in ("cliente", "empresa"):
             correo = "cliente@demo.mx" if quien == "cliente" else "empresa@demo.mx"
             r = client.post("/api/auth/cliente/login", json={"correo": correo, "password": PASSWORD})
