@@ -5,7 +5,7 @@
  */
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, ScrollRestoration, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowRight, Bell, Building2, ChevronDown, ChevronRight, ChevronsLeft, ChevronsRight, ClipboardList, Heart, Home, Menu, MessagesSquare, PenLine, PlusCircle, Search, Shirt, User, Users, X } from 'lucide-react';
+import { Bell, Building2, ChevronDown, ChevronRight, ChevronsLeft, ChevronsRight, ClipboardList, Home, Menu, MessagesSquare, PenLine, PlusCircle, Search, Shirt, User, Users, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuth } from '../../app/auth';
 import { useBorradores } from '../../app/borradores';
@@ -22,6 +22,8 @@ import { CONTEXTO_CATALOGO_PORTAL, RUTA_CATALOGO_PORTAL } from './rutas';
 import { OpcionesAppMenu } from '../../components/AppDispositivo';
 import InterruptorTema from '../../components/InterruptorTema';
 import { useAplicarTema } from '../../app/tema';
+import { useActividadEnVivo } from '../../app/enVivo';
+import SelloCNR from '../../components/SelloCNR';
 
 // "Catálogo" abre el catálogo dentro del portal (/cuenta/catalogo).
 // "Dirección de entrega" vive dentro de "Mi cuenta"; /cuenta/direcciones redirige allí.
@@ -57,7 +59,7 @@ function MenuUsuario({ nombre, onSalir }: { nombre: string; onSalir: () => void 
   return (
     <div ref={raiz} className="relative">
       <button ref={boton} type="button" onClick={() => setAbierto(!abierto)} aria-expanded={abierto} aria-haspopup="true"
-        className="flex min-h-12 items-center gap-2 rounded-full border border-white/80 bg-white/60 px-3 text-sm font-semibold text-[#102a31] backdrop-blur-md transition hover:bg-white/80">
+        className="flex min-h-10 items-center gap-1.5 rounded-full border border-white/80 bg-white/60 px-2.5 text-sm font-semibold text-[#102a31] sm:min-h-12 sm:gap-2 sm:px-3 backdrop-blur-md transition hover:bg-white/80">
         <User className="h-5 w-5" aria-hidden /><span className="hidden max-w-[12rem] truncate sm:inline">{nombre}</span><span className="sr-only sm:hidden">{nombre}</span>
         <ChevronDown className="h-4 w-4" aria-hidden />
       </button>
@@ -74,6 +76,7 @@ function MenuUsuario({ nombre, onSalir }: { nombre: string; onSalir: () => void 
 
 export default function PortalLayout() {
   useAplicarTema();
+  useActividadEnVivo();
   const { cliente, salir } = useAuth();
   const nav = useNavigate();
   const loc = useLocation();
@@ -138,7 +141,7 @@ export default function PortalLayout() {
         {/* Sucursal activa (tarjeta del archivo de diseño). Con la barra contraída se nombra en el encabezado. */}
         <div className={cls('mx-3 mb-4 mt-4 flex items-center gap-2.5 rounded-[18px] bg-white/65 p-3 text-xs font-bold', rail && 'lg:hidden')}>
           <Building2 className="h-5 w-5 shrink-0 text-[#0b9b6d]" aria-hidden />
-          <span className="min-w-0"><span className="block truncate font-display text-[13px] text-[#102a31]">{nombreSucursal}</span><span className="mt-0.5 block font-medium text-[#71858b]">Sucursal</span></span>
+          <span className="min-w-0"><span className="block truncate font-display text-[13px] text-[#102a31]">{nombreSucursal}</span><span className="mt-0.5 flex items-center gap-1.5 font-medium text-[#71858b]">Sucursal{cliente?.cnr && <SelloCNR />}</span></span>
         </div>
         <div className={cls('hidden lg:block', rail ? 'h-5' : 'h-0')} aria-hidden />
         <p className={cls('px-6 pb-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-[#71858b]', rail && 'lg:sr-only')}>Menú</p>
@@ -159,11 +162,7 @@ export default function PortalLayout() {
           ))}
         </nav>
         {/* Tarjeta institucional y perfil (decorativos, sin acciones: cerrar sesión vive en el menú de usuario). */}
-        <div className={cls('lema-panel mx-3 mt-2 rounded-[22px] bg-gradient-to-br from-[#d8f7e9cc] to-[#a8e6d4aa] p-4 text-[13px] font-bold leading-snug', rail && 'lg:hidden')}>
-          <Heart className="mb-2 h-5 w-5 text-[#0b9b6d]" aria-hidden />
-          Juntos por una<br />mejor salud
-          <ArrowRight className="ml-auto mt-1 h-5 w-5" aria-hidden />
-        </div>
+        
         <div className={cls('mx-3 mt-3 flex items-center gap-2.5 rounded-[20px] border border-white/80 bg-white/60 p-3 text-xs font-bold', rail && 'lg:hidden')}>
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#183d42] to-[#b9d8c8] text-sm text-white" aria-hidden>{iniciales(cliente?.nombre || nombreSucursal)}</span>
           <span className="min-w-0"><span className="block truncate">{cliente?.nombre}</span><span className="mt-0.5 block truncate font-medium text-[#71858b]">Contacto de la sucursal</span></span>
@@ -177,7 +176,7 @@ export default function PortalLayout() {
         </div>
       </aside>
 
-      <header className="sticky top-0 z-20 flex min-h-[70px] items-center gap-3 px-4 py-2.5 backdrop-blur-md sm:px-6 lg:mt-3 lg:pl-0 lg:pr-8 lg:backdrop-blur-none">
+      <header className="sticky top-0 z-20 flex min-h-[70px] items-center gap-2 px-3 py-2.5 sm:gap-3 backdrop-blur-md sm:px-6 lg:mt-3 lg:pl-0 lg:pr-8 lg:backdrop-blur-none">
         <button ref={botonMenu} type="button" onClick={() => setMenu(true)} aria-label="Abrir menú" aria-expanded={drawerAbierto} aria-controls="navegacion-portal"
           className="-ml-1 grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/80 bg-white/60 text-tinta-800 backdrop-blur-md lg:hidden"><Menu className="h-5 w-5" aria-hidden /></button>
         {/* El logotipo vive en la barra lateral; en móvil y con la barra contraída pasa al encabezado. */}
@@ -187,13 +186,13 @@ export default function PortalLayout() {
           <p className="max-w-[14rem] truncate font-display font-bold">{nombreSucursal}</p>
         </div>
         <form role="search" onSubmit={buscar}
-          className="hidden h-12 max-w-[560px] flex-1 items-center gap-3 rounded-[18px] border border-white/80 bg-white/55 px-4 backdrop-blur-xl focus-within:ring-2 focus-within:ring-menta-400 md:flex">
+          className="hidden h-12 min-w-0 max-w-[560px] flex-1 items-center gap-3 rounded-[18px] border border-white/80 bg-white/55 px-4 backdrop-blur-xl focus-within:ring-2 focus-within:ring-menta-400 md:flex">
           <Search className="h-5 w-5 shrink-0 text-[#52636a]" aria-hidden />
           <input ref={buscador} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar productos en el catálogo..." aria-label="Buscar productos en el catálogo"
             className="w-full border-0 bg-transparent p-0 text-sm text-[#102a31] focus:outline-none focus:ring-0" />
           <kbd className="hidden whitespace-nowrap font-sans text-[10px] text-[#71858b] lg:inline">Ctrl + K</kbd>
         </form>
-        <div className="ml-auto flex items-center gap-2 sm:gap-3">
+        <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-3">
           {enCurso && (
             <Link to={`/cuenta/solicitudes/${enCurso.id}/editar`} data-destino-solicitud
               aria-label={`Continuar la solicitud en curso ${enCurso.folio}: ${enCurso.articulos} artículo(s)${otrosBorradores ? `; hay ${otrosBorradores} borrador(es) más` : ''}`}
@@ -203,8 +202,8 @@ export default function PortalLayout() {
               <span className="grid h-5 min-w-5 place-items-center rounded-full bg-menta-500 px-1 text-[11px] font-bold text-white" aria-hidden>{enCurso.articulos}</span>
             </Link>
           )}
-          <InterruptorTema className="h-12 w-12 shrink-0" />
-          <Link to="/cuenta/notificaciones" className="relative grid h-12 w-12 place-items-center rounded-full border border-white/80 bg-white/60 text-[#102a31] backdrop-blur-md transition hover:bg-white/80" aria-label={`Notificaciones${noLeidas ? `: ${noLeidas} sin leer` : ''}`}>
+          <InterruptorTema className="h-10 w-10 shrink-0 sm:h-12 sm:w-12" />
+          <Link to="/cuenta/notificaciones" className="relative grid h-10 w-10 place-items-center sm:h-12 sm:w-12 rounded-full border border-white/80 bg-white/60 text-[#102a31] backdrop-blur-md transition hover:bg-white/80" aria-label={`Notificaciones${noLeidas ? `: ${noLeidas} sin leer` : ''}`}>
             <Bell className="h-5 w-5" aria-hidden />
             {noLeidas > 0 && <span className="absolute right-1.5 top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-[#e43e43] px-1 text-[10px] font-bold text-white" aria-hidden>{noLeidas}</span>}
           </Link>
@@ -215,7 +214,7 @@ export default function PortalLayout() {
         </div>
       </header>
 
-      <main id="contenido" tabIndex={-1} className="px-4 pb-8 pt-4 focus:outline-none sm:px-6 lg:pl-0 lg:pr-8">
+      <main id="contenido" tabIndex={-1} className="overflow-x-clip px-4 pb-8 pt-4 focus:outline-none sm:px-6 lg:pl-0 lg:pr-8">
         <div className="mx-auto max-w-[1500px]"><Transicion clave={loc.pathname}><ContextoCatalogoCtx.Provider value={CONTEXTO_CATALOGO_PORTAL}><Outlet /></ContextoCatalogoCtx.Provider></Transicion></div>
       </main>
     </div>

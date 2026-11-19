@@ -60,6 +60,88 @@ def pedidos():
     return jsonify(paginar(q, *pagina(), serial.pedido_resumen))
 
 
+# Seguimiento de todas las solicitudes corporativas: cada etapa agrupa los estados en los que la solicitud espera lo mismo.
+ETAPAS_SEGUIMIENTO = {
+    "por_aprobar": ("en_revision",),
+    "devueltas": ("devuelto",),
+    "por_autorizar": ("aprobado",),
+    "en_surtido": ("confirmado", "en_preparacion"),
+    "en_camino": ("parcialmente_enviado", "enviado"),
+    "en_entrega": ("parcialmente_entregado", "entregado"),
+    "cerradas": ("cerrado",),
+    "detenidas": ("rechazado", "cancelado", "expirado"),
+}
+_ACTIVAS = tuple(e for k, v in ETAPAS_SEGUIMIENTO.items() if k not in ("cerradas", "detenidas") for e in v)
+
+
+@bp.get("/seguimiento")
+@requiere_usuario("pedido.ver")
+def seguimiento():
+    """Trazabilidad de muchas solicitudes a la vez: el resumen de cada una y lo necesario para dibujar sus pasos
+    (historial de estados, paquetes con guía y recepción, entregas a empleados y su conformidad), en pocas consultas.
+
+    Filtros: `etapa` (una de ETAPAS_SEGUIMIENTO, `activas` por omisión o `todas`) y `q` (folio, sucursal o correo).
+    Orden: `espera` (la que lleva más tiempo sin avanzar primero, por omisión) o `reciente`."""
+    from sqlalchemy import func
+
+    from ..models import HistorialEstado, Recepcion
+    base = _filtro_pedidos(select(Pedido).join(Cliente)).where(Pedido.canal == "corporativo")
+    if texto := (request.args.get("q") or "").strip():
+        base = base.where(or_(Pedido.folio.ilike(f"%{texto}%"), Cliente.nombre.ilike(f"%{texto}%"),
+                              Cliente.razon_social.ilike(f"%{texto}%"), Cliente.correo.ilike(f"%{texto}%")))
+    # Conteo por etapa (con la búsqueda aplicada) para las pestañas
+    sub = base.order_by(None).subquery()
+    por_estado = dict(db.session.execute(select(sub.c.estado, func.count()).group_by(sub.c.estado)).all())
+    conteo = {k: sum(por_estado.get(e, 0) for e in v) for k, v in ETAPAS_SEGUIMIENTO.items()}
+    conteo["activas"] = sum(por_estado.get(e, 0) for e in _ACTIVAS)
+    conteo["todas"] = sum(por_estado.values())
+
+    etapa = request.args.get("etapa") or "activas"
+    if etapa in ETAPAS_SEGUIMIENTO:
+        base = base.where(Pedido.estado.in_(ETAPAS_SEGUIMIENTO[etapa]))
+    elif etapa == "activas":
+        base = base.where(Pedido.estado.in_(_ACTIVAS))
+    ultimo_cambio = (select(func.max(HistorialEstado.creado))
+                     .where(HistorialEstado.entidad == "pedido", HistorialEstado.entidad_id == Pedido.id).scalar_subquery())
+    if request.args.get("orden") == "reciente":
+        base = base.order_by(Pedido.id.desc())
+    else:
+        base = base.order_by(func.coalesce(ultimo_cambio, Pedido.creado).asc(), Pedido.id)
+
+    resultado = paginar(base, *pagina(), serial.pedido_resumen)
+    ids = [x["id"] for x in resultado["items"]]
+    if ids:
+        hist: dict[int, list] = {}
+        for h in db.session.scalars(select(HistorialEstado).where(HistorialEstado.entidad == "pedido", HistorialEstado.entidad_id.in_(ids))
+                                    .order_by(HistorialEstado.id)).unique():
+            hist.setdefault(h.entidad_id, []).append({
+                "fecha": serial.f(h.creado), "anterior": h.anterior, "nuevo": h.nuevo, "motivo": h.motivo,
+                "actor": h.usuario.nombre if h.usuario else ("Sucursal" if h.cliente_id else "Sistema")})
+        paquetes = db.session.execute(select(Paquete, AsignacionSurtido.pedido_id).join(AsignacionSurtido, Paquete.asignacion_id == AsignacionSurtido.id)
+                                      .where(AsignacionSurtido.pedido_id.in_(ids), Paquete.estado != "cancelado")).unique().all()
+        paq_ids = [pq.id for pq, _ in paquetes]
+        recepciones = {r.paquete_id: r for r in db.session.scalars(select(Recepcion).where(Recepcion.paquete_id.in_(paq_ids or [-1])))}
+        entregas: dict[int, list] = {}
+        pedido_de_paquete = {pq.id: pid for pq, pid in paquetes}
+        for e in db.session.scalars(select(EntregaIndividual).where(EntregaIndividual.paquete_id.in_(paq_ids or [-1]))):
+            entregas.setdefault(pedido_de_paquete[e.paquete_id], []).append(
+                {"estado": e.estado, "entregado_en": serial.f(e.entregado_en), "conformidad_en": serial.f(e.conformidad_en)})
+        por_pedido: dict[int, list] = {}
+        for pq, pid in paquetes:
+            r = recepciones.get(pq.id)
+            por_pedido.setdefault(pid, []).append({
+                "id": pq.id, "estado": pq.estado,
+                "envio": {"paqueteria": pq.envio.paqueteria, "guia": pq.envio.guia} if pq.envio else None,
+                "recepcion": {"fecha": serial.f(r.creado)} if r else None})
+        for x in resultado["items"]:
+            x["historial"] = hist.get(x["id"], [])
+            x["paquetes"] = por_pedido.get(x["id"], [])
+            x["entregas_individuales"] = entregas.get(x["id"], [])
+    resultado["conteo"] = conteo
+    resultado["etapa"] = etapa
+    return jsonify(resultado)
+
+
 @bp.get("/pedidos/<int:pedido_id>")
 @requiere_usuario("pedido.ver")
 def pedido(pedido_id):

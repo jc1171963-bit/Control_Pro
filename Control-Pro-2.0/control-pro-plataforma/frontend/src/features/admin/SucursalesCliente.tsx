@@ -16,9 +16,10 @@ import { Aparecer, EsqueletoLista, NumeroAnimado } from '../../components/movimi
 import { cls, fecha, fechaHora } from '../../lib/formato';
 import { Encabezado } from './AdminLayout';
 import { Contacto, SelectorZona, useOrganizacion, ZonaRef } from './Organizacion';
+import SelloCNR, { LogoCNR } from '../../components/SelloCNR';
 
 export type CuentaSucursal = {
-  id: number; correo: string; nombre: string; telefono: string | null; razon_social: string | null; rfc: string | null; activo: boolean;
+  id: number; cnr?: boolean; correo: string; nombre: string; telefono: string | null; razon_social: string | null; rfc: string | null; activo: boolean;
   zona: ZonaRef | null;
   creado: string; bloqueado_hasta: string | null; ultimo_acceso: string | null; empleados_activos: number; solicitudes: number;
   en_curso: number; por_revisar: number; ultima_solicitud: string | null; direccion: Direccion | null;
@@ -109,6 +110,8 @@ export function SucursalesCliente() {
   const [activo, setActivo] = useState('1');
   const [pagina, setPagina] = useState(1);
   const [nueva, setNueva] = useState(false);
+  const [soloCnr, setSoloCnr] = useState(false);
+  const [logoCnr, setLogoCnr] = useState(false);
   // El buscador del encabezado del aprobador llega como ?q=; se aplica también si ya estás en esta página.
   const qUrl = params.get('q');
   useEffect(() => { if (qUrl !== null) { setBuscar(qUrl); setPagina(1); } }, [qUrl]);
@@ -117,7 +120,7 @@ export function SucursalesCliente() {
   const [estado, setEstado] = useState('');
   const org = useOrganizacion();
   const filtro = new URLSearchParams({ pagina: String(pagina), por_pagina: '24', ...(buscar ? { q: buscar } : {}), ...(activo ? { activo } : {}),
-    ...(division ? { division } : {}), ...(zona ? { zona } : {}), ...(estado ? { estado } : {}) }).toString();
+    ...(division ? { division } : {}), ...(zona ? { zona } : {}), ...(estado ? { estado } : {}), ...(soloCnr ? { cnr: '1' } : {}) }).toString();
   const q = useQuery({ queryKey: ['cuentas-sucursal', filtro], placeholderData: keepPreviousData,
     queryFn: () => get<Pagina<CuentaSucursal>>(`/admin/cuentas-sucursal?${filtro}`) });
   const zonasVisibles = (org.data?.divisiones || []).filter((d) => !division || String(d.id ?? '-') === division).flatMap((d) => d.zonas);
@@ -126,8 +129,10 @@ export function SucursalesCliente() {
   return (
     <>
       <Encabezado titulo="Sucursales" sub="Cuentas de las sucursales que solicitan uniformes para sus empleados">
+        {puede('cliente.gestionar') && <Boton variante="secundario" icono={<SelloCNR className="!h-4" />} onClick={() => setLogoCnr(true)}>Logo CNR</Boton>}
         {puede('cliente.gestionar') && <Boton icono={<Plus className="h-4 w-4" />} onClick={() => setNueva(true)}>Nueva sucursal</Boton>}
       </Encabezado>
+      <LogoCNR abierto={logoCnr} onCerrar={() => setLogoCnr(false)} />
       <Tarjeta>
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <form onSubmit={(e) => { e.preventDefault(); setBuscar(texto); setPagina(1); }} className="relative">
@@ -143,6 +148,8 @@ export function SucursalesCliente() {
           {[['1', 'Activas'], ['0', 'Inactivas'], ['', 'Todas']].map(([v, n]) => (
             <button key={v} onClick={() => { setActivo(v); setPagina(1); }} className={cls('rounded-full px-3 py-1 text-xs font-semibold ring-1 transition', activo === v ? 'bg-tinta-900 text-white ring-tinta-900' : 'ring-tinta-200 hover:bg-tinta-50')}>{n}</button>
           ))}
+          <button type="button" aria-pressed={soloCnr} onClick={() => { setSoloCnr(!soloCnr); setPagina(1); }}
+            className={cls('inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ring-1 transition', soloCnr ? 'bg-tinta-900 text-white ring-tinta-900' : 'ring-tinta-200 hover:bg-tinta-50')}>Solo CNR</button>
         </div>
         {!zona && zonasVisibles.length > 0 && (
           <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
@@ -170,7 +177,7 @@ export function SucursalesCliente() {
                 <Link to={`${base}/sucursales-cliente/${c.id}`} className={cls('group block h-full rounded-2xl p-4 ring-1 transition hover:-translate-y-0.5 hover:shadow-suave', c.activo ? 'bg-white ring-tinta-100' : 'bg-tinta-50 ring-tinta-100 opacity-75')}>
                   <div className="flex items-start justify-between gap-2">
                     <span className="flex items-center gap-2"><span className="grid h-10 w-10 place-items-center rounded-xl bg-menta-50 text-menta-700"><Store className="h-5 w-5" /></span>
-                      <span><span className="block font-display font-bold leading-tight">{c.razon_social || c.nombre}</span>
+                      <span><span className="flex flex-wrap items-center gap-1.5 font-display font-bold leading-tight">{c.razon_social || c.nombre}{c.cnr && <SelloCNR />}</span>
                         <span className="block text-xs text-tinta-400">{c.zona ? `Zona ${c.zona.nombre}` : 'Sin zona'}{c.zona?.division ? ` · ${c.zona.division.nombre}` : ''}</span></span></span>
                     <span className="flex flex-col items-end gap-1">
                       <span className={cls('rounded-full px-2 py-0.5 text-[11px] font-bold', c.activo ? 'bg-emerald-100 text-emerald-800' : 'bg-tinta-200 text-tinta-600')}>{c.activo ? 'Activa' : 'Inactiva'}</span>
@@ -249,6 +256,8 @@ export function SucursalCliente() {
     onSuccess: (c) => refrescar(c, 'Contraseña actualizada. Entrégasela a la sucursal.') });
   const estado = useMutation({ mutationFn: () => put<CuentaSucursal>(`/admin/cuentas-sucursal/${id}`, { activo: !q.data!.activo }),
     onSuccess: (c) => refrescar(c, c.activo ? 'Sucursal activada.' : 'Sucursal desactivada: ya no puede entrar.') });
+  const distintivo = useMutation({ mutationFn: (cnr: boolean) => put<CuentaSucursal>(`/admin/cuentas-sucursal/${id}`, { cnr }),
+    onSuccess: (c) => { qc.invalidateQueries({ queryKey: ['seguimiento'] }); refrescar(c, c.cnr ? 'Sucursal marcada como CNR.' : 'Se quitó el distintivo CNR.'); } });
   const desbloquear = useMutation({ mutationFn: () => post<CuentaSucursal>(`/admin/cuentas-sucursal/${id}/desbloquear`),
     onSuccess: (c) => refrescar(c, 'Cuenta desbloqueada.'), onError: (e: any) => avisar(e.message, 'error') });
 
@@ -259,7 +268,7 @@ export function SucursalCliente() {
   const enviar = (fn: (f: Record<string, string>) => void) => (e: FormEvent<HTMLFormElement>) => { e.preventDefault(); fn(Object.fromEntries(new FormData(e.currentTarget)) as Record<string, string>); };
   return (
     <>
-      <Encabezado titulo={c.razon_social || c.nombre} sub={`Sucursal desde ${fecha(c.creado)} · último acceso ${c.ultimo_acceso ? fechaHora(c.ultimo_acceso) : 'nunca'}`}>
+      <Encabezado titulo={<span className="flex flex-wrap items-center gap-2.5">{c.razon_social || c.nombre}{c.cnr && <SelloCNR tam="md" />}</span>} sub={`Sucursal desde ${fecha(c.creado)} · último acceso ${c.ultimo_acceso ? fechaHora(c.ultimo_acceso) : 'nunca'}`}>
         <Link to={`${base}/sucursales-cliente`} className="inline-flex h-10 items-center rounded-lg px-4 text-sm font-semibold ring-1 ring-tinta-200">Volver</Link>
         {gestiona && <Boton variante={c.activo ? 'secundario' : 'menta'} icono={<Power className="h-4 w-4" />} onClick={() => setModal('estado')}>{c.activo ? 'Desactivar' : 'Activar'}</Boton>}
       </Encabezado>
@@ -306,6 +315,14 @@ export function SucursalCliente() {
           </Tarjeta>
         </div>
         <div className="space-y-5">
+          <Tarjeta titulo="Distintivo CNR" sub="Muestra el logo CNR junto al nombre de la sucursal en todo el sistema">
+            <div className="flex items-center justify-between gap-3">
+              <span className="flex items-center gap-2 text-sm">{c.cnr ? <><SelloCNR tam="md" /><span className="font-semibold">Sucursal CNR</span></> : <span className="text-tinta-500">Sin distintivo</span>}</span>
+              {gestiona && <button type="button" role="switch" aria-checked={!!c.cnr} aria-label="Sucursal CNR" disabled={distintivo.isPending} onClick={() => distintivo.mutate(!c.cnr)}
+                className={cls('relative h-7 w-12 shrink-0 rounded-full transition disabled:opacity-60', c.cnr ? 'bg-menta-500' : 'bg-tinta-200')}>
+                <span className={cls('absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all', c.cnr ? 'left-6' : 'left-1')} /></button>}
+            </div>
+          </Tarjeta>
           <ContactoYPermiso c={c} />
           <Tarjeta titulo="Acceso al portal">
             <ul className="space-y-2 text-sm">

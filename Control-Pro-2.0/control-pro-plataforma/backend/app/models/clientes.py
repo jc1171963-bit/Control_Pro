@@ -44,6 +44,8 @@ class Cliente(ConFechas, db.Model):
     tipo: Mapped[str] = mapped_column(String(10), default="persona")
     razon_social: Mapped[str | None] = mapped_column(String(160))
     rfc: Mapped[str | None] = mapped_column(String(13))
+    # Sucursal con distintivo CNR: muestra el logo CNR (configurado una vez) junto a su nombre.
+    cnr: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     # Sucursales (cuentas empresa): pertenecen a una zona, y la zona a una división.
     zona_id: Mapped[int | None] = mapped_column(ForeignKey("zona.id", ondelete="SET NULL"), index=True)
     activo: Mapped[bool] = mapped_column(Boolean, default=True)

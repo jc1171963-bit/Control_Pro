@@ -33,6 +33,13 @@ if (typeof window !== 'undefined') {
   });
 }
 
+/** Deja de recordar una elección y acompaña al sistema operativo. */
+function seguirSistema() {
+  try { localStorage.removeItem(CLAVE); } catch { /* sin almacenamiento */ }
+  tema = sistemaOscuro() ? 'oscuro' : 'claro';
+  avisar();
+}
+
 function fijar(nuevo: Tema) {
   tema = nuevo;
   try { localStorage.setItem(CLAVE, nuevo); } catch { /* sin almacenamiento: dura mientras la página esté abierta */ }
@@ -67,7 +74,8 @@ function alternar(origen?: HTMLElement | null) {
 
 export function useTema() {
   const actual = useSyncExternalStore(suscribir, () => tema, () => tema);
-  return { tema: actual, oscuro: actual === 'oscuro', alternar, fijar };
+  const preferencia: Tema | 'sistema' = leerGuardado() ?? 'sistema';
+  return { tema: actual, oscuro: actual === 'oscuro', preferencia, alternar, fijar, seguirSistema };
 }
 
 /** Lo llaman los layouts de los paneles: aplica el tema mientras el panel está en pantalla. */

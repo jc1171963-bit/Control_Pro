@@ -15,7 +15,8 @@ def _m(v):
     return f"${v:,.2f}"
 
 
-def pdf_pedido(p) -> bytes:
+def pdf_pedido(p, con_precios: bool = True) -> bytes:
+    """Comprobante del pedido. Sin precios (`con_precios=False`) para la sucursal: en su portal no se muestran importes."""
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=letter, leftMargin=18 * mm, rightMargin=18 * mm, topMargin=16 * mm,
                             bottomMargin=16 * mm, title=f"Pedido {p.folio}", author="Control Pro")
@@ -33,14 +34,19 @@ def pdf_pedido(p) -> bytes:
         Spacer(1, 6),
         Paragraph(f"<b>Cliente:</b> {cliente} ({p.cliente.correo})", norm),
         Paragraph(f"<b>Entrega:</b> {entrega}", norm),
-        Paragraph(f"<b>Método de pago:</b> {p.metodo_pago.replace('_', ' ')}", norm),
+        *([Paragraph(f"<b>Método de pago:</b> {p.metodo_pago.replace('_', ' ')}", norm)] if con_precios else []),
         Spacer(1, 8),
     ]
-    filas = [["SKU", "Artículo", "Talla", "Empleado", "Cant.", "Precio", "Desc.", "Importe"]]
+    if con_precios:
+        filas = [["SKU", "Artículo", "Talla", "Empleado", "Cant.", "Precio", "Desc.", "Importe"]]
+        anchos = [24 * mm, 46 * mm, 13 * mm, 30 * mm, 11 * mm, 19 * mm, 16 * mm, 21 * mm]
+    else:
+        filas = [["SKU", "Artículo", "Talla", "Empleado", "Cant."]]
+        anchos = [30 * mm, 68 * mm, 16 * mm, 50 * mm, 16 * mm]
     for d in p.detalles:
-        filas.append([d.sku, Paragraph(d.nombre, peq), d.talla, Paragraph(d.empleado.nombre if d.empleado else "—", peq),
-                      str(d.cantidad), _m(d.precio_unitario), _m(d.descuento_unitario), _m(d.importe)])
-    t = Table(filas, colWidths=[24 * mm, 46 * mm, 13 * mm, 30 * mm, 11 * mm, 19 * mm, 16 * mm, 21 * mm], repeatRows=1)
+        fila = [d.sku, Paragraph(d.nombre, peq), d.talla, Paragraph(d.empleado.nombre if d.empleado else "—", peq), str(d.cantidad)]
+        filas.append(fila + ([_m(d.precio_unitario), _m(d.descuento_unitario), _m(d.importe)] if con_precios else []))
+    t = Table(filas, colWidths=anchos, repeatRows=1)
     t.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), AZUL), ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
         ("FONTSIZE", (0, 0), (-1, -1), 8.5), ("GRID", (0, 0), (-1, -1), 0.4, GRIS),
@@ -48,12 +54,16 @@ def pdf_pedido(p) -> bytes:
         ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),
     ]))
     elems += [t, Spacer(1, 8)]
-    tot = Table([["Subtotal", _m(p.subtotal)], ["Descuento", "-" + _m(p.descuento)], ["Envío", _m(p.costo_envio)],
+    if not con_precios:
+        elems.append(Paragraph(f"<b>Total de artículos:</b> {sum(d.cantidad for d in p.detalles)}", norm))
+    tot = None if not con_precios else Table([["Subtotal", _m(p.subtotal)], ["Descuento", "-" + _m(p.descuento)], ["Envío", _m(p.costo_envio)],
                  ["Total (IVA incluido)", _m(p.total)], ["IVA contenido", _m(p.impuestos)]],
                 colWidths=[45 * mm, 30 * mm], hAlign="RIGHT")
-    tot.setStyle(TableStyle([("ALIGN", (1, 0), (1, -1), "RIGHT"), ("FONTSIZE", (0, 0), (-1, -1), 9),
-                             ("FONTNAME", (0, 3), (-1, 3), "Helvetica-Bold"), ("LINEABOVE", (0, 3), (-1, 3), 0.8, AZUL)]))
-    elems += [tot, Spacer(1, 10)]
+    if tot is not None:
+        tot.setStyle(TableStyle([("ALIGN", (1, 0), (1, -1), "RIGHT"), ("FONTSIZE", (0, 0), (-1, -1), 9),
+                                 ("FONTNAME", (0, 3), (-1, 3), "Helvetica-Bold"), ("LINEABOVE", (0, 3), (-1, 3), 0.8, AZUL)]))
+        elems += [tot]
+    elems.append(Spacer(1, 10))
     if p.asignaciones:
         elems.append(Paragraph("<b>Surtido por sucursal</b>", norm))
         for a in p.asignaciones:

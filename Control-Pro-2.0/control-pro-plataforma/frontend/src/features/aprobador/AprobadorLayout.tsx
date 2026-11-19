@@ -6,7 +6,7 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, ScrollRestoration, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Bell, Camera, ChevronDown, ChevronRight, ClipboardCheck, Inbox, KeyRound, LayoutDashboard, Menu, MessagesSquare, Network, Search,
+import { Bell, Camera, UserRound, ChevronDown, ChevronRight, ClipboardCheck, Inbox, KeyRound, LayoutDashboard, Menu, MessagesSquare, Network, Route, Search,
   Store, Trash2, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { get } from '../../api/cliente';
@@ -23,13 +23,16 @@ import MarcaPortal from '../portal/MarcaPortal';
 import { OpcionesAppMenu } from '../../components/AppDispositivo';
 import InterruptorTema from '../../components/InterruptorTema';
 import { useAplicarTema } from '../../app/tema';
+import { useActividadEnVivo } from '../../app/enVivo';
 
-/** Área del aprobador corporativo dentro de Salud Digna (se muestra junto a su nombre). */
+/** Área del aprobador corporativo dentro de Salud Digna si su perfil no indica otra (se muestra junto a su nombre). */
 export const AREA_APROBADOR = 'Gerencia de Compras';
+export const areaDe = (u?: { area?: string | null } | null) => u?.area?.trim() || AREA_APROBADOR;
 
 type Clave = 'revisar' | 'permisos' | 'mensajes' | 'avisos';
 const ITEMS: [string, string, LucideIcon, Clave | null][] = [
-  ['', 'Panel', LayoutDashboard, null], ['solicitudes', 'Solicitudes', Inbox, 'revisar'], ['sucursales-cliente', 'Sucursales', Store, null],
+  ['', 'Panel', LayoutDashboard, null], ['solicitudes', 'Solicitudes', Inbox, 'revisar'], ['seguimiento', 'Seguimiento', Route, null],
+  ['sucursales-cliente', 'Sucursales', Store, null],
   ['organizacion', 'Divisiones y zonas', Network, null], ['permisos', 'Permisos de padrón', KeyRound, 'permisos'],
   ['mensajes', 'Mensajes', MessagesSquare, 'mensajes'], ['notificaciones', 'Notificaciones', Bell, 'avisos'],
 ];
@@ -50,7 +53,7 @@ export function useContadoresAprobador() {
   };
 }
 
-function MenuUsuario({ nombre, foto, onSalir }: { nombre: string; foto?: string | null; onSalir: () => void }) {
+function MenuUsuario({ nombre, foto, area, onSalir }: { nombre: string; foto?: string | null; area: string; onSalir: () => void }) {
   const [abierto, setAbierto] = useState(false);
   const fotoPerfil = useFotoPerfil();
   const raiz = useRef<HTMLDivElement>(null);
@@ -65,16 +68,18 @@ function MenuUsuario({ nombre, foto, onSalir }: { nombre: string; foto?: string 
   return (
     <div ref={raiz} className="relative">
       <button type="button" onClick={() => setAbierto(!abierto)} aria-expanded={abierto} aria-haspopup="true"
-        className="flex min-h-12 items-center gap-2 rounded-full border border-white/80 bg-white/60 pl-1.5 pr-1.5 text-sm sm:pr-3 font-semibold backdrop-blur-md transition hover:bg-white/80">
+        className="flex min-h-10 items-center gap-2 rounded-full border border-white/80 bg-white/60 p-1 text-sm font-semibold sm:min-h-12 sm:pl-1.5 xl:pr-3 backdrop-blur-md transition hover:bg-white/80">
         <Avatar nombre={nombre} foto={foto} className="h-9 w-9 text-xs" />
-        <span className="hidden max-w-[12rem] truncate sm:inline">{nombre}</span><span className="sr-only sm:hidden">{nombre}</span><ChevronDown className="hidden h-4 w-4 sm:block" aria-hidden />
+        <span className="hidden max-w-[12rem] truncate xl:inline">{nombre}</span><span className="sr-only xl:hidden">{nombre}</span><ChevronDown className="hidden h-4 w-4 xl:block" aria-hidden />
       </button>
       {abierto && (
         <div className="absolute right-0 z-30 mt-2 w-56 rounded-2xl border border-white/80 bg-white/95 p-1 shadow-[0_18px_55px_rgba(25,91,87,.18)] backdrop-blur-xl">
           <div className="flex items-center gap-3 px-3 py-2">
             <Avatar nombre={nombre} foto={foto} className="h-11 w-11 text-sm" />
-            <p className="min-w-0 text-xs text-tinta-500"><span className="block truncate font-semibold text-tinta-800">{nombre}</span>{AREA_APROBADOR} · Aprobador corporativo</p>
+            <p className="min-w-0 text-xs text-tinta-500"><span className="block truncate font-semibold text-tinta-800">{nombre}</span>{area} · Aprobador corporativo</p>
           </div>
+          <Link to={`${BASE_APROBADOR}/perfil`} onClick={() => setAbierto(false)} className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 text-left text-sm font-semibold text-tinta-800 hover:bg-[#e6f6f8]">
+            <UserRound className="h-4 w-4" aria-hidden />Mi perfil</Link>
           {fotoPerfil.input}
           <button type="button" onClick={fotoPerfil.elegir} disabled={fotoPerfil.subiendo}
             className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 text-left text-sm font-semibold text-tinta-800 hover:bg-[#e6f6f8] disabled:opacity-60">
@@ -107,6 +112,7 @@ function FotoTarjeta({ nombre, foto }: { nombre?: string | null; foto?: string |
 
 export default function AprobadorLayout() {
   useAplicarTema();
+  useActividadEnVivo();
   const { usuario, salir } = useAuth();
   const nav = useNavigate();
   const loc = useLocation();
@@ -141,7 +147,7 @@ export default function AprobadorLayout() {
         <div className="mx-3 mb-4 mt-4 flex items-center gap-2.5 rounded-[18px] bg-gradient-to-br from-[#0b3f57] to-[#0e7490] p-3 text-white shadow-[0_8px_24px_#0e749033]">
           <FotoTarjeta nombre={usuario?.nombre} foto={usuario?.foto} />
           <span className="min-w-0 text-xs"><span className="block font-display text-[13px] font-bold">Aprobador corporativo</span>
-            <span className="block truncate text-white/75">{AREA_APROBADOR}</span>
+            <span className="block truncate text-white/75">{areaDe(usuario)}</span>
             <span className="block truncate text-white/90">{usuario?.nombre}</span></span>
         </div>
         <p className="px-6 pb-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-[#71858b]">Menú</p>
@@ -169,33 +175,33 @@ export default function AprobadorLayout() {
         </div>
       </aside>
 
-      <header className="sticky top-0 z-20 flex min-h-[70px] items-center gap-3 px-4 py-2.5 backdrop-blur-md sm:px-6 lg:mt-3 lg:pl-0 lg:pr-8 lg:backdrop-blur-none">
+      <header className="sticky top-0 z-20 flex min-h-[70px] items-center gap-2 px-3 py-2.5 sm:gap-3 backdrop-blur-md sm:px-6 lg:mt-3 lg:pl-0 lg:pr-8 lg:backdrop-blur-none">
         <button ref={botonMenu} type="button" onClick={() => setMenu(true)} aria-label="Abrir menú" aria-expanded={drawerAbierto} aria-controls="navegacion-aprobador"
           className="-ml-1 grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/80 bg-white/60 backdrop-blur-md lg:hidden"><Menu className="h-5 w-5" aria-hidden /></button>
         <div className="shrink-0 lg:hidden"><MarcaPortal minima /></div>
         <form role="search" onSubmit={buscar}
-          className="hidden h-12 max-w-[560px] flex-1 items-center gap-3 rounded-[18px] border border-white/80 bg-white/55 px-4 backdrop-blur-xl focus-within:ring-2 focus-within:ring-[#0e7490] md:flex">
+          className="hidden h-12 min-w-0 max-w-[560px] flex-1 items-center gap-3 rounded-[18px] border border-white/80 bg-white/55 px-4 backdrop-blur-xl focus-within:ring-2 focus-within:ring-[#0e7490] md:flex">
           <Search className="h-5 w-5 shrink-0 text-[#52636a]" aria-hidden />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar sucursal por nombre o correo..." aria-label="Buscar sucursal"
             className="w-full border-0 bg-transparent p-0 text-sm focus:outline-none focus:ring-0" />
         </form>
-        <div className="ml-auto flex items-center gap-2 sm:gap-3">
+        <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-3">
           <Link to={`${BASE_APROBADOR}/mensajes`} className="relative hidden h-12 w-12 sm:grid place-items-center rounded-full border border-white/80 bg-white/60 backdrop-blur-md transition hover:bg-white/80"
             aria-label={`Mensajes${cuentas.mensajes ? `: ${cuentas.mensajes} sin leer` : ''}`}>
             <MessagesSquare className="h-5 w-5" aria-hidden />
             {cuentas.mensajes > 0 && <span className="absolute right-1.5 top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-[#e43e43] px-1 text-[10px] font-bold text-white" aria-hidden>{cuentas.mensajes}</span>}
           </Link>
-          <InterruptorTema className="h-12 w-12 shrink-0" />
-          <Link to={`${BASE_APROBADOR}/notificaciones`} className="relative grid h-12 w-12 place-items-center rounded-full border border-white/80 bg-white/60 backdrop-blur-md transition hover:bg-white/80"
+          <InterruptorTema className="h-10 w-10 shrink-0 sm:h-12 sm:w-12" />
+          <Link to={`${BASE_APROBADOR}/notificaciones`} className="relative grid h-10 w-10 place-items-center sm:h-12 sm:w-12 rounded-full border border-white/80 bg-white/60 backdrop-blur-md transition hover:bg-white/80"
             aria-label={`Notificaciones${cuentas.avisos ? `: ${cuentas.avisos} sin leer` : ''}`}>
             <Bell className="h-5 w-5" aria-hidden />
             {cuentas.avisos > 0 && <span className="absolute right-1.5 top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-[#e43e43] px-1 text-[10px] font-bold text-white" aria-hidden>{cuentas.avisos}</span>}
           </Link>
-          <MenuUsuario nombre={usuario?.nombre ?? 'Aprobador'} foto={usuario?.foto} onSalir={salirDelPortal} />
+          <MenuUsuario nombre={usuario?.nombre ?? 'Aprobador'} foto={usuario?.foto} area={areaDe(usuario)} onSalir={salirDelPortal} />
         </div>
       </header>
 
-      <main id="contenido" tabIndex={-1} className="px-4 pb-8 pt-4 focus:outline-none sm:px-6 lg:pl-0 lg:pr-8">
+      <main id="contenido" tabIndex={-1} className="overflow-x-clip px-4 pb-8 pt-4 focus:outline-none sm:px-6 lg:pl-0 lg:pr-8">
         <div className="mx-auto max-w-[1500px]"><Transicion clave={loc.pathname}><Outlet /></Transicion></div>
       </main>
     </div>

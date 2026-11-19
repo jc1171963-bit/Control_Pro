@@ -7,10 +7,11 @@ export type Usuario = {
   id: number; correo: string; nombre: string; activo: boolean;
   rol: { codigo: string; nombre: string; alcance_global: boolean }; permisos: string[];
   sucursales: { id: number; nombre: string }[]; ultimo_acceso: string | null; bloqueado_hasta: string | null; foto?: string | null;
+  telefono?: string | null; area?: string | null; cargo?: string | null;
 };
 export type Cliente = {
   id: number; correo: string; nombre: string; telefono: string | null; tipo: 'persona' | 'empresa';
-  razon_social: string | null; rfc: string | null; activo: boolean; creado: string; foto?: string | null;
+  razon_social: string | null; rfc: string | null; activo: boolean; creado: string; foto?: string | null; cnr?: boolean;
 };
 export type Direccion = {
   id: number; alias: string; destinatario: string; telefono: string; calle: string; numero: string; colonia: string;
@@ -88,7 +89,7 @@ export type Asignacion = {
 export type Incidencia = {
   id: number; folio: string; tipo: string; prioridad: string; estado: string; pedido_id: number | null; paquete_id: number | null;
   devolucion_id: number | null; transferencia_id: number | null; sucursal_id: number | null; descripcion: string;
-  resolucion: string | null; responsable_id: number | null; creado: string; actualizado: string;
+  resolucion: string | null; responsable_id: number | null; creado: string; actualizado: string; evidencias?: string[];
   empleado: { id: number; nombre: string; puesto: string } | null;
   articulo: { pedido_detalle_id: number; nombre: string; talla: string; sku: string } | null;
   seguimiento: { fecha: string; anterior: string | null; nuevo: string; comentario: string | null; actor: string; responsable: string | null }[];
@@ -102,7 +103,7 @@ export type ResumenSucursal = {
 };
 export type PedidoResumen = {
   id: number; folio: string; canal: 'tienda' | 'corporativo'; estado: string; modalidad: 'envio' | 'recoger';
-  metodo_pago: string; total: string; creado: string; cliente: { id: number; nombre: string }; articulos: number;
+  metodo_pago: string; total: string; creado: string; cliente: { id: number; nombre: string; cnr?: boolean }; articulos: number;
   sucursales: string[]; reserva_expira: string | null;
 };
 export type Pedido = PedidoResumen & {

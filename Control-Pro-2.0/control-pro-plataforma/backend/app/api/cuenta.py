@@ -351,7 +351,7 @@ def reportar_incidencia(pedido_id):
     _mi_pedido(pedido_id)
     inc = dev_srv.crear_incidencia(d["tipo"], d["descripcion"], d["prioridad"], pedido_id=pedido_id,
                                    paquete_id=d.get("paquete_id"), empleado_id=d.get("empleado_id"),
-                                   pedido_detalle_id=d.get("pedido_detalle_id"))
+                                   pedido_detalle_id=d.get("pedido_detalle_id"), evidencias=d["evidencias"])
     return jsonify(serial.incidencia(inc)), 201
 
 

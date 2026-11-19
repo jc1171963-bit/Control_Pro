@@ -28,14 +28,16 @@ beforeEach(() => {
 });
 
 describe('Mi cuenta de la sucursal', () => {
-  it('reúne datos, dirección de entrega y contactos de zona, sin formularios', async () => {
+  it('reúne datos, dirección de entrega y contactos de zona; de la sucursal solo se edita foto, teléfono y preferencias', async () => {
     montar(<Perfil />);
-    expect(await screen.findByText('Sucursal Norte')).toBeInTheDocument();
+    expect((await screen.findAllByText('Sucursal Norte')).length).toBeGreaterThan(0);
     expect(await screen.findByText('Almacén')).toBeInTheDocument();
     expect(screen.getByText(/Reforma 10, Centro/)).toBeInTheDocument();
     expect(await screen.findByText('Gina Gómez')).toBeInTheDocument();
-    expect(screen.queryByRole('textbox')).toBeNull();
-    expect(screen.queryByRole('button')).toBeNull();
+    // Lo único editable: el teléfono de contacto (nombre, correo y dirección los administra el aprobador)
+    expect(screen.getAllByRole('textbox').map((t) => t.closest('label')?.textContent)).toEqual([expect.stringContaining('Teléfono de contacto')]);
+    expect(screen.getByRole('button', { name: 'Subir foto' })).toBeInTheDocument();
+    expect(screen.getByRole('radiogroup', { name: 'Tema' })).toBeInTheDocument();
   });
 
   it('sin dirección lo dice; con error de la API lo muestra', async () => {

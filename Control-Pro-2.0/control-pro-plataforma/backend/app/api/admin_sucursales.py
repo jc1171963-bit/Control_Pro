@@ -92,6 +92,8 @@ def lista():
                         Cliente.correo.ilike(f"%{texto}%")))
     if (activo := request.args.get("activo")) in {"1", "0"}:
         q = q.where(Cliente.activo.is_(activo == "1"))
+    if (cnr := request.args.get("cnr")) in {"1", "0"}:
+        q = q.where(Cliente.cnr.is_(cnr == "1"))
     if division := request.args.get("division"):
         q = q.where(Division.id.is_(None) if division == "-" else Division.id == int(division))
     if zona := request.args.get("zona"):

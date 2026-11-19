@@ -13,8 +13,9 @@ import { Estado, Tarjeta, Vacio } from '../../components/ui';
 import { EsqueletoLista, NumeroAnimado } from '../../components/movimiento';
 import { fechaHora } from '../../lib/formato';
 import PanelSolicitudes from '../admin/PanelSolicitudes';
-import { AREA_APROBADOR, useContadoresAprobador } from './AprobadorLayout';
+import { areaDe, useContadoresAprobador } from './AprobadorLayout';
 import Tablero from './Tablero';
+import { FilaSeguimiento, type ItemSeguimiento } from './Seguimiento';
 
 const fechaLarga = () => new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -40,6 +41,8 @@ export default function InicioAprobador() {
     queryFn: () => get<Pagina<PedidoResumen>>('/admin/pedidos?canal=corporativo&estado=en_revision&por_pagina=5') });
   const permisos = useQuery({ queryKey: ['aprobador-resumen', 'permisos-lista'], refetchInterval: 45_000,
     queryFn: () => get<Pagina<PermisoPadron>>('/admin/permisos-padron?estado=pendiente&por_pagina=5') });
+  const seguimiento = useQuery({ queryKey: ['seguimiento', 'inicio'], refetchInterval: 60_000,
+    queryFn: () => get<Pagina<ItemSeguimiento> & { conteo: Record<string, number> }>('/admin/seguimiento?por_pagina=5') });
   const nombre = (usuario?.nombre ?? '').trim();
   return (
     <div className="space-y-6">
@@ -52,7 +55,7 @@ export default function InicioAprobador() {
             <span className="h-2 w-2 rounded-full bg-[#9be7f0]" aria-hidden />Aprobador corporativo · {fechaLarga()}
           </p>
           <h1 className="mt-3.5 font-display text-[30px] font-extrabold leading-tight tracking-[-0.03em] sm:text-[40px]">Hola, <span className="text-[#9be7f0]">{nombre}</span></h1>
-          <p className="mt-1 text-sm font-semibold text-white/80">{AREA_APROBADOR} · Salud Digna</p>
+          <p className="mt-1 text-sm font-semibold text-white/80">{areaDe(usuario)} · Salud Digna</p>
           <p className="mt-2 max-w-[500px] text-[15px] leading-relaxed sm:text-lg">
             {c.revisar ? `Tienes ${c.revisar} solicitud(es) por revisar` : 'No tienes solicitudes por revisar'}
             {c.permisos ? ` y ${c.permisos} permiso(s) de padrón por autorizar.` : '.'}</p>
@@ -73,6 +76,13 @@ export default function InicioAprobador() {
           <Pendiente a={`${BASE_APROBADOR}/mensajes`} icono={<MessagesSquare className="h-6 w-6" />} valor={c.mensajes} titulo="Mensajes sin leer" texto="Sucursales y distribuidora" fondo="bg-[#b5d9ff] text-[#0b4f86]" />
         </div>
       </section>
+
+      <Tarjeta titulo="Seguimiento en curso" sub={seguimiento.data ? `${seguimiento.data.conteo.activas} solicitud(es) activas · primero las que llevan más tiempo esperando` : 'Trazabilidad de las solicitudes de todas las sucursales'}
+        accion={<Link to={`${BASE_APROBADOR}/seguimiento`} className="flex min-h-10 items-center gap-1 text-sm font-semibold text-menta-700 hover:underline">Ver todo el seguimiento <ArrowRight className="h-4 w-4" aria-hidden /></Link>}>
+        {seguimiento.isLoading ? <EsqueletoLista filas={3} texto="Cargando el seguimiento…" /> : !seguimiento.data?.items.length
+          ? <Vacio titulo="Sin solicitudes en curso" texto="Cuando las sucursales envíen solicitudes verás aquí en qué paso va cada una." />
+          : <ul className="-mx-2 divide-y divide-tinta-100">{seguimiento.data.items.map((p) => <FilaSeguimiento key={p.id} p={p} ahora={Date.now()} />)}</ul>}
+      </Tarjeta>
 
       <Tablero />
 

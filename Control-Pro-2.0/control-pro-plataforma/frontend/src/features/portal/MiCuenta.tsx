@@ -4,6 +4,7 @@ import { get } from '../../api/cliente';
 import type { Cliente, Direccion, ResumenSucursal } from '../../api/tipos';
 import { Aviso, Cargando, ErrorCaja, Tarjeta } from '../../components/ui';
 import ContactoZona from './ContactoZona';
+import { PerfilSucursal } from '../perfil/Perfil';
 
 const Dato = ({ t, v }: { t: string; v: string | null | undefined }) => <div><dt className="text-xs text-tinta-500">{t}</dt><dd className="font-semibold">{v || '—'}</dd></div>;
 
@@ -17,7 +18,8 @@ export default function MiCuenta({ cliente }: { cliente: Cliente }) {
   const zona = resumen.data?.zona;
   return (
     <div className="space-y-5">
-      <Tarjeta titulo="Datos de la sucursal" sub="Los administra tu distribuidor: datos, dirección y contraseña. Si necesitas un cambio, pídeselo.">
+      <PerfilSucursal cliente={cliente} />
+      <Tarjeta titulo="Datos de la sucursal" sub="Los administra el aprobador corporativo: nombre, correo, dirección y contraseña. Si necesitas un cambio, escríbele desde Mensajes.">
         <dl className="grid gap-4 text-sm sm:grid-cols-2">
           <Dato t="Sucursal" v={cliente.razon_social} /><Dato t="Contacto responsable" v={cliente.nombre} />
           <Dato t="Correo de acceso" v={cliente.correo} /><Dato t="Teléfono" v={cliente.telefono} />

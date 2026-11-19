@@ -172,6 +172,28 @@ def quitar_foto():
     return jsonify({"tipo": tipo, "cuenta": serial.usuario(cuenta) if tipo == "usuario" else serial.cliente(cuenta)})
 
 
+@bp.patch("/perfil")
+@jwt_required()
+def editar_perfil():
+    """La propia cuenta personaliza su perfil. Personal: nombre, teléfono, área y cargo. Sucursal o persona: teléfono
+    (el nombre de una sucursal lo administra el aprobador)."""
+    from ..schemas import PerfilUsuarioSchema
+    tipo = get_jwt().get("tipo")
+    if tipo == "usuario":
+        cuenta = _cargar_usuario()
+        d = cargar(PerfilUsuarioSchema, cuerpo())
+    else:
+        cuenta = _cargar_cliente()
+        d = cargar(PerfilUsuarioSchema, cuerpo())
+        permitidos = {"telefono"} if cuenta.tipo == "empresa" else {"telefono", "nombre"}
+        if set(d) - permitidos:
+            raise SinPermiso("Esos datos de la sucursal los administra el aprobador.", codigo="administrado_por_aprobador")
+    for k, v in d.items():
+        setattr(cuenta, k, v.strip() if isinstance(v, str) else v)
+    db.session.commit()
+    return jsonify({"tipo": tipo, "cuenta": serial.usuario(cuenta) if tipo == "usuario" else serial.cliente(cuenta)})
+
+
 @bp.post("/password")
 @jwt_required()
 def cambiar_password():

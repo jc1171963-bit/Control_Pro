@@ -71,7 +71,7 @@ export default function Dashboard() {
           </div>
           <p className="-mt-2 text-xs text-tinta-400">Ventas registradas = pedidos con pago validado o aprobación corporativa. Pagos confirmados = dinero validado menos reembolsos realizados. Un pedido recibido no es venta hasta confirmarse.</p>
 
-          <div className="grid gap-5 xl:grid-cols-[1.6fr_1fr]">
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] [&>*]:min-w-0">
             <Tarjeta titulo="Ventas registradas por día"><Barras serie={d.serie_diaria} /></Tarjeta>
             <Tarjeta titulo="Alertas" sub="Lo que requiere atención">
               <ul className="space-y-2 text-sm">
@@ -96,7 +96,7 @@ export default function Dashboard() {
             </Tabla>
           </Tarjeta>
 
-          <div className="grid gap-5 xl:grid-cols-2">
+          <div className="grid gap-5 xl:grid-cols-2 [&>*]:min-w-0">
             <Tarjeta titulo="Más vendidos">
               <Tabla columnas={['Producto', 'Talla', 'Unidades', 'Importe']} vacia={!d.mas_vendidos.length}>
                 {d.mas_vendidos.map((m) => <tr key={m.sku}><Td><p className="font-semibold">{m.nombre}</p><p className="text-xs text-tinta-400">{m.sku}</p></Td><Td>{m.talla}</Td><Td>{m.unidades}</Td><Td>{dinero(m.importe)}</Td></tr>)}

@@ -62,6 +62,23 @@ class CambiarPasswordSchema(Base):
     nueva = fields.Str(required=True, validate=L(min=8, max=128))
 
 
+class PerfilUsuarioSchema(Base):
+    nombre = fields.Str(validate=L(min=3, max=120))
+    telefono = fields.Str(allow_none=True, validate=TEL)
+    area = fields.Str(allow_none=True, validate=L(max=80))
+    cargo = fields.Str(allow_none=True, validate=L(max=80))
+
+
+# Archivo privado subido por /api/archivos/privados (nombre aleatorio de 32 hex).
+ARCHIVO_PRIVADO = validate.Regexp(r"^/api/archivos/privados/[0-9a-f]{32}\.(png|jpe?g|webp|pdf)$", error="Archivo inválido.")
+
+
+class DocumentoSchema(Base):
+    nombre = fields.Str(required=True, validate=L(min=3, max=160))
+    tipo = fields.Str(load_default="otro", validate=validate.OneOf(["orden_compra", "cotizacion", "factura", "comprobante", "evidencia", "otro"]))
+    url = fields.Str(required=True, validate=ARCHIVO_PRIVADO)
+
+
 class PerfilSchema(Base):
     nombre = fields.Str(validate=L(min=3, max=120))
     telefono = fields.Str(allow_none=True, validate=TEL)
@@ -167,6 +184,7 @@ class EdicionCuentaSucursalSchema(Base):
     rfc = fields.Str(allow_none=True, validate=validate.Regexp(r"^[A-ZÑ&]{3,4}[0-9]{6}[A-Z0-9]{3}$", error="RFC inválido."))
     activo = fields.Bool()
     zona_id = fields.Int(allow_none=True)
+    cnr = fields.Bool()
 
 
 class DivisionSchema(Base):
@@ -433,6 +451,7 @@ class IncidenciaSchema(Base):
     transferencia_id = fields.Int(load_default=None, allow_none=True)
     empleado_id = fields.Int(load_default=None, allow_none=True)
     pedido_detalle_id = fields.Int(load_default=None, allow_none=True)
+    evidencias = fields.List(fields.Str(validate=ARCHIVO_PRIVADO), load_default=list, validate=L(max=4))
 
 
 class IncidenciaCambioSchema(Base):
