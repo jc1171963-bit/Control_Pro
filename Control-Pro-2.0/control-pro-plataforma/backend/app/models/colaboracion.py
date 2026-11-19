@@ -1,5 +1,6 @@
 """Colaboración entre el aprobador corporativo, las sucursales y la distribuidora: permisos para editar el padrón de
 empleados y conversaciones (chat) ligadas o no a una solicitud."""
+import uuid
 from datetime import datetime
 
 from sqlalchemy import BigInteger, CheckConstraint, DateTime, ForeignKey, Index, String, Text, UniqueConstraint, func
@@ -79,6 +80,9 @@ class PushSuscripcion(db.Model):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     usuario_id: Mapped[int | None] = mapped_column(ForeignKey("usuario.id", ondelete="CASCADE"), index=True)
     cliente_id: Mapped[int | None] = mapped_column(ForeignKey("cliente.id", ondelete="CASCADE"), index=True)
+    # Sesión que registró la suscripción; NULL en las anteriores a H1.
+    sid: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("sesion_auth.id", ondelete="CASCADE", name="fk_push_suscripcion_sid"), index=True)
     endpoint: Mapped[str] = mapped_column(Text, unique=True)
     p256dh: Mapped[str] = mapped_column(String(200))
     auth: Mapped[str] = mapped_column(String(100))
