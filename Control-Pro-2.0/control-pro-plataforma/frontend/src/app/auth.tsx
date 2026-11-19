@@ -1,6 +1,6 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { cabeceraCsrf, post, renovar, sesion, TipoSesion, ultimaRenovacion } from '../api/cliente';
+import { cabeceraCsrf, navegador, post, renovar, sesion, TipoSesion, ultimaRenovacion } from '../api/cliente';
 import type { Cliente, Usuario } from '../api/tipos';
 import { AvisoSesion } from '../components/AvisoSesion';
 import * as actividad from './actividad';
@@ -26,7 +26,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const aplicar = useCallback((tipo: TipoSesion, cuenta: any, token?: string) => {
     if (token) sesion.fijar(token);
-    void revisarSuscripcion(`${tipo}:${cuenta?.id ?? ''}`);
+    void revisarSuscripcion(); // también al reanudar, cuando el token no cambia
     setEstado({ tipo, cliente: tipo === 'cliente' ? cuenta : null, usuario: tipo === 'usuario' ? cuenta : null, cargando: false });
   }, []);
 
@@ -59,6 +59,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setEstado({ tipo: null, cliente: null, usuario: null, cargando: false });
       actividad.sesionPerdida(sesion.motivo()); // 401 confirmado al renovar: cierre global
     });
+    // Otra pestaña inició sesión con otra cuenta (la cookie ya es suya): nada de la cuenta anterior debe quedar a la vista.
+    // Se vacía la caché y se recarga; al arrancar, esta pestaña toma la cuenta vigente. No es un cierre: no revoca nada.
+    const quitarCambio = sesion.alCambiarIdentidad(() => {
+      qc.clear();
+      navegador.recargar();
+    });
     // Una pestaña en pausa no se recupera sola: espera a que el servidor confirme y la renovación se complete.
     if (actividad.obtenerFase() !== 'pausada') {
       renovar().then((ok) => {
@@ -68,7 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else setEstado((e) => ({ ...e, cargando: false }));
       });
     }
-    return () => { quitar(); };
+    return () => { quitar(); quitarCambio(); };
   }, [aplicar, limpiarLocal, qc]);
 
   const entrar = (d: any, tipo: TipoSesion) => {

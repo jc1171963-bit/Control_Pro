@@ -19,8 +19,9 @@ export class ApiError extends Error {
 
 /** Duraciones de la sesión calculadas por el servidor (S2.4): el navegador nunca recibe ni envía fechas. */
 export type InfoSesion = { estado: 'activa'; restante_inactividad_ms: number; aviso_en_ms: number; restante_absoluto_ms: number };
-/** Resultado de la última renovación: `rechazo` = 401 confirmado por el servidor; `red` = fallo transitorio. */
-export type ResultadoRenovacion = 'ok' | 'rechazo' | 'red';
+/** Resultado de la última renovación: `rechazo` = 401 confirmado por el servidor; `red` = fallo transitorio;
+ *  `otra_cuenta` = la cookie del navegador ya es de otra cuenta (se inició sesión en otra pestaña). */
+export type ResultadoRenovacion = 'ok' | 'rechazo' | 'red' | 'otra_cuenta';
 
 let accessToken: string | null = null;
 let renovando: Promise<boolean> | null = null;
@@ -29,12 +30,47 @@ let motivoRechazo: string | null = null;
 let antesDeRenovar: (() => Promise<void>) | null = null;
 const oyentes = new Set<() => void>();
 const oyentesInfo = new Set<(i: InfoSesion) => void>();
+// Cuenta ("tipo|sub") del token que esta pestaña aplicó; la pausa no la borra. `epoca` sube al cambiar de cuenta: las
+// respuestas que salieron antes ya no se entregan (no pueden repoblar la interfaz con datos de la cuenta anterior).
+let identidad: string | null = null;
+let epoca = 0;
+
+/** Claims del JWT, sin verificar: solo para decidir en el navegador. La autoridad es siempre el servidor. */
+function claims(token: string | null | undefined): Record<string, unknown> | null {
+  const parte = token?.split('.')[1];
+  if (!parte) return null;
+  try {
+    return JSON.parse(atob(parte.replace(/-/g, '+').replace(/_/g, '/')));
+  } catch {
+    return null;
+  }
+}
+
+function identidadDe(token: string | null | undefined): string | null {
+  const c = claims(token);
+  return c && typeof c.tipo === 'string' && typeof c.sub === 'string' ? `${c.tipo}|${c.sub}` : null;
+}
+
+/** Recargar la página: única forma de garantizar que no queda en memoria nada de la cuenta anterior. */
+export const navegador = { recargar: () => window.location.reload() };
+let alCambiarIdentidad: () => void = () => navegador.recargar();
 
 export const sesion = {
   token: () => accessToken,
+  /** `sid` del access token en memoria, o null. Solo para saber si cambió la sesión: la autoridad es el servidor. */
+  sid(): string | null {
+    const sid = claims(accessToken)?.sid;
+    return typeof sid === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sid) ? sid : null;
+  },
   fijar(token: string | null) {
     accessToken = token;
+    identidad = token ? identidadDe(token) : null; // inicio de sesión en esta pestaña, renovación o cierre
     oyentes.forEach((f) => f());
+  },
+  /** Qué hacer si una renovación trae otra cuenta (por omisión, recargar). Devuelve cómo deshacer el registro. */
+  alCambiarIdentidad(f: () => void) {
+    alCambiarIdentidad = f;
+    return () => { alCambiarIdentidad = () => navegador.recargar(); };
   },
   alExpirar(f: () => void) {
     oyentes.add(f);
@@ -94,6 +130,16 @@ export async function renovar(forzar = false): Promise<boolean> {
           return false;
         }
         const d = await r.json();
+        const nueva = identidadDe(d.access_token);
+        if (identidad && nueva && nueva !== identidad) {
+          // La cookie es de otra cuenta: su token NO se entrega a esta pestaña, que aún muestra datos de la anterior.
+          // Sin token y sin avisar a los oyentes (no es un cierre: la sesión de la otra cuenta sigue viva).
+          accessToken = null;
+          epoca += 1;
+          ultimoResultado = 'otra_cuenta';
+          alCambiarIdentidad();
+          return false;
+        }
         motivoRechazo = null;
         ultimoResultado = 'ok';
         sesion.fijar(d.access_token);
@@ -117,6 +163,10 @@ type Opciones = { metodo?: string; cuerpo?: unknown; form?: FormData; crudo?: bo
 
 export async function api<T = any>(ruta: string, op: Opciones = {}): Promise<T> {
   if (pausada) throw new ApiError(0, 'sesion_pausada', 'La sesión está en pausa en esta pestaña: sin conexión con el servidor.');
+  const mia = epoca;
+  const vigente = () => {
+    if (mia !== epoca) throw new ApiError(0, 'otra_cuenta', 'La sesión de este navegador cambió de cuenta.');
+  };
   const headers: Record<string, string> = {};
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
   if (op.cuerpo !== undefined) headers['Content-Type'] = 'application/json';
@@ -134,6 +184,7 @@ export async function api<T = any>(ruta: string, op: Opciones = {}): Promise<T> 
       return api<T>(ruta, { ...op, reintento: true });
     }
   }
+  vigente();
   if (!r.ok) {
     const cuerpo = await r.json().catch(() => ({}));
     const e = cuerpo?.error || {};
@@ -141,7 +192,9 @@ export async function api<T = any>(ruta: string, op: Opciones = {}): Promise<T> 
   }
   if (op.crudo) return r as unknown as T;
   if (r.status === 204) return undefined as T;
-  return r.json();
+  const datos = await r.json();
+  vigente(); // una respuesta tardía de la cuenta anterior no se entrega
+  return datos;
 }
 
 export const get = <T = any>(ruta: string) => api<T>(ruta);
