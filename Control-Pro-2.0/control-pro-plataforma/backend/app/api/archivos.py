@@ -19,9 +19,12 @@ bp = Blueprint("archivos", __name__, url_prefix="/api/archivos")
 FIRMAS = {
     "png": [b"\x89PNG\r\n\x1a\n"], "jpg": [b"\xff\xd8\xff"], "jpeg": [b"\xff\xd8\xff"],
     "webp": [b"RIFF"], "pdf": [b"%PDF"],
+    # Notas de voz: WebM/Opus (Chrome, Android), Ogg (Firefox), M4A (Safari, iPhone) y MP3.
+    "webm": [b"\x1a\x45\xdf\xa3"], "ogg": [b"OggS"], "mp3": [b"ID3", b"\xff\xfb", b"\xff\xf3", b"\xff\xf2"],
 }
 MIMES = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "webp": "image/webp", "pdf": "application/pdf",
-         "svg": "image/svg+xml", "mp4": "video/mp4"}  # mp4: clips de producto (solo lectura; no se aceptan como subida)
+         "svg": "image/svg+xml", "mp4": "video/mp4",
+         "webm": "audio/webm", "ogg": "audio/ogg", "m4a": "audio/mp4", "mp3": "audio/mpeg"}  # mp4: clips de producto (solo lectura; no se aceptan como subida)
 
 
 def _guardar(carpeta: str, permitidas: set[str]) -> str:
@@ -33,7 +36,8 @@ def _guardar(carpeta: str, permitidas: set[str]) -> str:
         raise AppError(f"Formato no permitido. Usa: {', '.join(sorted(permitidas))}.")
     cabecera = archivo.stream.read(16)
     archivo.stream.seek(0)
-    if not any(cabecera.startswith(f) for f in FIRMAS[ext]):
+    valido = cabecera[4:8] == b"ftyp" if ext == "m4a" else any(cabecera.startswith(f) for f in FIRMAS[ext])
+    if not valido:
         raise AppError("El contenido del archivo no corresponde a su extensión.")
     nombre = f"{uuid.uuid4().hex}.{ext}"
     destino = os.path.join(current_app.config["UPLOAD_DIR"], carpeta)
@@ -78,6 +82,26 @@ def dueno_actual() -> str:
     return f"c{_cargar_cliente().id}" if get_jwt().get("tipo") == "cliente" else f"u{_cargar_usuario().id}"
 
 
+@bp.post("/chat")
+def subir_chat():
+    """Adjuntos del chat: fotos, PDF y notas de voz. Quedan privados hasta ligarse a una conversación al enviarse."""
+    verify_jwt_in_request()
+    nombre = _guardar("privados", {"png", "jpg", "jpeg", "webp", "pdf", "webm", "ogg", "m4a", "mp3"})
+    with open(os.path.join(current_app.config["UPLOAD_DIR"], "privados", nombre + ".meta"), "w") as fh:
+        json.dump({"dueno": dueno_actual()}, fh)
+    return jsonify({"url": f"/api/archivos/privados/{nombre}"}), 201
+
+
+def vincular_a_conversacion(url: str, conversacion_id: int, dueno: str):
+    """La otra parte de la conversación también podrá ver el adjunto. Solo quien lo subió puede adjuntarlo."""
+    ruta, meta = _meta(url)
+    if meta.get("dueno") != dueno:
+        raise SinPermiso("Solo puedes adjuntar archivos que tú subiste.")
+    meta["conversacion_id"] = conversacion_id
+    with open(ruta, "w") as fh:
+        json.dump(meta, fh)
+
+
 @bp.get("/privados/<nombre>")
 def ver_privado(nombre):
     verify_jwt_in_request()
@@ -95,11 +119,17 @@ def ver_privado(nombre):
             from ..models import Pedido
             p = db.session.get(Pedido, datos["pedido_id"])
             propio = bool(p and p.cliente_id == cliente.id)
+        if not propio and datos.get("conversacion_id"):
+            from ..extensions import db
+            from ..models import Conversacion
+            c = db.session.get(Conversacion, datos["conversacion_id"])
+            propio = bool(c and c.tipo == "sucursal" and c.cliente_id == cliente.id)
         if not propio:
             raise NoEncontrado("Archivo no encontrado.")
     else:
         _cargar_usuario()
-    return send_from_directory(ruta, os.path.basename(nombre), max_age=0)
+    ext = nombre.rsplit(".", 1)[-1].lower()
+    return send_from_directory(ruta, os.path.basename(nombre), max_age=0, mimetype=MIMES.get(ext))
 
 
 @bp.post("/publicos")

@@ -148,5 +148,14 @@ export type EstadoPadron = { vigente: PermisoPadron | null; pendiente: PermisoPa
 export type Conversacion = {
   id: number; tipo: 'sucursal' | 'distribuidora'; asunto: string; con: string; no_leidos: number; ultimo_mensaje_en: string | null;
   pedido: { id: number; folio: string; estado: string } | null; sucursal: { id: number; nombre: string } | null; whatsapp: string | null;
+  escribiendo?: boolean;
+  ultimo?: { texto: string; propio: boolean; autor: string; estado: MensajeChat['estado'] | null } | null;
 };
-export type MensajeChat = { id: number; texto: string; creado: string; propio: boolean; autor: string; rol: string };
+export type MensajeChat = {
+  id: number; texto: string; creado: string; propio: boolean; autor: string; rol: string; autor_id?: string;
+  /** Solo en mensajes propios: palomitas (una = enviado, dos grises = entregado, dos azules = leído). */
+  estado?: 'enviado' | 'entregado' | 'leido'; entregado_en?: string | null; leido_en?: string | null;
+  tipo?: 'texto' | 'imagen' | 'audio' | 'archivo';
+  adjunto?: { url: string; tipo: 'imagen' | 'audio' | 'archivo'; nombre?: string | null; duracion?: number | null } | null;
+  responde_a?: { id: number; propio: boolean; autor: string; tipo: string; texto: string; adjunto_url?: string | null } | null;
+};

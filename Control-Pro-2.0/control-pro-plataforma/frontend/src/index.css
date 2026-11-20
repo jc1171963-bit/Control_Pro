@@ -222,3 +222,43 @@
   .tema-sd .esqueleto, .tema-lu .esqueleto { background-image: linear-gradient(100deg, rgb(var(--tinta-100) / .85) 30%, rgb(var(--tinta-50) / .95) 50%, rgb(var(--tinta-100) / .85) 70%); }
   html.oscuro .esqueleto { background-image: linear-gradient(100deg, rgb(var(--tinta-50)) 30%, rgb(var(--tinta-100)) 50%, rgb(var(--tinta-50)) 70%); }
 }
+
+/* ===== Chat estilo mensajería (burbujas, colas, fondo, palomitas, "escribiendo…") ===== */
+@layer components {
+  .fondo-chat, .burbuja, .separador-dia {
+    --chat-fondo: #efeae2; --chat-propia: #d9fdd3; --chat-otra: #ffffff; --chat-texto: #111b21; --chat-dia: #ffffff; --chat-dia-texto: #54656f;
+  }
+  .tema-lu .fondo-chat, .tema-lu .burbuja, .tema-lu .separador-dia { --chat-fondo: #eaf0f8; --chat-propia: #d7e6fb; }
+  html.oscuro .fondo-chat, html.oscuro .burbuja, html.oscuro .separador-dia {
+    --chat-fondo: #0b141a; --chat-propia: #005c4b; --chat-otra: #202c33; --chat-texto: #e9edef; --chat-dia: #182229; --chat-dia-texto: #8696a0;
+  }
+  html.oscuro .tema-lu .fondo-chat, html.oscuro .tema-lu .burbuja { --chat-propia: #1d3f6e; --chat-fondo: #0a1220; }
+  .fondo-chat {
+    background-color: var(--chat-fondo);
+    background-image: radial-gradient(rgb(0 0 0 / .045) 1px, transparent 1.2px), radial-gradient(rgb(0 0 0 / .03) 1px, transparent 1.2px);
+    background-size: 22px 22px, 22px 22px; background-position: 0 0, 11px 11px;
+  }
+  html.oscuro .fondo-chat { background-image: radial-gradient(rgb(255 255 255 / .035) 1px, transparent 1.2px), radial-gradient(rgb(255 255 255 / .025) 1px, transparent 1.2px); }
+  .burbuja { color: var(--chat-texto); }
+  .burbuja-propia { background-color: var(--chat-propia); }
+  .burbuja-otra { background-color: var(--chat-otra); }
+  .con-cola-propia::before, .con-cola-otra::before { content: ""; position: absolute; top: 0; width: 8px; height: 13px; }
+  .con-cola-propia::before { right: -8px; background: var(--chat-propia); clip-path: polygon(0 0, 100% 0, 0 100%); }
+  .con-cola-otra::before { left: -8px; background: var(--chat-otra); clip-path: polygon(0 0, 100% 0, 100% 100%); }
+  .separador-dia { background: var(--chat-dia); color: var(--chat-dia-texto); }
+  .palomita-leida { color: #53bdeb; opacity: 1; }
+  .autor-0 { color: #0f766e; } .autor-1 { color: #1f5192; } .autor-2 { color: #b45309; }
+  .autor-3 { color: #7c3aed; } .autor-4 { color: #be185d; } .autor-5 { color: #047857; }
+  html.oscuro .autor-0 { color: #5eead4; } html.oscuro .autor-1 { color: #93c5fd; } html.oscuro .autor-2 { color: #fcd34d; }
+  html.oscuro .autor-3 { color: #c4b5fd; } html.oscuro .autor-4 { color: #f9a8d4; } html.oscuro .autor-5 { color: #6ee7b7; }
+  .punto-escribiendo { background: #8696a0; animation: escribiendo 1.2s ease-in-out infinite; }
+  @keyframes escribiendo { 0%, 60%, 100% { transform: translateY(0); opacity: .45; } 30% { transform: translateY(-4px); opacity: 1; } }
+}
+
+/* Chat: mensaje citado dentro de la burbuja y destello al saltar al mensaje original */
+@layer components {
+  .cita-burbuja { background: rgb(0 0 0 / .055); }
+  html.oscuro .cita-burbuja { background: rgb(255 255 255 / .07); }
+  .mensaje-resaltado > .burbuja { animation: resaltar 1.6s ease-out; }
+  @keyframes resaltar { 0%, 35% { box-shadow: 0 0 0 4px rgb(83 189 235 / .55); } 100% { box-shadow: 0 1px .5px rgba(11, 20, 26, .13); } }
+}

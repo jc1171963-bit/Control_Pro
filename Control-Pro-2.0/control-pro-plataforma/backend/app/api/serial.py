@@ -182,6 +182,17 @@ def asignacion(a, con_pedido=False):
     return d
 
 
+def carga_resumen():
+    """Opciones de carga para listas de solicitudes: solo lo que usa `pedido_resumen` (artículos y sucursales).
+    Sin esto, cada lista arrastraba pagos, reembolsos, paquetes, envíos y sus eventos (≈10 consultas de más)."""
+    from sqlalchemy.orm import joinedload, lazyload, selectinload
+
+    from ..models import AsignacionSurtido, Pedido
+    return (selectinload(Pedido.detalles).options(lazyload("*")),
+            selectinload(Pedido.asignaciones).options(lazyload("*"), joinedload(AsignacionSurtido.sucursal)),
+            lazyload(Pedido.pagos))
+
+
 def pedido_resumen(p):
     return {"id": p.id, "folio": p.folio, "canal": p.canal, "estado": p.estado, "modalidad": p.modalidad,
             "metodo_pago": p.metodo_pago, "total": m(p.total), "creado": f(p.creado),

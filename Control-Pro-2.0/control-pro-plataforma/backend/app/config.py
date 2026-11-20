@@ -18,7 +18,10 @@ def _bool(nombre: str, defecto: bool) -> bool:
 class Config:
     SECRET_KEY = os.getenv("SECRET_KEY", "")
     SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL", "")
-    SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True}
+    # Conexiones a la base que se conservan abiertas: al menos tantas como hilos por proceso de Gunicorn (8), para que
+    # una ráfaga de peticiones no abra conexiones nuevas (cada conexión nueva tarda en "calentar" en Postgres).
+    # 4 procesos × (10 + 5) = 60 como máximo, por debajo del límite de 100 de Postgres.
+    SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True, "pool_size": 10, "max_overflow": 5, "pool_recycle": 1800}
     JSON_SORT_KEYS = False
 
     # JWT: access token en encabezado, refresh token en cookie HttpOnly con protección CSRF.

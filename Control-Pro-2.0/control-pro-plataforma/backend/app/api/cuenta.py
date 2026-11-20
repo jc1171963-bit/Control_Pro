@@ -286,7 +286,7 @@ def mis_pedidos():
         q = q.where(Pedido.canal == canal)
     if estado := request.args.get("estado"):
         q = q.where(Pedido.estado == estado)
-    return jsonify(paginar(q, *pagina(), serial.pedido_resumen))
+    return jsonify(paginar(q.options(*serial.carga_resumen()), *pagina(), serial.pedido_resumen))
 
 
 @bp.get("/pedidos/<int:pedido_id>")
@@ -472,12 +472,20 @@ def mensajes(conversacion_id):
                     "items": col.mensajes(c, cliente=g.cliente, despues=request.args.get("despues", type=int))})
 
 
+@bp.post("/conversaciones/<int:conversacion_id>/escribiendo")
+@requiere_cliente(empresa=True)
+def escribiendo(conversacion_id):
+    col.escribiendo(col.obtener(conversacion_id, cliente=g.cliente), cliente=g.cliente)
+    return jsonify({"ok": True})
+
+
 @bp.post("/conversaciones/<int:conversacion_id>/mensajes")
 @requiere_cliente(empresa=True)
 def enviar_mensaje(conversacion_id):
     c = col.obtener(conversacion_id, cliente=g.cliente)
     d = cargar(MensajeSchema, cuerpo())
-    return jsonify(col.mensaje_json(col.enviar(c, d["texto"], cliente=g.cliente), "contraparte")), 201
+    m = col.enviar(c, d["texto"], cliente=g.cliente, adjunto=d["adjunto"], responde_a=d["responde_a"])
+    return jsonify(col.mensaje_json(m, "contraparte")), 201
 
 
 @bp.get("/puestos-autorizados")

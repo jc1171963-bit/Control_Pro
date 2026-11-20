@@ -2,7 +2,7 @@
 empleados y conversaciones (chat) ligadas o no a una solicitud."""
 from datetime import datetime
 
-from sqlalchemy import BigInteger, CheckConstraint, DateTime, ForeignKey, Index, String, Text, UniqueConstraint, func
+from sqlalchemy import BigInteger, CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..extensions import db
@@ -44,6 +44,12 @@ class Conversacion(ConFechas, db.Model):
     # Marcas de lectura por lado: el aprobador y la contraparte (la sucursal o la distribuidora).
     leido_aprobador_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     leido_contraparte_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Entregado: la app del otro lado ya recibió los mensajes (aunque aún no abra la conversación). Da la doble palomita.
+    entregado_aprobador_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    entregado_contraparte_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # "Escribiendo…": cada lado avisa mientras escribe; caduca sola a los pocos segundos.
+    escribiendo_aprobador_hasta: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    escribiendo_contraparte_hasta: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     cliente = relationship("Cliente", lazy="joined")
     pedido = relationship("Pedido", lazy="joined")
     __table_args__ = (
@@ -62,12 +68,20 @@ class Mensaje(db.Model):
     # Lado del autor al escribir: 'aprobador' o 'contraparte' (se conserva aunque el usuario cambie de rol).
     lado: Mapped[str] = mapped_column(String(12))
     texto: Mapped[str] = mapped_column(Text)
+    # texto | imagen | audio | archivo. Con adjunto el texto es opcional (pie de foto).
+    tipo: Mapped[str] = mapped_column(String(10), default="texto", server_default="texto")
+    adjunto_url: Mapped[str | None] = mapped_column(String(300))
+    adjunto_nombre: Mapped[str | None] = mapped_column(String(160))
+    adjunto_duracion: Mapped[int | None] = mapped_column(Integer)  # segundos (notas de voz)
+    responde_a_id: Mapped[int | None] = mapped_column(ForeignKey("mensaje.id", ondelete="SET NULL"))
     creado: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     autor_usuario = relationship("Usuario", lazy="joined")
     autor_cliente = relationship("Cliente", lazy="joined")
+    responde_a = relationship("Mensaje", remote_side="Mensaje.id", lazy="joined", join_depth=1)
     __table_args__ = (
         CheckConstraint("lado in ('aprobador','contraparte')", name="ck_mensaje_lado"),
-        CheckConstraint("char_length(texto) between 1 and 2000", name="ck_mensaje_texto"),
+        CheckConstraint("char_length(texto) <= 2000 and (char_length(texto) >= 1 or adjunto_url is not null)", name="ck_mensaje_texto"),
+        CheckConstraint("tipo in ('texto','imagen','audio','archivo')", name="ck_mensaje_tipo"),
         Index("ix_mensaje_conversacion", "conversacion_id", "id"),
     )
 
