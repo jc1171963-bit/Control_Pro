@@ -79,7 +79,11 @@ def actividad():
     n_total, n_ultima = db.session.execute(select(func.count().filter(Notificacion.leida.is_(False)), func.max(Notificacion.id)).where(filtro)).one()
     datos = {"notificaciones": {"no_leidas": int(n_total or 0), "ultima": n_ultima}, "mensajes": None}
     if participa:
+        col.marcar_entregados(**kw)
         sub = col.visibles(**kw).subquery()
         ultimo = db.session.scalar(select(func.max(sub.c.ultimo_mensaje_en)))
-        datos["mensajes"] = {"no_leidos": col.total_no_leidos(**kw), "ultimo": serial.f(ultimo)}
+        # Cuándo el otro lado recibió o leyó por última vez: cambia las palomitas de lo que yo envié.
+        otro = "contraparte" if col.lado_de(**kw) == "aprobador" else "aprobador"
+        visto = db.session.scalar(select(func.max(func.greatest(sub.c[f"leido_{otro}_en"], sub.c[f"entregado_{otro}_en"]))))
+        datos["mensajes"] = {"no_leidos": col.total_no_leidos(**kw), "ultimo": serial.f(ultimo), "visto": serial.f(visto)}
     return jsonify(datos)

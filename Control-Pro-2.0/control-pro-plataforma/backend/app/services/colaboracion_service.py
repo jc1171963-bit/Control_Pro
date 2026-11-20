@@ -2,8 +2,9 @@
 from datetime import timedelta
 
 from flask import current_app
-from sqlalchemy import exists, func, or_, select
+from sqlalchemy import exists, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.orm import joinedload, lazyload, load_only, noload
 
 from ..errors import AppError, Conflicto, NoEncontrado, SinPermiso, TransicionInvalida
 from ..extensions import db
@@ -244,9 +245,59 @@ def listar(usuario=None, cliente=None, tipo: str | None = None):
     consulta = visibles(usuario, cliente)
     if tipo:
         consulta = consulta.where(Conversacion.tipo == tipo)
+    marcar_entregados(usuario, cliente)
+    # De la solicitud ligada solo se muestra folio y estado: no arrastrar detalles, pagos, paquetes y envíos.
+    consulta = consulta.options(joinedload(Conversacion.pedido).options(
+        load_only(Pedido.id, Pedido.folio, Pedido.estado), lazyload("*")))
     filas = db.session.execute(consulta.add_columns(_no_leidos_expr(lado)).order_by(
         Conversacion.ultimo_mensaje_en.desc().nulls_last(), Conversacion.id.desc()).limit(200)).all()
-    return [conversacion_json(c, lado, n) for c, n in filas]
+    ids = [c.id for c, _ in filas]
+    ultimos = {m.conversacion_id: m for m in db.session.scalars(
+        select(Mensaje).options(noload(Mensaje.responde_a)).where(Mensaje.conversacion_id.in_(ids or [-1]))
+        .distinct(Mensaje.conversacion_id).order_by(Mensaje.conversacion_id, Mensaje.id.desc()))}
+    salida = []
+    for c, n in filas:
+        d = conversacion_json(c, lado, n)
+        m = ultimos.get(c.id)
+        d["ultimo"] = None if not m else {"texto": resumen_mensaje(m, 140), "propio": m.lado == lado, "autor": mensaje_json(m, lado)["autor"],
+                                          "estado": _estado(m, c, lado) if m.lado == lado else None}
+        salida.append(d)
+    return salida
+
+
+def _del_otro(c: Conversacion, lado: str, campo: str):
+    """Marca del otro lado de la conversación (`leido`, `entregado` o `escribiendo`)."""
+    otro = "contraparte" if lado == "aprobador" else "aprobador"
+    return getattr(c, f"{campo}_{otro}_{'hasta' if campo == 'escribiendo' else 'en'}")
+
+
+def _estado(m: Mensaje, c: Conversacion, lado: str) -> str:
+    """Palomitas de un mensaje propio: enviado (una), entregado (dos grises) o leído (dos azules)."""
+    leido, entregado = _del_otro(c, lado, "leido"), _del_otro(c, lado, "entregado")
+    if leido and leido >= m.creado:
+        return "leido"
+    if entregado and entregado >= m.creado:
+        return "entregado"
+    return "enviado"
+
+
+def marcar_entregados(usuario=None, cliente=None):
+    """La app de quien consulta ya recibió los mensajes nuevos de sus conversaciones (doble palomita para el otro lado).
+    Solo toca las conversaciones con mensajes posteriores a su última marca: barato aunque se llame cada pocos segundos."""
+    lado = lado_de(usuario, cliente)
+    col = Conversacion.entregado_aprobador_en if lado == "aprobador" else Conversacion.entregado_contraparte_en
+    ids = visibles(usuario, cliente).with_only_columns(Conversacion.id).where(
+        Conversacion.ultimo_mensaje_en.is_not(None), or_(col.is_(None), col < Conversacion.ultimo_mensaje_en))
+    r = db.session.execute(update(Conversacion).where(Conversacion.id.in_(ids)).values({col: ahora()})
+                           .execution_options(synchronize_session=False))
+    if r.rowcount:
+        db.session.commit()
+
+
+def escribiendo(c: Conversacion, usuario=None, cliente=None):
+    lado = lado_de(usuario, cliente)
+    setattr(c, f"escribiendo_{lado}_hasta", ahora() + timedelta(seconds=6))
+    db.session.commit()
 
 
 def total_no_leidos(usuario=None, cliente=None) -> int:
@@ -256,25 +307,32 @@ def total_no_leidos(usuario=None, cliente=None) -> int:
 
 
 def mensajes(c: Conversacion, usuario=None, cliente=None, despues: int | None = None):
+    """Los últimos 500 mensajes (en orden) con sus palomitas. Al consultarlos quedan leídos y entregados para este lado."""
     lado = lado_de(usuario, cliente)
     consulta = select(Mensaje).where(Mensaje.conversacion_id == c.id)
     if despues:
         consulta = consulta.where(Mensaje.id > despues)
-    filas = db.session.scalars(consulta.order_by(Mensaje.id).limit(500)).all()
+    filas = list(reversed(db.session.scalars(consulta.order_by(Mensaje.id.desc()).limit(500)).all()))
     marca = ahora()
-    if lado == "aprobador":
-        c.leido_aprobador_en = marca
-    else:
-        c.leido_contraparte_en = marca
+    setattr(c, f"leido_{lado}_en", marca)
+    setattr(c, f"entregado_{lado}_en", marca)
     db.session.commit()
-    return [mensaje_json(m, lado) for m in filas]
+    return [mensaje_json(m, lado, c) for m in filas]
 
 
-def enviar(c: Conversacion, texto: str, usuario=None, cliente=None) -> Mensaje:
+def enviar(c: Conversacion, texto: str, usuario=None, cliente=None, adjunto: dict | None = None,
+           responde_a: int | None = None) -> Mensaje:
     texto = (texto or "").strip()
-    if not texto or len(texto) > 2000:
-        raise AppError("El mensaje debe tener entre 1 y 2000 caracteres.")
+    if (not texto and not adjunto) or len(texto) > 2000:
+        raise AppError("El mensaje debe tener entre 1 y 2000 caracteres o un archivo adjunto.")
     lado = lado_de(usuario, cliente)
+    if responde_a is not None:
+        original = db.session.get(Mensaje, responde_a)
+        if not original or original.conversacion_id != c.id:
+            raise NoEncontrado("El mensaje que respondes no está en esta conversación.")
+    if adjunto:
+        from ..api.archivos import dueno_actual, vincular_a_conversacion
+        vincular_a_conversacion(adjunto["url"], c.id, dueno_actual())
     db.session.execute(select(Conversacion.id).where(Conversacion.id == c.id).with_for_update())
     # Solo el primer mensaje de una racha sin leer genera aviso (no se inunda la campana con cada mensaje).
     leido_otro = c.leido_contraparte_en if lado == "aprobador" else c.leido_aprobador_en
@@ -282,17 +340,19 @@ def enviar(c: Conversacion, texto: str, usuario=None, cliente=None) -> Mensaje:
     if leido_otro is not None:
         condiciones.append(Mensaje.creado > leido_otro)
     racha = db.session.scalar(select(exists().where(*condiciones)))
-    m = Mensaje(conversacion_id=c.id, texto=texto, lado=lado,
+    m = Mensaje(conversacion_id=c.id, texto=texto, lado=lado, responde_a_id=responde_a,
+                tipo=adjunto["tipo"] if adjunto else "texto", adjunto_url=adjunto["url"] if adjunto else None,
+                adjunto_nombre=(adjunto.get("nombre") or None) if adjunto else None,
+                adjunto_duracion=adjunto.get("duracion") if adjunto else None,
                 autor_usuario_id=usuario.id if usuario is not None and cliente is None else None,
                 autor_cliente_id=cliente.id if cliente is not None else None)
     db.session.add(m)
     db.session.flush()
     marca = ahora()
     c.ultimo_mensaje_en = marca
-    if lado == "aprobador":
-        c.leido_aprobador_en = marca
-    else:
-        c.leido_contraparte_en = marca
+    setattr(c, f"leido_{lado}_en", marca)
+    setattr(c, f"entregado_{lado}_en", marca)
+    setattr(c, f"escribiendo_{lado}_hasta", None)
     if not racha:
         _avisar(c, m, lado)
     db.session.commit()
@@ -305,8 +365,16 @@ def _asunto(c: Conversacion) -> str:
     return "Conversación general"
 
 
+def resumen_mensaje(m: Mensaje, largo: int = 120) -> str:
+    """Texto corto para avisos y vistas previas: 🎤 Mensaje de voz (0:12), 📷 Foto, 📄 documento…"""
+    base = {"audio": "🎤 Mensaje de voz" + (f" ({m.adjunto_duracion // 60}:{m.adjunto_duracion % 60:02d})" if m.adjunto_duracion else ""),
+            "imagen": "📷 Foto", "archivo": f"📄 {m.adjunto_nombre or 'Documento'}"}.get(m.tipo, "")
+    texto = f"{base}: {m.texto}" if base and m.texto else (base or m.texto)
+    return texto if len(texto) <= largo else texto[:largo - 1] + "…"
+
+
 def _avisar(c: Conversacion, m: Mensaje, lado: str):
-    resumen = m.texto if len(m.texto) <= 120 else m.texto[:117] + "…"
+    resumen = resumen_mensaje(m)
     if lado == "aprobador":
         if c.tipo == "sucursal":
             notificar_cliente(c.cliente_id, "mensaje_nuevo", "mensaje", m.id, f"Mensaje del aprobador · {_asunto(c)}: {resumen}",
@@ -336,10 +404,17 @@ def conversacion_json(c: Conversacion, lado: str, no_leidos: int = 0):
             "ultimo_mensaje_en": c.ultimo_mensaje_en.isoformat() if c.ultimo_mensaje_en else None,
             "pedido": {"id": c.pedido.id, "folio": c.pedido.folio, "estado": c.pedido.estado} if c.pedido else None,
             "sucursal": {"id": c.cliente.id, "nombre": _nombre(c.cliente)} if c.cliente else None,
-            "whatsapp": _whatsapp(c, lado)}
+            "whatsapp": _whatsapp(c, lado),
+            "escribiendo": bool((h := _del_otro(c, lado, "escribiendo")) and h > ahora())}
 
 
-def mensaje_json(m: Mensaje, lado: str):
+def _autor(m: Mensaje) -> str:
+    if m.autor_cliente:
+        return _nombre(m.autor_cliente)
+    return m.autor_usuario.nombre if m.autor_usuario else "Cuenta eliminada"
+
+
+def mensaje_json(m: Mensaje, lado: str, c: Conversacion | None = None):
     if m.autor_cliente:
         autor = _nombre(m.autor_cliente)
     elif m.autor_usuario:
@@ -347,5 +422,20 @@ def mensaje_json(m: Mensaje, lado: str):
     else:
         autor = "Cuenta eliminada"
     etiqueta = {"aprobador": "Aprobador"}.get(m.lado) or ("Sucursal" if m.autor_cliente_id else "Distribuidora")
-    return {"id": m.id, "texto": m.texto, "creado": m.creado.isoformat(), "propio": m.lado == lado, "autor": autor,
-            "rol": etiqueta}
+    d = {"id": m.id, "texto": m.texto, "creado": m.creado.isoformat(), "propio": m.lado == lado, "autor": autor,
+         "rol": etiqueta, "autor_id": f"u{m.autor_usuario_id}" if m.autor_usuario_id else f"c{m.autor_cliente_id}",
+         "tipo": m.tipo or "texto",
+         "adjunto": {"url": m.adjunto_url, "tipo": m.tipo, "nombre": m.adjunto_nombre, "duracion": m.adjunto_duracion} if m.adjunto_url else None,
+         "responde_a": None}
+    if m.responde_a is not None:
+        r = m.responde_a
+        d["responde_a"] = {"id": r.id, "propio": r.lado == lado, "autor": _autor(r), "tipo": r.tipo or "texto",
+                           "texto": resumen_mensaje(r, 160), "adjunto_url": r.adjunto_url if r.tipo == "imagen" else None}
+    if d["propio"] and c is not None:
+        d["estado"] = _estado(m, c, lado)
+        leido, entregado = _del_otro(c, lado, "leido"), _del_otro(c, lado, "entregado")
+        d["leido_en"] = leido.isoformat() if d["estado"] == "leido" else None
+        d["entregado_en"] = entregado.isoformat() if d["estado"] in ("entregado", "leido") and entregado else None
+    elif d["propio"]:
+        d["estado"] = "enviado"
+    return d

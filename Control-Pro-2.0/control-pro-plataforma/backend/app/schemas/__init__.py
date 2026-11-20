@@ -510,5 +510,20 @@ class ConversacionSchema(Base):
     cliente_id = fields.Int(load_default=None, allow_none=True)
 
 
+class AdjuntoMensajeSchema(Base):
+    url = fields.Str(required=True, validate=validate.Regexp(
+        r"^/api/archivos/privados/[0-9a-f]{32}\.(png|jpe?g|webp|pdf|webm|ogg|m4a|mp3)$", error="Archivo inválido."))
+    tipo = fields.Str(required=True, validate=validate.OneOf(["imagen", "audio", "archivo"]))
+    nombre = fields.Str(load_default=None, allow_none=True, validate=L(max=160))
+    duracion = fields.Int(load_default=None, allow_none=True, validate=validate.Range(min=0, max=600))
+
+
 class MensajeSchema(Base):
-    texto = fields.Str(required=True, validate=L(min=1, max=2000))
+    texto = fields.Str(load_default="", validate=L(max=2000))
+    adjunto = fields.Nested(AdjuntoMensajeSchema, load_default=None, allow_none=True)
+    responde_a = fields.Int(load_default=None, allow_none=True)
+
+    @validates_schema
+    def _contenido(self, d, **_):
+        if not (d.get("texto") or "").strip() and not d.get("adjunto"):
+            raise ValidationError("Escribe un mensaje o adjunta un archivo.", "texto")

@@ -59,7 +59,7 @@ def pedidos():
         q = q.where(Pedido.creado >= desde)
     if hasta := request.args.get("hasta"):
         q = q.where(Pedido.creado <= hasta + " 23:59:59")
-    return jsonify(paginar(q, *pagina(), serial.pedido_resumen))
+    return jsonify(paginar(q.options(*serial.carga_resumen()), *pagina(), serial.pedido_resumen))
 
 
 # Seguimiento de todas las solicitudes corporativas: cada etapa agrupa los estados en los que la solicitud espera lo mismo.
@@ -110,7 +110,7 @@ def seguimiento():
     else:
         base = base.order_by(func.coalesce(ultimo_cambio, Pedido.creado).asc(), Pedido.id)
 
-    resultado = paginar(base, *pagina(), serial.pedido_resumen)
+    resultado = paginar(base.options(*serial.carga_resumen()), *pagina(), serial.pedido_resumen)
     ids = [x["id"] for x in resultado["items"]]
     if ids:
         hist: dict[int, list] = {}

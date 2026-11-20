@@ -1,7 +1,7 @@
 /**
  * Actualización en vivo de avisos y mensajes, también cuando la persona ya está dentro de la vista.
  *
- * - Cada 5 s (solo con la pestaña visible) consulta /actividad: un pulso muy ligero con los no leídos y la marca más
+ * - Cada 2 s (solo con la pestaña visible) consulta /actividad: un pulso muy ligero con los no leídos y la marca más
  *   reciente de avisos y mensajes.
  * - Si algo cambió, recarga solo lo afectado (contadores, listas de notificaciones, conversaciones abiertas, la solicitud
  *   que se está viendo y los paneles de seguimiento). Si no cambió nada, no recarga nada.
@@ -13,7 +13,7 @@ import { get } from '../api/cliente';
 
 type Actividad = {
   notificaciones: { no_leidas: number; ultima: number | null };
-  mensajes: { no_leidos: number; ultimo: string | null } | null;
+  mensajes: { no_leidos: number; ultimo: string | null; visto?: string | null } | null;
 };
 
 /** Consultas que dependen de los avisos: un aviso nuevo casi siempre significa que una solicitud cambió de estado. */
@@ -23,7 +23,7 @@ const POR_MENSAJE = ['chat-conversaciones', 'chat-mensajes', 'chat-no-leidos'];
 
 export const EVENTO_ACTIVIDAD = 'cp-actividad';
 
-export function useActividadEnVivo(activo = true, intervalo = 5000) {
+export function useActividadEnVivo(activo = true, intervalo = 2000) {
   const qc = useQueryClient();
   const previo = useRef<{ n: string; m: string } | null>(null);
   useEffect(() => {
@@ -36,7 +36,7 @@ export function useActividadEnVivo(activo = true, intervalo = 5000) {
       try {
         const a = await get<Actividad>('/actividad');
         if (!vivo) return;
-        const ahora = { n: `${a.notificaciones.no_leidas}|${a.notificaciones.ultima}`, m: a.mensajes ? `${a.mensajes.no_leidos}|${a.mensajes.ultimo}` : '' };
+        const ahora = { n: `${a.notificaciones.no_leidas}|${a.notificaciones.ultima}`, m: a.mensajes ? `${a.mensajes.no_leidos}|${a.mensajes.ultimo}|${a.mensajes.visto ?? ''}` : '' };
         const antes = previo.current;
         previo.current = ahora;
         if (!antes) return; // primera lectura: solo toma la referencia

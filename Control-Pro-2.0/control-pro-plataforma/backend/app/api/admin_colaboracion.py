@@ -80,11 +80,19 @@ def mensajes(conversacion_id):
                     "items": col.mensajes(c, usuario=g.usuario, despues=despues)})
 
 
+@bp.post("/conversaciones/<int:conversacion_id>/escribiendo")
+@requiere_usuario()
+def escribiendo(conversacion_id):
+    _participa()
+    col.escribiendo(col.obtener(conversacion_id, usuario=g.usuario), usuario=g.usuario)
+    return jsonify({"ok": True})
+
+
 @bp.post("/conversaciones/<int:conversacion_id>/mensajes")
 @requiere_usuario()
 def enviar_mensaje(conversacion_id):
     _participa()
     c = col.obtener(conversacion_id, usuario=g.usuario)
     d = cargar(MensajeSchema, cuerpo())
-    m = col.enviar(c, d["texto"], usuario=g.usuario)
+    m = col.enviar(c, d["texto"], usuario=g.usuario, adjunto=d["adjunto"], responde_a=d["responde_a"])
     return jsonify(col.mensaje_json(m, col.lado_de(g.usuario))), 201
