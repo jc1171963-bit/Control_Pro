@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 
 from flask import current_app, request
 from flask_jwt_extended import create_access_token, create_refresh_token
-from sqlalchemy import case, delete, func, select, update
+from sqlalchemy import and_, case, delete, func, or_, select, update
 
 from ..errors import AppError, Conflicto, NoAutenticado
 from ..extensions import db
@@ -70,34 +70,48 @@ def revocar_sesiones_de_cuenta(tipo: str, cuenta_id: int, motivo: str, excepto_s
     quien cambia la contraseña o el estado, así que ambos se confirman juntos o ninguno. No toca las ya revocadas
     (conservan su motivo). Devuelve cuántas revocó.
 
-    También borra TODAS las suscripciones push de la cuenta: un dispositivo cuya sesión se revoca no debe seguir
-    recibiendo avisos (folios, mensajes). Una suscripción no está ligada a una sesión, así que no se puede conservar
-    solo la del dispositivo actual: en el cambio propio, ese dispositivo vuelve a activar los avisos al recargar."""
+    En la misma transacción borra las suscripciones push de las sesiones que revoca y las heredadas sin sid de la cuenta
+    (limpieza de S2.5). La de `excepto_sid` se conserva: ese dispositivo sigue recibiendo avisos."""
     condiciones = [SesionAuth.tipo_cuenta == tipo, SesionAuth.cuenta_id == cuenta_id, SesionAuth.revocada_en.is_(None)]
     if (excepto := _clave(excepto_sid)) is not None:
         condiciones.append(SesionAuth.id != excepto)
-    r = db.session.execute(update(SesionAuth).where(*condiciones).values(revocada_en=ahora(), motivo=motivo)
-                           .execution_options(synchronize_session=False))
+    revocadas = db.session.execute(update(SesionAuth).where(*condiciones).values(revocada_en=ahora(), motivo=motivo)
+                                   .returning(SesionAuth.id).execution_options(synchronize_session=False)).scalars().all()
     dueno = PushSuscripcion.usuario_id if tipo == "usuario" else PushSuscripcion.cliente_id
-    db.session.execute(delete(PushSuscripcion).where(dueno == cuenta_id).execution_options(synchronize_session=False))
-    return r.rowcount
+    db.session.execute(delete(PushSuscripcion).where(or_(
+        PushSuscripcion.sid.in_(revocadas), and_(PushSuscripcion.sid.is_(None), dueno == cuenta_id)))
+        .execution_options(synchronize_session=False))
+    return len(revocadas)
+
+
+def _borrar_push_de_sesion(sid) -> None:
+    """Sin commit: va en la transacción que revoca la sesión (orden de bloqueo cuenta → sesión → suscripción)."""
+    db.session.execute(delete(PushSuscripcion).where(PushSuscripcion.sid == sid).execution_options(synchronize_session=False))
 
 
 def _tipo_de(cuenta) -> str:
     return "usuario" if isinstance(cuenta, Usuario) else "cliente"
 
 
-def crear_sesion(tipo: str, cuenta, huella: str | None = None) -> Vigente:
+def crear_sesion(tipo: str, cuenta, huella: str | None = None, reemplaza: tuple | None = None) -> Vigente:
     """Cada inicio de sesión abre una sesión con tope absoluto; sus tokens llevan su `sid` y la generación `gen`.
 
     Con la cuenta bloqueada se vuelve a comprobar que siga activa y, si se indica `huella` (la contraseña verificada al
     iniciar sesión), que no haya cambiado: así un cambio de contraseña o una desactivación concurrentes nunca dejan
-    viva una sesión abierta con la credencial anterior."""
+    viva una sesión abierta con la credencial anterior.
+
+    `reemplaza` = (sid, tipo, cuenta_id) de la sesión que este navegador tenía (su cookie de refresh, ya verificada). Si
+    sigue vigente se revoca con motivo `reemplazo` y se borran sus suscripciones push, en la MISMA transacción que crea la
+    nueva: o se confirman las dos cosas o ninguna. Un navegador tiene una sola sesión; los demás dispositivos no se tocan."""
     c = bloquear_cuenta(_modelo(tipo), cuenta.id)
     if not c or not c.activo or (huella is not None and c.hash_password != huella):
         db.session.rollback()
         raise NoAutenticado(MENSAJE_GENERICO)
     t = ahora()
+    if reemplaza is not None:  # orden de bloqueo cuenta → sesión, como en el resto del sistema
+        sid_previo, tipo_previo, cuenta_previa = reemplaza
+        _revocar(sid_previo, t, "reemplazo", SesionAuth.tipo_cuenta == tipo_previo, SesionAuth.cuenta_id == cuenta_previa,
+                 t <= SesionAuth.expira_absoluta, ~inactiva(SesionAuth, t))
     s = SesionAuth(id=uuid.uuid4(), tipo_cuenta=tipo, cuenta_id=cuenta.id, gen=1, gen_emitida_en=t, actividad_en=t,
                    expira_absoluta=t + timedelta(hours=current_app.config["SESION_MAXIMA_HORAS"]),
                    ip=ip_cliente(), agente=(request.headers.get("User-Agent") or "")[:300] or None)
@@ -145,6 +159,7 @@ def _dentro_de_gracia(s: SesionAuth, t: datetime) -> bool:
 def _revocar_por_inactividad(s: SesionAuth, t: datetime):
     """Bajo el bloqueo: la inactividad es definitiva; ninguna gracia ni reporte posterior revive la sesión."""
     s.revocada_en, s.motivo = t, "inactividad"
+    _borrar_push_de_sesion(s.id)
     db.session.commit()
     return NoAutenticado(MENSAJES_SESION["sesion_inactiva"], codigo="sesion_inactiva")
 
@@ -188,6 +203,7 @@ def rotar_sesion(sid: str, gen) -> Vigente:
         db.session.commit()
         raise GeneracionFutura("Este acceso ya no es válido. Inicia sesión de nuevo.")
     s.revocada_en, s.motivo = ahora(), "reutilizacion"
+    _borrar_push_de_sesion(s.id)
     auditar("sesion.reutilizacion", tipo_cuenta, cuenta_id, despues=rastro)
     db.session.commit()
     raise NoAutenticado(MENSAJES_SESION["sesion_revocada"], codigo="sesion_revocada")
@@ -255,9 +271,18 @@ def revocar_sesion(sid: str, motivo: str | None = None) -> None:
     t = ahora()
     if motivo is None:
         motivo = case((SesionAuth.actividad_en + limite_inactividad() < t, "inactividad"), else_="cierre")
-    db.session.execute(update(SesionAuth).where(SesionAuth.id == clave, SesionAuth.revocada_en.is_(None))
-                       .values(revocada_en=t, motivo=motivo))
+    _revocar(clave, t, motivo)
     db.session.commit()
+
+
+def _revocar(clave, t: datetime, motivo, *condiciones) -> bool:
+    """Sin commit: revoca la sesión si no estaba revocada (y cumple `condiciones`) y borra sus suscripciones push.
+    Solo si esta llamada la revocó: una ya revocada no provoca más borrados."""
+    r = db.session.execute(update(SesionAuth).where(SesionAuth.id == clave, SesionAuth.revocada_en.is_(None), *condiciones)
+                           .values(revocada_en=t, motivo=motivo).execution_options(synchronize_session=False))
+    if r.rowcount:
+        _borrar_push_de_sesion(clave)
+    return bool(r.rowcount)
 
 
 def _csrf_refresh(sid: str, gen: int) -> str:

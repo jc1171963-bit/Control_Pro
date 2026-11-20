@@ -1,13 +1,17 @@
 """Suscripción de dispositivos a notificaciones push (navegador o app instalada) para cualquier cuenta con sesión."""
+import uuid
+
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import get_jwt, jwt_required
 from marshmallow import fields, validate
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
+from sqlalchemy.exc import IntegrityError
 
+from ..errors import Conflicto
 from ..extensions import db
-from ..models import PushSuscripcion
+from ..models import PushSuscripcion, SesionAuth, ahora
 from ..schemas import Base, cargar
-from ..security.auth import _cargar_cliente, _cargar_usuario
+from ..security.auth import _cargar_cliente, _cargar_usuario, inactiva
 from ..services import push_service
 from .util import cuerpo
 
@@ -37,19 +41,54 @@ def clave():
     return jsonify({"clave": push_service.clave_publica()})
 
 
+def _sesion_vigente(sid) -> bool:
+    """Misma frontera que motivo_rechazo_sesion: existe, no revocada, dentro del tope absoluto y no inactiva."""
+    s = db.session.get(SesionAuth, sid) if sid else None
+    t = ahora()
+    return s is not None and s.revocada_en is None and t <= s.expira_absoluta and not inactiva(s, t)
+
+
+def _registrar(d: dict, valores: dict) -> str:
+    """'ok', 'conflicto' (endpoint de otra sesión vigente) o 'cambio' (otra solicitud lo modificó; reevaluar)."""
+    s = db.session.scalars(select(PushSuscripcion).where(PushSuscripcion.endpoint == d["endpoint"])).first()
+    if not s:
+        db.session.add(PushSuscripcion(endpoint=d["endpoint"], **valores))
+        try:
+            db.session.commit()
+        except IntegrityError as e:
+            db.session.rollback()
+            if getattr(e.orig.diag, "constraint_name", None) != "push_suscripcion_endpoint_key":
+                raise
+            return "cambio"  # otra solicitud lo registró primero
+        return "ok"
+    # Se permite si es el mismo navegador (mismas claves), la misma sesión, o la sesión anterior ya no sirve.
+    if (s.p256dh, s.auth) != (valores["p256dh"], valores["auth"]) and s.sid != valores["sid"] and _sesion_vigente(s.sid):
+        db.session.rollback()
+        return "conflicto"
+    # Compare-and-set: solo si el registro sigue como se leyó; si otra solicitud lo cambió, la decisión ya no vale.
+    r = db.session.execute(update(PushSuscripcion).where(
+        PushSuscripcion.id == s.id, PushSuscripcion.sid.is_not_distinct_from(s.sid), PushSuscripcion.p256dh == s.p256dh,
+        PushSuscripcion.auth == s.auth).values(**valores).execution_options(synchronize_session=False))
+    if r.rowcount != 1:
+        db.session.rollback()
+        return "cambio"
+    db.session.commit()
+    return "ok"
+
+
 @bp.post("/suscripcion")
 @jwt_required()
 def suscribir():
     d = cargar(SuscripcionSchema, cuerpo())
-    dueno = _dueno()
-    s = db.session.scalars(select(PushSuscripcion).where(PushSuscripcion.endpoint == d["endpoint"])).first()
-    if not s:  # el mismo dispositivo puede pasar a otra cuenta (otra sesión en el mismo navegador)
-        s = PushSuscripcion(endpoint=d["endpoint"])
-        db.session.add(s)
-    s.usuario_id, s.cliente_id = dueno["usuario_id"], dueno["cliente_id"]
-    s.p256dh, s.auth = d["keys"]["p256dh"], d["keys"]["auth"]
-    s.agente = (request.headers.get("User-Agent") or "")[:200]
-    db.session.commit()
+    # El sid sale solo del token ya validado; nunca del cuerpo ni de cabeceras.
+    valores = {**_dueno(), "sid": uuid.UUID(get_jwt()["sid"]), "p256dh": d["keys"]["p256dh"],
+               "auth": d["keys"]["auth"], "agente": (request.headers.get("User-Agent") or "")[:200]}
+    for _ in range(3):
+        resultado = _registrar(d, valores)
+        if resultado != "cambio":
+            break
+    if resultado != "ok":
+        raise Conflicto("Este dispositivo ya recibe avisos de otra sesión activa.", codigo="suscripcion_en_uso")
     return jsonify({"ok": True}), 201
 
 
