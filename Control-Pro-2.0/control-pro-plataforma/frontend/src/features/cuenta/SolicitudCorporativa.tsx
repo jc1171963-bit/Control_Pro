@@ -46,7 +46,7 @@ function SelectorArticulo({ producto, empleado, puestos, onAgregar, onCerrar }: 
       </div>
       <div className="space-y-4">
         <p className="text-sm text-tinta-500">Para <b className="text-tinta-900">{empleado.nombre}</b> · {empleado.puesto}</p>
-        {!ok && <Aviso tipo="alerta">Este artículo no está autorizado para el puesto {empleado.puesto}. Puedes solicitarlo como excepción justificada; el distribuidor decide si la acepta.</Aviso>}
+        {!ok && <Aviso tipo="alerta">Este artículo no está autorizado para el puesto {empleado.puesto}. Puedes solicitarlo como excepción justificada; el Gerente de compras decide si la acepta.</Aviso>}
         <SelectorVariante colores={colores} color={color} onColor={elegirColor} delColor={delColor} talla={talla} onTalla={setTalla} ocultarColorUnico />
         <div className="flex items-center gap-3">
           <span className="text-sm font-semibold">Cantidad</span>
@@ -194,10 +194,10 @@ export default function ConstructorSolicitud() {
 
   return (
     <div className="space-y-5">
-      <Tarjeta titulo={titulo} sub="Arma la solicitud por empleado. El distribuidor la revisa antes de apartar inventario."
+      <Tarjeta titulo={titulo} sub="Arma la solicitud por empleado. El Gerente de compras la revisa."
         accion={editable && previo.data?.estado !== 'devuelto' && <Boton variante="secundario" tam="sm" icono={<Save className="h-3.5 w-3.5" />} cargando={guardar.isPending && guardar.variables === false}
           disabled={!id && !direccion} onClick={() => guardar.mutate(false)}>{sucio || !id ? 'Guardar borrador' : 'Guardado'}</Boton>}>
-        {previo.data?.aprobaciones?.filter((a) => a.decision === 'devuelto').slice(-1).map((a) => <div key={a.fecha} className="mb-4"><Aviso tipo="alerta">Observación del distribuidor: {a.motivo}</Aviso></div>)}
+        {previo.data?.aprobaciones?.filter((a) => a.decision === 'devuelto').slice(-1).map((a) => <div key={a.fecha} className="mb-4"><Aviso tipo="alerta">Observación del Gerente de compras: {a.motivo}</Aviso></div>)}
         <ol className="flex gap-2" aria-label="Pasos de la solicitud">
           {PASOS.map((n, i) => (
             <li key={n} className={cls(i === paso ? 'min-w-0 flex-1' : 'shrink-0 sm:min-w-0 sm:flex-1')}>
@@ -351,7 +351,7 @@ export default function ConstructorSolicitud() {
                       {dirs.data.map((d) => <option key={d.id} value={d.id}>{d.alias} · {d.calle} {d.numero}, {d.ciudad}</option>)}</Selector>
                   ) : <Aviso tipo="alerta">Tu sucursal aún no tiene una dirección de entrega registrada. Pide a tu distribuidor que la registre; puedes consultarla en <Link to="/cuenta/perfil" className="font-semibold underline">Mi cuenta</Link>.</Aviso>}
                 </Campo>
-                <Campo etiqueta="Notas para el distribuidor" className="mt-3"><Texto value={notas} onChange={(e) => { setNotas(e.target.value); setSucio(true); }} /></Campo>
+                <Campo etiqueta="Notas de la solicitud" className="mt-3"><Texto value={notas} onChange={(e) => { setNotas(e.target.value); setSucio(true); }} /></Campo>
                 {pendientesJustificar.length > 0 && <div className="mt-3"><Aviso tipo="alerta">{pendientesJustificar.length} artículo(s) fuera de la regla por puesto necesitan justificación antes de enviar.</Aviso></div>}
                 {/* El error de un envío se muestra en la confirmación; aquí, el de guardar borrador. */}
                 {!confirmar && <div className="mt-3"><ErrorCaja error={guardar.error} /></div>}
@@ -362,7 +362,7 @@ export default function ConstructorSolicitud() {
                   {previo.data?.estado !== 'devuelto' && <Boton variante="secundario" icono={<Save className="h-4 w-4" />} disabled={!id && !direccion}
                     cargando={guardar.isPending && guardar.variables === false} onClick={() => guardar.mutate(false)}>Guardar borrador</Boton>}
                 </div>
-                <p className="mt-3 text-xs text-tinta-400">Enviar no significa aprobar: el distribuidor revisa la solicitud y puede aprobarla, devolverla para corrección o rechazarla.</p>
+                <p className="mt-3 text-xs text-tinta-400">Enviar no significa aprobar: el Gerente de compras revisa la solicitud y puede aprobarla, devolverla para corrección o rechazarla.</p>
               </Tarjeta>
               <Boton variante="fantasma" icono={<ArrowLeft className="h-4 w-4" />} onClick={() => setPaso(1)}>Seguir agregando</Boton>
             </div>

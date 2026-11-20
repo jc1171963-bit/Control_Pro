@@ -68,7 +68,7 @@ function AgregarASolicitud({ p, variante, color }: { p: ProductoDetalle; variant
         ))}
       </Selector>
       <SelectorBorrador borradores={borradores.data?.items ?? []} valor={destino} onCambio={setDestino} />
-      {!ok && <><Aviso tipo="alerta">No está autorizado para el puesto {emp?.puesto}; se enviará como excepción y el distribuidor decide.</Aviso>
+      {!ok && <><Aviso tipo="alerta">No está autorizado para el puesto {emp?.puesto}; se enviará como excepción y el Gerente de compras decide.</Aviso>
         <Texto rows={2} placeholder="Justificación (mínimo 10 caracteres; puedes completarla al revisar)" value={excepcion} onChange={(e) => setExcepcion(e.target.value)} /></>}
       <div className="flex flex-wrap items-center gap-3">
         <Cantidad valor={cantidad} onCambio={setCantidad} max={50} />

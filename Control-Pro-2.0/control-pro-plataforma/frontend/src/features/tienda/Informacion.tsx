@@ -64,7 +64,7 @@ export function Preguntas() {
     ['¿Cómo entro como empresa o sucursal?', canalTienda
       ? <>Desde «Acceso empresas», con tu correo y tu contraseña. Si aún no tienes cuenta, puedes <Link to="/registro?tipo=empresa" className={enlace}>crear una cuenta de empresa</Link>.</>
       : <>Desde «Acceso empresas», con el correo y la contraseña que te dio tu distribuidor. Las cuentas de sucursal las crea tu distribuidor. <Link to="/entrar" className={enlace}>Ir al acceso</Link>.</>],
-    ['¿Cómo pido uniformes para mis empleados?', 'Desde tu cuenta de empresa registras a tus empleados, armas la solicitud por persona y puesto y la envías a revisión. El distribuidor puede aprobarla, devolverla para corrección o rechazarla.'],
+    ['¿Cómo pido uniformes para mis empleados?', 'Desde tu cuenta de empresa registras a tus empleados, armas la solicitud por persona y puesto y la envías a revisión. El Gerente de compras puede aprobarla, devolverla para corrección o rechazarla.'],
     ['¿Cómo sigo mi solicitud?', 'Cada solicitud tiene su seguimiento: revisión, surtido, envío por paquete, recepción en la sucursal y entrega con firma de cada empleado.'],
     ['¿Olvidé mi contraseña, qué hago?', canalTienda
       ? <>Usa <Link to="/recuperar" className={enlace}>«¿Olvidaste tu contraseña?»</Link>: te enviamos un enlace válido por 30 minutos.</>
