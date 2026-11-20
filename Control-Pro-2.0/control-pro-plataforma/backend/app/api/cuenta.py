@@ -8,7 +8,7 @@ from ..extensions import db
 from ..models import (AsignacionSurtido, Carrito, CarritoItem, Devolucion, Direccion, EmpleadoCorporativo,
                       EntregaIndividual, Favorito, Incidencia, Notificacion, Paquete, Pedido, Producto, Recepcion,
                       Variante)
-from ..schemas import (CantidadSchema, CarritoItemSchema, CheckoutSchema, ConformidadSchema, ConversacionSchema,
+from ..schemas import (MensajeIncidenciaSchema, CantidadSchema, CarritoItemSchema, CheckoutSchema, ConformidadSchema, ConversacionSchema,
                        CorreccionCorporativaSchema, MensajeSchema, PermisoPadronSolicitudSchema,
                        DevolucionSolicitudSchema, DireccionSchema, EmpleadoSchema, EntregaIndividualSchema,
                        GuiaRetornoSchema, IncidenciaSchema, MotivoSchema, PagoTransferenciaSchema,
@@ -353,6 +353,56 @@ def reportar_incidencia(pedido_id):
                                    paquete_id=d.get("paquete_id"), empleado_id=d.get("empleado_id"),
                                    pedido_detalle_id=d.get("pedido_detalle_id"), evidencias=d["evidencias"])
     return jsonify(serial.incidencia(inc)), 201
+
+
+# ---------------------------------------------------------------- mis incidencias (las de mis pedidos, aunque estén cerrados)
+
+def _mis_pedidos():
+    return select(Pedido.id).where(Pedido.cliente_id == g.cliente.id)
+
+
+def _mi_incidencia(iid, bloquear=False) -> Incidencia:
+    q = select(Incidencia).where(Incidencia.id == iid, Incidencia.pedido_id.in_(_mis_pedidos()))
+    inc = db.session.scalars(q.with_for_update(of=Incidencia) if bloquear else q).first()
+    if not inc:
+        raise NoEncontrado("Incidencia no encontrada.")  # mismo 404 para las de otra sucursal
+    return inc
+
+
+@bp.get("/incidencias")
+@requiere_cliente()
+def mis_incidencias():
+    q = select(Incidencia).where(Incidencia.pedido_id.in_(_mis_pedidos())).order_by(Incidencia.id.desc())
+    if estado := request.args.get("estado"):
+        q = q.where(Incidencia.estado.in_(estado.split(",")))
+    return jsonify(paginar(q, *pagina(), lambda i: serial.incidencia(i, interno=False)))
+
+
+@bp.get("/incidencias/<int:iid>")
+@requiere_cliente()
+def mi_incidencia(iid):
+    return jsonify(serial.incidencia(_mi_incidencia(iid), interno=False))
+
+
+@bp.post("/incidencias/<int:iid>/mensajes")
+@requiere_cliente()
+def mensaje_incidencia(iid):
+    d = cargar(MensajeIncidenciaSchema, cuerpo())
+    inc = dev_srv.mensaje_sucursal(_mi_incidencia(iid, bloquear=True), d["texto"], d["adjuntos"])
+    return jsonify(serial.incidencia(inc, interno=False)), 201
+
+
+@bp.post("/incidencias/<int:iid>/confirmar")
+@requiere_cliente()
+def confirmar_incidencia(iid):
+    return jsonify(serial.incidencia(dev_srv.confirmar_solucion(_mi_incidencia(iid, bloquear=True)), interno=False))
+
+
+@bp.post("/incidencias/<int:iid>/reabrir")
+@requiere_cliente()
+def reabrir_incidencia(iid):
+    inc = dev_srv.reabrir(_mi_incidencia(iid, bloquear=True), cuerpo().get("motivo"))
+    return jsonify(serial.incidencia(inc, interno=False))
 
 
 # ---------------------------------------------------------------- notificaciones

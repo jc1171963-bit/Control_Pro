@@ -241,6 +241,12 @@ def pedido(p, interno=False):
         d["incidencias"] = [incidencia(i, interno) for i in db.session.scalars(
             select(Incidencia).where(Incidencia.pedido_id == p.id).order_by(Incidencia.id)).unique()]
     if interno:
+        for x, det in zip(d["detalles"], p.detalles):  # la sucursal no lo ve mientras no se decida (D-24)
+            x["cantidad_por_producir"] = det.cantidad_por_producir
+        d["por_producir"] = sum(det.cantidad_por_producir for det in p.detalles)
+        if p.canal == "corporativo":
+            from ..services.negociacion_service import resumen
+            d["negociacion"] = resumen(p)
         d["asignaciones"] = [asignacion(a) for a in p.asignaciones]
         d["cliente"] = cliente(p.cliente)
     return d
@@ -277,7 +283,15 @@ def incidencia(i, interno=True):
             return s.usuario.nombre if interno and s.usuario else "Control Pro"
         return "Sucursal" if s.cliente_id else "Sistema"
 
-    return {"id": i.id, "folio": i.folio, "tipo": i.tipo, "prioridad": i.prioridad, "estado": i.estado,
+    from ..models import Pedido
+    from ..services.devolucion_service import de_sucursal, transiciones_personal
+    pedido = db.session.get(Pedido, i.pedido_id) if i.pedido_id else None
+    extra = {"pedido_folio": pedido.folio if pedido else None, "cierre_por_sucursal": de_sucursal(i),
+             # la última entrada la escribió la sucursal: hay una respuesta suya por atender
+             "respondio_sucursal": bool(i.seguimiento and i.seguimiento[-1].cliente_id and i.estado not in ("resuelta", "cerrada"))}
+    if interno:
+        extra["transiciones"] = transiciones_personal(i)
+    return {**extra, "id": i.id, "folio": i.folio, "tipo": i.tipo, "prioridad": i.prioridad, "estado": i.estado,
             "pedido_id": i.pedido_id, "paquete_id": i.paquete_id, "devolucion_id": i.devolucion_id,
             "transferencia_id": i.transferencia_id, "sucursal_id": i.sucursal_id, "descripcion": i.descripcion,
             "resolucion": i.resolucion, "responsable_id": i.responsable_id, "creado": f(i.creado), "evidencias": i.evidencias or [],
@@ -286,7 +300,7 @@ def incidencia(i, interno=True):
             "articulo": {"pedido_detalle_id": i.pedido_detalle_id, "nombre": i.pedido_detalle.nombre,
                          "talla": i.pedido_detalle.talla, "sku": i.pedido_detalle.sku} if i.pedido_detalle else None,
             "seguimiento": [{"fecha": f(s.creado), "anterior": s.estado_anterior, "nuevo": s.estado_nuevo,
-                             "comentario": s.comentario, "actor": actor(s),
+                             "comentario": s.comentario, "actor": actor(s), "adjuntos": s.adjuntos or [],
                              "responsable": (s.responsable.nombre if interno and s.responsable else None)}
                             for s in i.seguimiento]}
 

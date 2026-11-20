@@ -13,6 +13,7 @@ import { abrirPrivado, del, descargar, get, post, subirArchivo } from '../api/cl
 import { cls, fechaHora, mensajeError } from '../lib/formato';
 import { Boton, Campo, Entrada, ErrorCaja, Modal, Selector, Tarjeta, useAviso } from './ui';
 import { EsqueletoLista } from './movimiento';
+import { useAuth } from '../app/auth';
 
 type Documento = { id: number; nombre: string; tipo: string; tipo_nombre: string; url: string; autor: string; fecha: string; puede_borrar: boolean };
 type Generado = { clave: string; tipo: string; titulo: string; detalle?: string; fecha: string | null; url?: string; entrega_id?: number; accion?: 'pdf' | 'comprobante' };
@@ -21,7 +22,7 @@ type Datos = { documentos: Documento[]; generados: Generado[] };
 const TIPOS: [string, string][] = [['orden_compra', 'Orden de compra'], ['cotizacion', 'Cotización'], ['factura', 'Factura'],
   ['comprobante', 'Comprobante'], ['evidencia', 'Evidencia'], ['otro', 'Otro documento']];
 const ICONO: Record<string, LucideIcon> = { solicitud: FileText, guia: Truck, recepcion: ClipboardCheck, comprobante_entrega: FileSignature,
-  evidencia: FileImage, orden_compra: Receipt, cotizacion: FileCheck2, factura: Receipt, comprobante: FileCheck2, otro: Paperclip };
+  evidencia: FileImage, orden_compra: Receipt, cotizacion: FileCheck2, factura: Receipt, comprobante: FileCheck2, pago: Receipt, otro: Paperclip };
 
 export default function Expediente({ pedidoId, folio, origen, onComprobante }: {
   pedidoId: number; folio: string; origen: 'admin' | 'cuenta'; onComprobante: (entregaId: number) => void;
@@ -91,17 +92,20 @@ export default function Expediente({ pedidoId, folio, origen, onComprobante }: {
           </section>
         </div>
       )}
-      <SubirDocumento abierto={subir} onCerrar={() => setSubir(false)} url={`/${origen}/pedidos/${pedidoId}/documentos`} folio={folio}
+      <SubirDocumento abierto={subir} onCerrar={() => setSubir(false)} url={`/${origen}/pedidos/${pedidoId}/documentos`} folio={folio} interno={origen === 'admin'}
         alSubir={() => { qc.invalidateQueries({ queryKey: clave }); avisar('Documento agregado al expediente.'); }} />
     </Tarjeta>
   );
 }
 
-function SubirDocumento({ abierto, onCerrar, url, folio, alSubir }: { abierto: boolean; onCerrar: () => void; url: string; folio: string; alSubir: () => void }) {
+function SubirDocumento({ abierto, onCerrar, url, folio, alSubir, interno }: { abierto: boolean; onCerrar: () => void; url: string; folio: string; alSubir: () => void; interno: boolean }) {
   const entrada = useRef<HTMLInputElement>(null);
   const [archivo, setArchivo] = useState<File | null>(null);
   const [nombre, setNombre] = useState('');
   const [tipo, setTipo] = useState('orden_compra');
+  // Los documentos de pago los adjunta solo la comercializadora y no los ve la sucursal.
+  const { puede } = useAuth();
+  const tipos: [string, string][] = interno && puede('pedido.negociar') ? [...TIPOS.slice(0, -1), ['pago', 'Documento de pago (no lo ve la sucursal)'], TIPOS[TIPOS.length - 1]] : TIPOS;
   const m = useMutation({
     mutationFn: async () => post(url, { nombre: nombre.trim(), tipo, url: await subirArchivo(archivo!) }),
     onSuccess: () => { alSubir(); setArchivo(null); setNombre(''); onCerrar(); },
@@ -126,7 +130,7 @@ function SubirDocumento({ abierto, onCerrar, url, folio, alSubir }: { abierto: b
         <input ref={entrada} type="file" accept="application/pdf,image/png,image/jpeg,image/webp" className="hidden" aria-label="Elegir documento" onChange={(e) => { elegir(e.target.files?.[0]); e.target.value = ''; }} />
         <div className="grid gap-3 sm:grid-cols-[1fr_200px]">
           <Campo etiqueta="Nombre del documento"><Entrada value={nombre} onChange={(e) => setNombre(e.target.value)} maxLength={160} placeholder="Ej. Orden de compra 4512" /></Campo>
-          <Campo etiqueta="Tipo"><Selector value={tipo} onChange={(e) => setTipo(e.target.value)}>{TIPOS.map(([v, n]) => <option key={v} value={v}>{n}</option>)}</Selector></Campo>
+          <Campo etiqueta="Tipo"><Selector value={tipo} onChange={(e) => setTipo(e.target.value)}>{tipos.map(([v, n]) => <option key={v} value={v}>{n}</option>)}</Selector></Campo>
         </div>
         <ErrorCaja error={m.error} />
       </div>

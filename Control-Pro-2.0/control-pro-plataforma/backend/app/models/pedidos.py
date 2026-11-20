@@ -65,6 +65,14 @@ class Pedido(ConFechas, db.Model):
     clave_idempotencia: Mapped[str | None] = mapped_column(String(80), unique=True)
     reserva_expira: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     confirmado_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Sube cada vez que cambian las condiciones (propuesta aceptada o edición del Gerente de compras en revisión).
+    version_condiciones: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    # «Pago resuelto»: acuerdo definitivo de cómo y cuándo se pagará. Vale solo para ese acuerdo y esas condiciones.
+    pago_resuelto_acuerdo_id: Mapped[int | None] = mapped_column(
+        ForeignKey("acuerdo_pago.id", use_alter=True, name="fk_pedido_pago_resuelto_acuerdo"))
+    pago_resuelto_condiciones: Mapped[int | None] = mapped_column(Integer)
+    pago_resuelto_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    pago_resuelto_por_usuario_id: Mapped[int | None] = mapped_column(ForeignKey("usuario.id"))
 
     cliente = relationship("Cliente", lazy="joined")
     sucursal_recoger = relationship("Sucursal", lazy="joined")
@@ -106,6 +114,8 @@ class PedidoDetalle(db.Model):
     cantidad_cancelada: Mapped[int] = mapped_column(Integer, default=0)
     cantidad_entregada: Mapped[int] = mapped_column(Integer, default=0)
     cantidad_devuelta: Mapped[int] = mapped_column(Integer, default=0)
+    # Autorizado sin existencias suficientes: lo que no se pudo apartar y queda por producir.
+    cantidad_por_producir: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
     pedido = relationship("Pedido", back_populates="detalles")
     variante = relationship("Variante", lazy="joined")
@@ -119,6 +129,8 @@ class PedidoDetalle(db.Model):
                         name="ck_pdet_no_negativos"),
         CheckConstraint("cantidad_cancelada + cantidad_entregada <= cantidad", name="ck_pdet_entregada"),
         CheckConstraint("cantidad_devuelta <= cantidad_entregada", name="ck_pdet_devuelta"),
+        CheckConstraint("cantidad_por_producir >= 0 and cantidad_por_producir + cantidad_cancelada + cantidad_entregada <= cantidad",
+                        name="ck_pdet_por_producir"),
     )
 
     @property

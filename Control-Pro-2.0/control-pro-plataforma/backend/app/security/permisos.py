@@ -17,6 +17,8 @@ PERMISOS = {
     "pedido.ver": "Consultar pedidos",
     "pedido.aprobar": "Aprobar, rechazar o devolver pedidos corporativos",
     "pedido.autorizar": "Autorizar el surtido de pedidos corporativos aprobados, una vez cobrados",
+    "pedido.negociar": "Proponer cambios de condiciones, registrar el acuerdo de pago y marcar el pago resuelto (comercializadora)",
+    "pedido.aceptar_propuesta": "Aceptar las propuestas de condiciones de los pedidos corporativos",
     "pedido.cancelar": "Cancelar pedidos antes del despacho",
     "pedido.cerrar": "Cerrar pedidos conciliados",
     "surtido.operar": "Surtir, empacar, despachar y registrar eventos de envío",
@@ -73,8 +75,8 @@ ROLES = {
         "descripcion": "Del lado de Salud Digna: administra las sucursales, revisa, edita, aprueba o cancela sus "
                        "solicitudes, autoriza cambios al padrón de empleados y se comunica con sucursales y distribuidora. "
                        "Entra por el portal de sucursales, no por el panel interno.",
-        "permisos": ["sucursal.ver", "cliente.ver", "cliente.gestionar", "pedido.ver", "pedido.aprobar", "pedido.cancelar",
-                     "permiso_padron.gestionar"],
+        "permisos": ["sucursal.ver", "cliente.ver", "cliente.gestionar", "pedido.ver", "pedido.aprobar", "pedido.aceptar_propuesta",
+                     "pedido.cancelar", "permiso_padron.gestionar"],
     },
     "auditor": {
         "nombre": "Supervisor / auditor", "global": True,

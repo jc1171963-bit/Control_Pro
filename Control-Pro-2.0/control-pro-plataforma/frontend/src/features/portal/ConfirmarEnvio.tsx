@@ -1,6 +1,6 @@
 /**
  * Confirmación antes de enviar (o reenviar) una solicitud a revisión: es la acción que entrega la solicitud al
- * distribuidor y deja de poder editarse. Explica qué sucederá y resume lo que se envía. Los errores del servidor se
+ * Gerente de compras y deja de poder editarse. Explica qué sucederá y resume lo que se envía. Los errores del servidor se
  * muestran aquí mismo para poder reintentar.
  */
 import { Send } from 'lucide-react';
@@ -25,8 +25,8 @@ export default function ConfirmarEnvio({ abierto, reenvio, folio, empleados, art
           ))}
         </dl>
         <ul className="space-y-2 text-sm text-tinta-700">
-          <li>• {folio ? `La solicitud ${folio}` : 'La solicitud'} pasa al distribuidor y <b>ya no podrás editarla</b>, salvo que te la devuelva para corrección.</li>
-          <li>• Enviar no es aprobar: el distribuidor puede aprobarla, devolverla o rechazarla. Te avisaremos en Notificaciones.</li>
+          <li>• {folio ? `La solicitud ${folio}` : 'La solicitud'} pasa al Gerente de compras y <b>ya no podrás editarla</b>, salvo que te la devuelva para corrección.</li>
+          <li>• Enviar no es aprobar: el Gerente de compras puede aprobarla, devolverla o rechazarla. Te avisaremos en Notificaciones.</li>
           {excepciones > 0 && <li>• Las {excepciones} excepción(es) por puesto se revisan con su justificación.</li>}
         </ul>
         <ErrorCaja error={error} />

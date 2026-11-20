@@ -31,6 +31,15 @@ function etapasPaquete(pq: Paquete): Etapa[] {
     { clave: 'rec', titulo: 'Recibido en sucursal', estado: pq.recepcion ? (pq.recepcion.estado === 'parcial' ? 'alerta' : 'hecha') : 'pendiente' }];
 }
 
+// El historial guardado antes del cambio de denominación conserva el prefijo anterior; ambos se reconocen.
+const PREFIJOS_CAMBIO = ['Modificada por el Gerente de compras: ', 'Modificada por el distribuidor: '];
+
+/** Texto de un cambio hecho por el Gerente de compras (sin el prefijo), o null si la entrada no es un cambio suyo. */
+export function cambioDelGerente(motivo?: string | null): string | null {
+  const prefijo = PREFIJOS_CAMBIO.find((x) => motivo?.startsWith(x));
+  return prefijo ? motivo!.slice(prefijo.length) : null;
+}
+
 // ---------------------------------------------------------------- qué sigue (derivado solo de los datos de la solicitud)
 
 type Siguiente = { tono: 'accion' | 'espera' | 'alerta' | 'fin'; titulo: string; texto: string; ir?: 'paquetes' | 'empleados' };
@@ -42,13 +51,13 @@ export function proximoPaso(p: Pedido): Siguiente {
   const porConformar = entregas.filter((e) => e.estado !== 'pendiente' && !e.conformidad_en).length;
   const motivo = p.aprobaciones?.filter((a) => a.decision !== 'aprobado').slice(-1)[0]?.motivo;
   switch (p.estado) {
-    case 'borrador': return { tono: 'accion', titulo: 'Revisa y envía tu solicitud', texto: 'Está guardada como borrador: el distribuidor todavía no la ve. Edítala si hace falta y envíala a revisión.' };
-    case 'en_revision': return { tono: 'espera', titulo: 'En revisión por el distribuidor', texto: 'No necesitas hacer nada por ahora. Te avisaremos cuando la apruebe, la devuelva para corrección o la rechace.' };
-    case 'devuelto': return { tono: 'alerta', titulo: 'Corrige y reenvía la solicitud', texto: motivo ? `Observación del distribuidor: ${motivo}` : 'El distribuidor la devolvió para corrección.' };
-    case 'rechazado': return { tono: 'fin', titulo: 'Solicitud rechazada', texto: motivo ? `Motivo: ${motivo}` : 'El distribuidor rechazó la solicitud.' };
+    case 'borrador': return { tono: 'accion', titulo: 'Revisa y envía tu solicitud', texto: 'Está guardada como borrador: el Gerente de compras todavía no la ve. Edítala si hace falta y envíala a revisión.' };
+    case 'en_revision': return { tono: 'espera', titulo: 'En revisión por el Gerente de compras', texto: 'No necesitas hacer nada por ahora. Te avisaremos cuando la apruebe, la devuelva para corrección o la rechace.' };
+    case 'devuelto': return { tono: 'alerta', titulo: 'Corrige y reenvía la solicitud', texto: motivo ? `Observación del Gerente de compras: ${motivo}` : 'El Gerente de compras la devolvió para corrección.' };
+    case 'rechazado': return { tono: 'fin', titulo: 'Solicitud rechazada', texto: motivo ? `Motivo: ${motivo}` : 'El Gerente de compras rechazó la solicitud.' };
     case 'cancelado': return { tono: 'fin', titulo: 'Solicitud cancelada', texto: 'Esta solicitud ya no avanza.' };
     case 'aprobado': return { tono: 'espera', titulo: 'Aprobada: pendiente de autorización de la distribuidora', texto: 'La distribuidora se pondrá en contacto para el pago. En cuanto la autorice, el almacén preparará tu pedido.' };
-    case 'expirado': return { tono: 'fin', titulo: 'Solicitud vencida', texto: 'No se autorizó dentro del plazo y se liberó el inventario. Envía una nueva solicitud si aún la necesitas.' };
+    case 'expirado': return { tono: 'fin', titulo: 'Solicitud vencida', texto: 'No se autorizó dentro del plazo. Envía una nueva solicitud si aún la necesitas.' };
   }
   if (porRecibir) return { tono: 'accion', titulo: `Registra la recepción de ${porRecibir} paquete(s)`, texto: 'Ya llegaron a tu sucursal. Confirma lo que recibiste, artículo por artículo, antes de entregarlo a cada empleado.', ir: 'paquetes' };
   if (porEntregar) return { tono: 'accion', titulo: `Entrega los artículos a ${porEntregar} empleado(s)`, texto: 'Los paquetes ya están en tu sucursal. Registra cada entrega con la firma del empleado.', ir: 'empleados' };
@@ -279,6 +288,7 @@ export function HistorialIncidencia({ i }: { i: Incidencia }) {
           <span className={cls('absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full ring-4 ring-white', s.nuevo === 'resuelta' || s.nuevo === 'cerrada' ? 'bg-emerald-500' : 'bg-amber-400')} />
           <p><b>{s.anterior && s.anterior !== s.nuevo ? `${etiqueta(s.anterior)} → ${etiqueta(s.nuevo)}` : etiqueta(s.nuevo)}</b> · {fechaHora(s.fecha)} · {s.actor}</p>
           {s.comentario && <p className="text-tinta-500">{s.comentario}</p>}
+          {!!s.adjuntos?.length && <div className="mt-1"><GaleriaEvidencias urls={s.adjuntos} titulo={`Adjuntos de ${s.actor}`} /></div>}
           {s.responsable && <p className="text-tinta-400">Responsable: {s.responsable}</p>}
         </Aparecer>
       ))}
@@ -298,6 +308,7 @@ function TarjetaIncidencia({ i }: { i: Incidencia }) {
       <p className="mt-1 text-xs text-tinta-600">{i.descripcion}</p>
       {!!i.evidencias?.length && <div className="mt-2"><GaleriaEvidencias urls={i.evidencias} titulo={`Evidencia de ${i.folio}`} /></div>}
       {abierta && <HistorialIncidencia i={i} />}
+      <Link to={`/cuenta/incidencias/${i.id}`} className="mt-2 inline-flex min-h-8 items-center text-xs font-semibold text-menta-700 hover:underline">{i.estado === 'resuelta' ? 'Confirmar o reabrir' : 'Abrir conversación'}</Link>
     </div>
   );
 }
@@ -331,7 +342,7 @@ export default function DetalleSolicitud({ p }: { p: Pedido }) {
   const entregas = p.entregas_individuales || [];
   const empleados = [...new Map(p.detalles.filter((d) => d.empleado).map((d) => [d.empleado!.id, d.empleado!])).values()];
   const cancelable = p.estado === 'borrador';  // una solicitud enviada solo la cancela el distribuidor
-  const cambiosDistribuidor = p.historial.filter((h) => h.motivo?.startsWith('Modificada por el distribuidor'));
+  const cambiosGerente = p.historial.filter((h) => cambioDelGerente(h.motivo) !== null);
   const observacion = p.aprobaciones?.filter((a) => a.decision !== 'aprobado').slice(-1)[0];
 
   return (
@@ -342,7 +353,7 @@ export default function DetalleSolicitud({ p }: { p: Pedido }) {
           <div className="flex items-center gap-4 rounded-2xl bg-menta-500 p-5 text-white">
             <Palomita className="h-12 w-12 shrink-0 text-white" />
             <div><p className="font-display text-lg font-bold">Solicitud {p.folio} enviada</p>
-              <p className="text-sm text-menta-50">Quedó en revisión: aún no está aprobada ni surtida. Te avisaremos cuando el distribuidor la revise.</p></div>
+              <p className="text-sm text-menta-50">Quedó en revisión: aún no está aprobada ni surtida. Te avisaremos cuando el Gerente de compras la revise.</p></div>
           </div>
         </Aparecer>
       )}
@@ -358,16 +369,16 @@ export default function DetalleSolicitud({ p }: { p: Pedido }) {
           {cancelable && <Boton tam="sm" variante="fantasma" onClick={() => setCancelar(true)}>{p.estado === 'borrador' ? 'Descartar' : 'Cancelar'}</Boton>}
         </div>}>
         {/* Devuelta o rechazada: la observación se muestra en «Qué sigue»; aquí queda como antecedente en los demás estados. */}
-        {observacion && !['devuelto', 'rechazado'].includes(p.estado) && <div className="mb-4"><Aviso tipo="alerta">{etiqueta(observacion.decision)} por el distribuidor: {observacion.motivo}</Aviso></div>}
-        {cambiosDistribuidor.map((h, i) => (
-          <Aparecer key={i} orden={i}><div className="mb-3"><Aviso tipo="alerta"><b>Cambio del distribuidor</b> · {fechaHora(h.fecha)} · {h.actor}<br />{h.motivo!.replace('Modificada por el distribuidor: ', '')}</Aviso></div></Aparecer>
+        {observacion && !['devuelto', 'rechazado'].includes(p.estado) && <div className="mb-4"><Aviso tipo="alerta">{etiqueta(observacion.decision)} por el Gerente de compras: {observacion.motivo}</Aviso></div>}
+        {cambiosGerente.map((h, i) => (
+          <Aparecer key={i} orden={i}><div className="mb-3"><Aviso tipo="alerta"><b>Cambio del Gerente de compras</b> · {fechaHora(h.fecha)} · {h.actor}<br />{cambioDelGerente(h.motivo)}</Aviso></div></Aparecer>
         ))}
         {/* En móvil la línea se desplaza en horizontal: la región es enfocable para poder recorrerla con el teclado. */}
         {p.estado !== 'borrador' && <LineaTiempoSolicitud p={p} />}
         {p.notas && <p className="mt-4 rounded-lg bg-tinta-50 p-3 text-xs"><b>Notas:</b> {p.notas}</p>}
       </Tarjeta>
 
-      <QueSigue s={proximoPaso(p)} abiertas={(p.incidencias || []).filter((i) => i.estado === 'abierta').length} />
+      <QueSigue s={proximoPaso(p)} abiertas={(p.incidencias || []).filter((i) => ['abierta', 'en_atencion'].includes(i.estado)).length} />
 
       <section id="seccion-empleados" className="scroll-mt-24">
       <Tarjeta titulo="Artículos por empleado" sub="Lo solicitado, lo entregado y lo pendiente de cada persona">

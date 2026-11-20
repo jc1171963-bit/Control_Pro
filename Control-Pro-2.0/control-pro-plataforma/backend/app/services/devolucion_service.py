@@ -210,34 +210,114 @@ def crear_incidencia(tipo: str, descripcion: str, prioridad: str = "media", pedi
     return inc
 
 
-def actualizar_incidencia(inc: Incidencia, estado: str | None, comentario: str | None, responsable_id: int | None):
+def _adjuntar(inc: Incidencia, adjuntos: list[str] | None) -> list[str]:
+    """Liga a la solicitud los archivos del mensaje (solo los que subió quien escribe) para que ambas partes los vean."""
+    adjuntos = list(dict.fromkeys(adjuntos or []))
+    if adjuntos:
+        from ..api.archivos import dueno_actual, vincular_a_pedido
+        vincular_a_pedido(adjuntos, inc.pedido_id, dueno_actual())
+    return adjuntos
+
+
+def actualizar_incidencia(inc: Incidencia, estado: str | None, comentario: str | None, responsable_id: int | None,
+                          adjuntos: list[str] | None = None):
     """Cada actualización agrega una entrada al historial (`incidencia_seguimiento`); nada se reemplaza ni se borra."""
     antes = {"estado": inc.estado, "responsable": inc.responsable_id}
     comentario = (comentario or "").strip() or None
+    adjuntos = _adjuntar(inc, adjuntos)
     usuario_id, cliente_id = actor_ids()
-    if comentario:
-        # La resolución acumulada se conserva para compatibilidad; el historial detallado vive en el seguimiento.
-        inc.resolucion = ((inc.resolucion + "\n") if inc.resolucion else "") + f"[usuario {usuario_id}] {comentario}"
     cambio_responsable = responsable_id is not None and responsable_id != inc.responsable_id
     if cambio_responsable:
         inc.responsable_id = responsable_id
     anterior = inc.estado
     if estado and estado != inc.estado:
-        if estado in {"resuelta", "cerrada"} and not inc.resolucion:
+        if estado == "cerrada" and de_sucursal(inc):
+            raise TransicionInvalida("La sucursal confirma la solución para cerrar la incidencia.", codigo="cierre_por_sucursal")
+        if estado == "resuelta" and not comentario:
             raise AppError("Registra la resolución antes de marcarla como resuelta.")
+        if estado == "cerrada" and not inc.resolucion:
+            raise AppError("Registra la resolución antes de cerrarla.")
         cambiar_estado(inc, "incidencia", estado, TRANSICIONES_INCIDENCIA, comentario)
-    if inc.pedido_id and (comentario or inc.estado != anterior):
+        if estado == "resuelta":  # la resolución vigente; los mensajes y resoluciones anteriores siguen en el seguimiento
+            inc.resolucion = comentario
+    if inc.pedido_id and (comentario or adjuntos or inc.estado != anterior):
         pedido = db.session.get(Pedido, inc.pedido_id)
         n = len(inc.seguimiento) + 1
         notificar_cliente(pedido.cliente_id, f"incidencia_{inc.id}_{n}", "incidencia", inc.id,
                           f"Actualización de la incidencia {inc.folio}: {etiqueta_incidencia(inc.estado)}"
-                          + (f". {comentario}" if comentario else ""), f"/cuenta/pedidos/{pedido.id}")
-    if comentario or cambio_responsable or inc.estado != anterior:
+                          + (f". {comentario}" if comentario else "") + (f" ({len(adjuntos)} archivo(s) adjunto(s))" if adjuntos else ""),
+                          f"/cuenta/pedidos/{pedido.id}")
+    if comentario or adjuntos or cambio_responsable or inc.estado != anterior:
         db.session.add(IncidenciaSeguimiento(incidencia_id=inc.id, estado_anterior=anterior, estado_nuevo=inc.estado,
-                                             comentario=comentario,
+                                             comentario=comentario, adjuntos=adjuntos,
                                              responsable_id=responsable_id if cambio_responsable else None,
                                              usuario_id=usuario_id, cliente_id=cliente_id))
     auditar("incidencia.actualizar", "incidencia", inc.id, antes, {"estado": inc.estado, "responsable": inc.responsable_id},
+            sucursal_id=inc.sucursal_id)
+    db.session.commit()
+    return inc
+
+
+# ---------------------------------------------------------------- conversación y cierre por la sucursal
+
+# Lo que hace la sucursal sobre una incidencia resuelta: confirmar la solución o reabrirla.
+TRANSICIONES_SUCURSAL = {"resuelta": {"cerrada", "en_atencion"}}
+
+
+def de_sucursal(inc: Incidencia) -> bool:
+    """Incidencia de una solicitud corporativa: su cierre lo confirma la sucursal. Las demás las cierra el personal."""
+    return bool(inc.pedido_id) and db.session.get(Pedido, inc.pedido_id).canal == "corporativo"
+
+
+def transiciones_personal(inc: Incidencia) -> list[str]:
+    permitidas = TRANSICIONES_INCIDENCIA.get(inc.estado, set())
+    return sorted(permitidas - {"cerrada"} if de_sucursal(inc) else permitidas)
+
+
+def _entrada_sucursal(inc: Incidencia, anterior: str, comentario: str | None, adjuntos: list[str] | None = None):
+    _, cliente_id = actor_ids()
+    db.session.add(IncidenciaSeguimiento(incidencia_id=inc.id, estado_anterior=anterior, estado_nuevo=inc.estado,
+                                         comentario=comentario, adjuntos=adjuntos or [], cliente_id=cliente_id))
+
+
+def _exigir_de_sucursal(inc: Incidencia):
+    if not de_sucursal(inc):
+        raise TransicionInvalida("Esta incidencia la atiende y la cierra el personal.")
+
+
+def mensaje_sucursal(inc: Incidencia, texto: str, adjuntos: list[str] | None = None) -> Incidencia:
+    """La sucursal escribe en la conversación de su incidencia (texto, fotos o documentos). No cambia el estado."""
+    _exigir_de_sucursal(inc)
+    texto = str(texto or "").strip()
+    if len(texto) > 2000 or (len(texto) < 2 and not adjuntos):
+        raise AppError("Escribe tu mensaje (entre 2 y 2000 caracteres) o adjunta un archivo.")
+    if inc.estado == "cerrada":
+        raise TransicionInvalida("La incidencia está cerrada; si el problema continúa, reporta una nueva.")
+    _entrada_sucursal(inc, inc.estado, texto or None, _adjuntar(inc, adjuntos))
+    auditar("incidencia.mensaje_sucursal", "incidencia", inc.id, sucursal_id=inc.sucursal_id)
+    db.session.commit()
+    return inc
+
+
+def confirmar_solucion(inc: Incidencia) -> Incidencia:
+    _exigir_de_sucursal(inc)
+    anterior = inc.estado
+    cambiar_estado(inc, "incidencia", "cerrada", TRANSICIONES_SUCURSAL, "Solución confirmada por la sucursal")
+    _entrada_sucursal(inc, anterior, "Solución confirmada por la sucursal")
+    auditar("incidencia.confirmar", "incidencia", inc.id, {"estado": anterior}, {"estado": inc.estado}, sucursal_id=inc.sucursal_id)
+    db.session.commit()
+    return inc
+
+
+def reabrir(inc: Incidencia, motivo: str) -> Incidencia:
+    _exigir_de_sucursal(inc)
+    motivo = str(motivo or "").strip()
+    if not 10 <= len(motivo) <= 1000:
+        raise AppError("Explica por qué no quedó resuelta (entre 10 y 1000 caracteres).")
+    anterior = inc.estado
+    cambiar_estado(inc, "incidencia", "en_atencion", TRANSICIONES_SUCURSAL, f"Reabierta por la sucursal: {motivo}")
+    _entrada_sucursal(inc, anterior, f"Reabierta por la sucursal: {motivo}")
+    auditar("incidencia.reabrir", "incidencia", inc.id, {"estado": anterior}, {"estado": inc.estado, "motivo": motivo},
             sucursal_id=inc.sucursal_id)
     db.session.commit()
     return inc

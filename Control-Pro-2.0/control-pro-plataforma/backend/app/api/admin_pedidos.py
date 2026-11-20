@@ -5,11 +5,13 @@ from sqlalchemy import or_, select
 from ..errors import NoEncontrado, SinPermiso
 from ..extensions import db
 from ..models import AsignacionSurtido, Cliente, EntregaIndividual, Paquete, Pedido
-from ..schemas import (DecisionSchema, DespachoSchema, EdicionDistribuidorSchema, EntregaSucursalSchema, EventoSchema, MotivoSchema, NotaSchema,
-                       PaqueteSchema, SurtidoSchema, cargar)
+from ..schemas import (AceptarPropuestaSchema, AcuerdoPagoSchema, DecisionSchema, DespachoSchema, EdicionDistribuidorSchema,
+                       EntregaSucursalSchema, EventoSchema, MotivoSchema, NotaSchema, PagoResueltoSchema, PaqueteSchema,
+                       PropuestaSchema, SurtidoSchema, cargar)
 from ..security.auth import (canales_permitidos, es_global, filtro_sucursal, requiere_usuario, sucursales_permitidas,
                              verificar_alcance)
 from ..services import logistica_service as log
+from ..services import negociacion_service as neg
 from ..services import pedido_service as ped
 from ..services.comun import paginar
 from . import serial
@@ -172,6 +174,53 @@ def editar_partidas(pedido_id):
     d = cargar(EdicionDistribuidorSchema, cuerpo())
     p = _pedido(pedido_id, bloquear=True)
     ped.editar_por_distribuidor(p, d["partidas"], d["motivo"])
+    return jsonify(serial.pedido(p, interno=True))
+
+
+# ---------------------------------------------------------------- negociación y acuerdo de pago (antes de autorizar)
+
+@bp.post("/pedidos/<int:pedido_id>/propuestas")
+@requiere_usuario("pedido.negociar")
+def proponer(pedido_id):
+    d = cargar(PropuestaSchema, cuerpo())
+    p = _pedido(pedido_id, bloquear=True)
+    neg.guardar_version(p, d["partidas"], d["nota"], d["version_vista"])
+    return jsonify(serial.pedido(p, interno=True)), 201
+
+
+@bp.post("/pedidos/<int:pedido_id>/propuestas/descartar")
+@requiere_usuario("pedido.negociar")
+def descartar_propuesta(pedido_id):
+    d = cargar(MotivoSchema, cuerpo())
+    p = _pedido(pedido_id, bloquear=True)
+    neg.descartar(p, d["motivo"])
+    return jsonify(serial.pedido(p, interno=True))
+
+
+@bp.post("/pedidos/<int:pedido_id>/propuestas/aceptar")
+@requiere_usuario("pedido.aceptar_propuesta")
+def aceptar_propuesta(pedido_id):
+    d = cargar(AceptarPropuestaSchema, cuerpo())
+    p = _pedido(pedido_id, bloquear=True)
+    neg.aceptar(p, d["version_id"], d["aceptar_excepciones"])
+    return jsonify(serial.pedido(p, interno=True))
+
+
+@bp.post("/pedidos/<int:pedido_id>/acuerdo-pago")
+@requiere_usuario("pedido.negociar")
+def acuerdo_pago(pedido_id):
+    d = cargar(AcuerdoPagoSchema, cuerpo())
+    p = _pedido(pedido_id, bloquear=True)
+    neg.registrar_acuerdo(p, d["forma"], d["condiciones"], d["fecha_pago"], d.get("observaciones"))
+    return jsonify(serial.pedido(p, interno=True)), 201
+
+
+@bp.post("/pedidos/<int:pedido_id>/pago-resuelto")
+@requiere_usuario("pedido.negociar")
+def pago_resuelto(pedido_id):
+    d = cargar(PagoResueltoSchema, cuerpo())
+    p = _pedido(pedido_id, bloquear=True)
+    neg.marcar_pago_resuelto(p, d["acuerdo_id"])
     return jsonify(serial.pedido(p, interno=True))
 
 

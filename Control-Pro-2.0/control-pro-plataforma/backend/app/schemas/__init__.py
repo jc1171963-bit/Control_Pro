@@ -75,7 +75,7 @@ ARCHIVO_PRIVADO = validate.Regexp(r"^/api/archivos/privados/[0-9a-f]{32}\.(png|j
 
 class DocumentoSchema(Base):
     nombre = fields.Str(required=True, validate=L(min=3, max=160))
-    tipo = fields.Str(load_default="otro", validate=validate.OneOf(["orden_compra", "cotizacion", "factura", "comprobante", "evidencia", "otro"]))
+    tipo = fields.Str(load_default="otro", validate=validate.OneOf(["orden_compra", "cotizacion", "factura", "comprobante", "evidencia", "pago", "otro"]))
     url = fields.Str(required=True, validate=ARCHIVO_PRIVADO)
 
 
@@ -149,6 +149,34 @@ class PedidoCorporativoSchema(Base):
 class EdicionDistribuidorSchema(Base):
     partidas = fields.List(fields.Nested(PartidaCorporativaSchema), required=True, validate=L(min=1, max=200))
     motivo = fields.Str(required=True, validate=L(min=5, max=300))
+
+
+class PropuestaPartidaSchema(PartidaCorporativaSchema):
+    pedido_detalle_id = fields.Int(load_default=None, allow_none=True)  # partida vigente que se modifica; vacío = nueva
+    precio_unitario = fields.Decimal(load_default=None, allow_none=True, places=2, validate=Range(min=0, max=999999))
+    descuento_unitario = fields.Decimal(load_default=None, allow_none=True, places=2, validate=Range(min=0, max=999999))
+
+
+class PropuestaSchema(Base):
+    partidas = fields.List(fields.Nested(PropuestaPartidaSchema), required=True, validate=L(min=1, max=200))
+    nota = fields.Str(required=True, validate=L(min=5, max=300))
+    version_vista = fields.Int(load_default=None, allow_none=True)
+
+
+class AceptarPropuestaSchema(Base):
+    version_id = fields.Int(required=True)
+    aceptar_excepciones = fields.Bool(load_default=False)
+
+
+class AcuerdoPagoSchema(Base):
+    forma = fields.Str(required=True, validate=L(min=2, max=120))
+    condiciones = fields.Str(required=True, validate=L(min=2, max=1000))
+    fecha_pago = fields.Date(required=True)
+    observaciones = fields.Str(load_default=None, allow_none=True, validate=L(max=1000))
+
+
+class PagoResueltoSchema(Base):
+    acuerdo_id = fields.Int(required=True)
 
 
 class DireccionSucursalSchema(Base):
@@ -458,6 +486,12 @@ class IncidenciaCambioSchema(Base):
     estado = fields.Str(load_default=None, allow_none=True, validate=OneOf(["abierta", "en_atencion", "resuelta", "cerrada"]))
     comentario = fields.Str(load_default=None, allow_none=True, validate=L(max=1000))
     responsable_id = fields.Int(load_default=None, allow_none=True)
+    adjuntos = fields.List(fields.Str(validate=ARCHIVO_PRIVADO), load_default=list, validate=L(max=4))
+
+
+class MensajeIncidenciaSchema(Base):
+    texto = fields.Str(load_default="", validate=L(max=2000))
+    adjuntos = fields.List(fields.Str(validate=ARCHIVO_PRIVADO), load_default=list, validate=L(max=4))
 
 
 class PermisoPadronSolicitudSchema(Base):

@@ -26,6 +26,13 @@ SQL_DESINSTALAR = [
     "DROP FUNCTION IF EXISTS cp_solo_insercion();",
 ]
 
+# Versiones de propuesta, sus partidas y los acuerdos de pago tampoco se editan ni se borran (migración b5d7f9a1c3e4).
+TABLAS_NEGOCIACION = ("propuesta_version", "propuesta_partida", "acuerdo_pago")
+SQL_NEGOCIACION = [s for t in TABLAS_NEGOCIACION for s in (
+    f"DROP TRIGGER IF EXISTS tr_{t}_inmutable ON {t};",
+    f"CREATE TRIGGER tr_{t}_inmutable BEFORE UPDATE OR DELETE ON {t} FOR EACH ROW EXECUTE FUNCTION cp_solo_insercion();",
+)]
+
 # El historial de incidencias tampoco se edita ni se borra (se instala en la migración 9b4f2c6d1e83).
 SQL_SEGUIMIENTO = [
     "DROP TRIGGER IF EXISTS tr_seguimiento_inmutable ON incidencia_seguimiento;",

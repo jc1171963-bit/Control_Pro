@@ -18,6 +18,7 @@ import { cls, dinero, etiqueta, fechaHora, METODOS, mensajeError, PROBLEMAS_RECE
 import { Aparecer, EsqueletoLista, Palomita } from '../../components/movimiento';
 import ComprobanteEntrega from '../cuenta/ComprobanteEntrega';
 import EditarSolicitud from './EditarSolicitud';
+import PanelNegociacion from './Negociacion';
 import { Encabezado, FiltroSucursal } from './AdminLayout';
 import SelloCNR from '../../components/SelloCNR';
 
@@ -211,7 +212,9 @@ export function PedidoAdmin() {
           <Boton variante="secundario" icono={<Undo2 className="h-4 w-4" />} onClick={() => setModal('devuelto')}>Devolver</Boton>
           <Boton variante="peligro" icono={<X className="h-4 w-4" />} onClick={() => setModal('rechazado')}>Rechazar</Boton>
         </>}
-        {p.estado === 'aprobado' && puede('pedido.autorizar') && <Boton variante="menta" icono={<Check className="h-4 w-4" />} onClick={() => setModal('autorizar')}>Autorizar</Boton>}
+        {p.estado === 'aprobado' && puede('pedido.autorizar') && <Boton variante="menta" icono={<Check className="h-4 w-4" />} onClick={() => setModal('autorizar')}
+          disabled={!!p.negociacion?.pendiente || !p.negociacion?.pago_resuelto?.vigente}
+          title={p.negociacion?.pendiente ? 'Hay una propuesta pendiente de aceptar o descartar' : !p.negociacion?.pago_resuelto?.vigente ? 'Primero registra el acuerdo de pago y márcalo como resuelto' : undefined}>Autorizar</Boton>}
         {p.estado === 'pendiente_pago' && p.metodo_pago === 'efectivo' && puede('pago.registrar_efectivo') && <Boton variante="menta" onClick={() => setModal('efectivo')}>Cobrar {dinero(p.saldo)} en efectivo</Boton>}
         {p.estado === 'entregado' && puede('pedido.cerrar') && <Boton icono={<CheckCheck className="h-4 w-4" />} onClick={() => setModal('cerrar')}>Cerrar pedido</Boton>}
         {['en_revision', 'devuelto', 'aprobado', 'pendiente_pago', 'pago_en_revision', 'confirmado', 'en_preparacion'].includes(p.estado) && puede('pedido.cancelar') &&
@@ -220,9 +223,11 @@ export function PedidoAdmin() {
       </Encabezado>
 
       {p.canal === 'corporativo' && p.estado !== 'borrador' && <Tarjeta titulo="Trazabilidad de la solicitud" className="mb-5"><LineaTiempoSolicitud p={p} /></Tarjeta>}
+      {p.canal === 'corporativo' && p.negociacion && <div className="mb-5"><PanelNegociacion p={p} /></div>}
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px] [&>*]:min-w-0">
         <div className="space-y-5">
           <Tarjeta titulo={<span className="flex items-center gap-2">Estado <Estado valor={p.estado} /></span>} sub={`${METODOS[p.metodo_pago]} · ${p.modalidad === 'recoger' ? `Recoge en ${p.sucursal_recoger?.nombre}` : 'Envío a domicilio'}`}>
+            {!!p.por_producir && <div className="mb-3"><Aviso tipo="alerta">{p.por_producir} pieza(s) quedaron pendientes de producción: no había existencias suficientes al autorizar. El pedido no se completa hasta entregarlas.</Aviso></div>}
             {excepciones && p.estado === 'en_revision' && <div className="mb-3"><Aviso tipo="alerta">Este pedido incluye productos fuera de la regla por puesto; revisa las justificaciones antes de aprobar.</Aviso></div>}
             <Tabla columnas={['Artículo', p.canal === 'corporativo' ? 'Empleado' : '', 'Cant.', 'Precio', 'Importe', 'Entregada / cancelada / devuelta']}>
               {p.detalles.map((d) => (
@@ -231,7 +236,7 @@ export function PedidoAdmin() {
                     {d.excepcion && <p className="mt-1 rounded bg-amber-50 px-2 py-0.5 text-xs text-amber-800">Excepción: {d.excepcion}</p>}</Td>
                   <Td className="text-xs">{d.empleado ? <>{d.empleado.nombre}<br /><span className="text-tinta-400">{d.empleado.puesto}</span></> : ''}</Td>
                   <Td>{d.cantidad}</Td><Td className="text-xs">{dinero(d.precio_unitario)}{Number(d.descuento_unitario) > 0 && <><br /><span className="text-coral-600">−{dinero(d.descuento_unitario)}</span></>}</Td>
-                  <Td className="font-semibold">{dinero(d.importe)}</Td><Td className="text-xs">{d.cantidad_entregada} / {d.cantidad_cancelada} / {d.cantidad_devuelta}</Td>
+                  <Td className="font-semibold">{dinero(d.importe)}</Td><Td className="text-xs">{d.cantidad_entregada} / {d.cantidad_cancelada} / {d.cantidad_devuelta}{!!d.cantidad_por_producir && <span className="block font-semibold text-amber-700">{d.cantidad_por_producir} por producir</span>}</Td>
                 </tr>
               ))}
             </Tabla>
@@ -252,7 +257,7 @@ export function PedidoAdmin() {
           )}
 
           <Tarjeta titulo="Surtido por sucursal">
-            {!p.asignaciones?.length ? <p className="text-sm text-tinta-400">Aún sin asignar: el inventario se aparta al confirmar (pago o aprobación).</p> : (
+            {!p.asignaciones?.length ? <p className="text-sm text-tinta-400">Aún sin asignar: el inventario se aparta al confirmar (pago en la tienda o autorización de la solicitud).</p> : (
               <div className="grid gap-3 md:grid-cols-2">
                 {p.asignaciones.map((a) => (
                   <div key={a.id} className="rounded-xl p-4 ring-1 ring-tinta-100">
@@ -346,10 +351,10 @@ export function PedidoAdmin() {
       <Modal abierto={!!modal} titulo={modal ? titulos[modal] : ''} onCerrar={() => setModal(null)}>
         <div className="space-y-4">
           {modal === 'aprobar' && <>
-            <p className="text-sm text-tinta-500">Al aprobar se asignan sucursales y se aparta el inventario mientras la distribuidora cobra y autoriza; si no lo autoriza a tiempo, la reserva vence. Si no hay existencias suficientes, la aprobación no procede.</p>
+            <p className="text-sm text-tinta-500">Aprobar no aparta inventario: la distribuidora cobra a la sucursal y, al autorizarla, se aparta lo disponible. Si no la autoriza a tiempo, la solicitud vence.</p>
             {excepciones && <label className="flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-900"><input type="checkbox" checked={aceptar} onChange={(e) => setAceptar(e.target.checked)} className="mt-1" />Autorizo las excepciones por puesto incluidas en este pedido.</label>}
           </>}
-          {modal === 'autorizar' && <Aviso>Confirma que ya cobraste esta solicitud a la sucursal. Al autorizarla se confirma y se avisa al almacén para surtirla.{p.reserva_expira ? ` La reserva vence el ${fechaHora(p.reserva_expira)}` : ''}</Aviso>}
+          {modal === 'autorizar' && <Aviso>El pago está resuelto (acuerdo definitivo de cómo y cuándo se pagará). Al autorizarla se aparta el inventario disponible, lo que falte queda pendiente de producción y se avisa al almacén para surtir.{p.reserva_expira ? ` El plazo para autorizar vence el ${fechaHora(p.reserva_expira)}.` : ''}</Aviso>}
           {modal === 'efectivo' && <Aviso>Confirma que recibiste {dinero(p.saldo)} en efectivo. El cobro queda registrado a tu nombre y confirma el pedido.</Aviso>}
           {modal === 'cerrar' && <p className="text-sm text-tinta-500">Solo se cierra si no hay incidencias abiertas, devoluciones en trámite, reembolsos pendientes ni entregas individuales pendientes.</p>}
           {modal === 'incidencia' && <Campo etiqueta="Tipo"><Selector value={tipoInc} onChange={(e) => setTipoInc(e.target.value)}>

@@ -9,7 +9,7 @@ from ..models import Devolucion, Documento, EntregaIndividual, Incidencia, Paque
 from ..models import AsignacionSurtido
 from .comun import auditar
 
-TIPOS = {"orden_compra": "Orden de compra", "cotizacion": "Cotización", "factura": "Factura", "comprobante": "Comprobante",
+TIPOS = {"orden_compra": "Orden de compra", "cotizacion": "Cotización", "factura": "Factura", "comprobante": "Comprobante", "pago": "Documento de pago",
          "evidencia": "Evidencia", "otro": "Documento"}
 
 
@@ -29,9 +29,12 @@ def documento_json(d: Documento, interno: bool, puede_borrar: bool) -> dict:
 def expediente(p: Pedido, *, usuario=None, cliente=None) -> dict:
     interno = usuario is not None
     es_admin = bool(usuario and usuario.rol.codigo == "admin")
-    docs = db.session.scalars(select(Documento).where(Documento.pedido_id == p.id).order_by(Documento.id.desc())).unique().all()
-    subidos = [documento_json(d, interno, puede_borrar=es_admin or (usuario is not None and d.subido_por_usuario == usuario.id)
-                              or (cliente is not None and d.subido_por_cliente == cliente.id)) for d in docs]
+    q = select(Documento).where(Documento.pedido_id == p.id).order_by(Documento.id.desc())
+    if cliente is not None:  # los documentos de pago son internos (comercializadora y Gerente de compras)
+        q = q.where(Documento.visible_sucursal.is_(True))
+    docs = db.session.scalars(q).unique().all()
+    subidos = [documento_json(d, interno, puede_borrar=d.tipo != "pago" and (es_admin or (usuario is not None and d.subido_por_usuario == usuario.id)
+                              or (cliente is not None and d.subido_por_cliente == cliente.id))) for d in docs]
 
     generados = [{"clave": "pdf", "tipo": "solicitud", "titulo": f"Solicitud {p.folio} (PDF)", "fecha": _f(p.creado),
                   "accion": "pdf"}]
@@ -66,8 +69,12 @@ def expediente(p: Pedido, *, usuario=None, cliente=None) -> dict:
 def agregar(p: Pedido, datos: dict, *, usuario=None, cliente=None) -> Documento:
     from ..api.archivos import vincular_a_pedido
     dueno = f"u{usuario.id}" if usuario else f"c{cliente.id}"
-    vincular_a_pedido([datos["url"]], p.id, dueno)
-    d = Documento(pedido_id=p.id, nombre=datos["nombre"].strip(), tipo=datos["tipo"], url=datos["url"],
+    de_pago = datos["tipo"] == "pago"
+    if de_pago and (usuario is None or "pedido.negociar" not in usuario.codigos_permiso):
+        raise SinPermiso("Los documentos de pago los adjunta la comercializadora.")
+    # Un documento de pago solo lo descarga el personal con alcance sobre la solicitud, nunca la sucursal.
+    vincular_a_pedido([datos["url"]], p.id, dueno, solo_interno=de_pago)
+    d = Documento(pedido_id=p.id, nombre=datos["nombre"].strip(), tipo=datos["tipo"], url=datos["url"], visible_sucursal=not de_pago,
                   subido_por_usuario=usuario.id if usuario else None, subido_por_cliente=cliente.id if cliente else None)
     db.session.add(d)
     db.session.flush()
@@ -84,6 +91,8 @@ def eliminar(p: Pedido, documento_id: int, *, usuario=None, cliente=None):
         (cliente and d.subido_por_cliente == cliente.id)
     if not propio:
         raise SinPermiso("Solo quien subió el documento puede quitarlo.")
+    if d.tipo == "pago":
+        raise SinPermiso("Los documentos de pago se conservan en el expediente.")
     auditar("documento.eliminar", "pedido", p.id, antes={"documento": d.id, "nombre": d.nombre})
     db.session.delete(d)
     db.session.commit()

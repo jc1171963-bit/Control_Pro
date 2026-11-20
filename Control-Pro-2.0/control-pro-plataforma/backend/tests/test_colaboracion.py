@@ -75,11 +75,13 @@ def test_orden_aprobada_llega_a_la_distribuidora(como):
     var, empleados = _var(como), {e["nombre"]: e["id"] for e in suc.get("/api/cuenta/empleados").get_json()}
     p = _solicitud(suc, [{"empleado_id": empleados["Ana López"], "variante_id": var("MAN-001", "Unitalla"), "cantidad": 2}])
     aprob.post(f"/api/admin/pedidos/{p['id']}/decision", {"decision": "aprobado"})
-    for rol in ("finanzas", "admin", "enc_qro", "atencion"):
+    for rol in ("finanzas", "admin", "atencion"):
         avisos = como(rol).get("/api/admin/notificaciones?por_pagina=50").get_json()["items"]
         orden = next(n for n in avisos if n["evento"] == "orden_aprobada")
         assert p["folio"] in orden["mensaje"] and orden["enlace"] == f"/admin/pedidos/{p['id']}"
-    assert not any(n["evento"] == "orden_aprobada" for n in aprob.get("/api/admin/notificaciones").get_json()["items"])
+    # Aprobar ya no aparta inventario: el almacén que surte se decide al autorizar y entonces recibe su aviso de surtido
+    for quien in (aprob, como("enc_qro")):
+        assert not any(n["evento"] == "orden_aprobada" for n in quien.get("/api/admin/notificaciones").get_json()["items"])
     # La sucursal sabe que está aprobada, no confirmada: falta la autorización de la distribuidora
     eventos = {n["evento"] for n in suc.get("/api/cuenta/notificaciones").get_json()["items"]}
     assert "pedido_aprobado" in eventos and "pedido_confirmado" not in eventos

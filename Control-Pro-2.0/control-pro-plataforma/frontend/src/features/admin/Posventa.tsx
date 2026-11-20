@@ -8,7 +8,7 @@ import { useAuth } from '../../app/auth';
 import { Aviso, Boton, Campo, Cargando, Entrada, ErrorCaja, Estado, Modal, Paginacion, Selector, Tabla, Tarjeta, Td, Texto, useAviso } from '../../components/ui';
 import { cls, dinero, etiqueta, fechaHora, MOTIVOS_DEVOLUCION, tipoIncidencia } from '../../lib/formato';
 import { HistorialIncidencia } from '../cuenta/DetalleSolicitud';
-import { GaleriaEvidencias } from '../../components/Archivos';
+import { AdjuntarEvidencias, GaleriaEvidencias } from '../../components/Archivos';
 import { Encabezado, useSucursalesAdmin } from './AdminLayout';
 
 const FILTROS_DEV = [['solicitada', 'Por autorizar'], ['autorizada,en_camino', 'Por recibir'], ['recibida', 'Por inspeccionar'], ['inspeccionada,reembolsada', 'Por cerrar'], ['', 'Todas']];
@@ -111,9 +111,10 @@ export function Incidencias() {
   const [sel, setSel] = useState<Incidencia | null>(null);
   const [nuevoEstado, setNuevoEstado] = useState('');
   const [comentario, setComentario] = useState('');
+  const [adjuntos, setAdjuntos] = useState<string[]>([]);
   const m = useMutation({
-    mutationFn: () => patch<Incidencia>(`/admin/incidencias/${sel!.id}`, { estado: nuevoEstado || null, comentario: comentario || null }),
-    onSuccess: (i) => { qc.invalidateQueries({ queryKey: ['admin-incidencias'] }); setSel(i); setComentario(''); avisar('Incidencia actualizada.'); },
+    mutationFn: () => patch<Incidencia>(`/admin/incidencias/${sel!.id}`, { estado: nuevoEstado || null, comentario: comentario || null, adjuntos }),
+    onSuccess: (i) => { qc.invalidateQueries({ queryKey: ['admin-incidencias'] }); setSel(i); setComentario(''); setAdjuntos([]); avisar('Incidencia actualizada.'); },
   });
   return (
     <>
@@ -127,8 +128,8 @@ export function Incidencias() {
               <tr key={i.id}><Td><p className="font-semibold">{i.folio}</p><p className="text-xs text-tinta-400">{fechaHora(i.creado)}</p></Td><Td className="text-xs">{tipoIncidencia(i.tipo)}</Td>
                 <Td className="text-xs">{i.pedido_id ? <Link to={`/admin/pedidos/${i.pedido_id}`} className="text-menta-700">Pedido #{i.pedido_id}</Link> : i.transferencia_id ? `Transferencia #${i.transferencia_id}` : i.devolucion_id ? `Devolución #${i.devolucion_id}` : '—'}</Td>
                 <Td className="text-xs">{i.empleado?.nombre || '—'}{i.articulo && <span className="block text-tinta-400">{i.articulo.nombre} ({i.articulo.talla})</span>}</Td>
-                <Td className="max-w-sm text-xs">{i.descripcion}{!!i.evidencias?.length && <div className="mt-2"><GaleriaEvidencias urls={i.evidencias} titulo={`Evidencia de ${i.folio}`} /></div>}</Td><Td><Estado valor={i.prioridad} /></Td><Td><Estado valor={i.estado} /></Td>
-                <Td><Boton tam="sm" variante="secundario" onClick={() => { setSel(i); setNuevoEstado(''); }}>Gestionar</Boton></Td></tr>
+                <Td className="max-w-sm text-xs">{i.descripcion}{!!i.evidencias?.length && <div className="mt-2"><GaleriaEvidencias urls={i.evidencias} titulo={`Evidencia de ${i.folio}`} /></div>}</Td><Td><Estado valor={i.prioridad} /></Td><Td><Estado valor={i.estado} />{i.respondio_sucursal && <span className="mt-1 block text-[11px] font-semibold text-coral-700">Respondió la sucursal</span>}</Td>
+                <Td><Boton tam="sm" variante="secundario" onClick={() => { setSel(i); setNuevoEstado(''); setAdjuntos([]); }}>Gestionar</Boton></Td></tr>
             ))}
           </Tabla>
         )}
@@ -142,11 +143,13 @@ export function Incidencias() {
             {!!sel.evidencias?.length && <div><p className="mb-1.5 text-xs font-semibold uppercase text-tinta-400">Evidencia</p><GaleriaEvidencias urls={sel.evidencias} titulo={`Evidencia de ${sel.folio}`} /></div>}
             {(sel.empleado || sel.articulo) && <p className="text-xs"><b>Relacionada con:</b> {[sel.empleado && `${sel.empleado.nombre} (${sel.empleado.puesto})`, sel.articulo && `${sel.articulo.nombre} talla ${sel.articulo.talla}`].filter(Boolean).join(' · ')}</p>}
             <div><p className="text-xs font-semibold uppercase text-tinta-400">Historial</p><HistorialIncidencia i={sel} /></div>
+            {sel.cierre_por_sucursal && <Aviso>La sucursal confirma la solución para cerrarla; si no queda conforme, puede reabrirla. Tus comentarios los ve la sucursal.</Aviso>}
             <Campo etiqueta="Agregar comentario o resolución" ayuda="Se agrega al historial; no reemplaza lo anterior."><Texto value={comentario} onChange={(e) => setComentario(e.target.value)} /></Campo>
+            {sel.pedido_id && <Campo etiqueta="Fotos o documentos (opcional)" ayuda="Los verá la sucursal en la conversación."><AdjuntarEvidencias valor={adjuntos} onCambio={setAdjuntos} /></Campo>}
             <Campo etiqueta="Cambiar estado"><Selector value={nuevoEstado} onChange={(e) => setNuevoEstado(e.target.value)}><option value="">Sin cambio</option>
-              {['abierta', 'en_atencion', 'resuelta', 'cerrada'].filter((x) => x !== sel.estado).map((x) => <option key={x} value={x}>{etiqueta(x)}</option>)}</Selector></Campo>
+              {(sel.transiciones ?? []).map((x) => <option key={x} value={x}>{etiqueta(x)}</option>)}</Selector></Campo>
             <ErrorCaja error={m.error} />
-            <div className="flex justify-end gap-2"><Boton variante="secundario" onClick={() => setSel(null)}>Cerrar</Boton><Boton disabled={!comentario.trim() && !nuevoEstado} cargando={m.isPending} onClick={() => m.mutate()}>Guardar</Boton></div>
+            <div className="flex justify-end gap-2"><Boton variante="secundario" onClick={() => setSel(null)}>Cerrar</Boton><Boton disabled={!comentario.trim() && !nuevoEstado && !adjuntos.length} cargando={m.isPending} onClick={() => m.mutate()}>Guardar</Boton></div>
           </div>
         )}
       </Modal>

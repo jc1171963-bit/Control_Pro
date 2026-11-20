@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from app import create_app  # noqa: E402
 from app.extensions import db  # noqa: E402
-from app.sql_extra import SQL_INSTALAR, SQL_SEGUIMIENTO  # noqa: E402
+from app.sql_extra import SQL_INSTALAR, SQL_NEGOCIACION, SQL_SEGUIMIENTO  # noqa: E402
 
 import app.security.auth as auth_mod  # noqa: E402
 
@@ -84,7 +84,7 @@ def app():
         db.session.commit()
         db.drop_all()
         db.create_all()
-        for s in SQL_INSTALAR + SQL_SEGUIMIENTO:
+        for s in SQL_INSTALAR + SQL_SEGUIMIENTO + SQL_NEGOCIACION:
             db.session.execute(text(s))
         db.session.commit()
         from seeds.demo import cargar_demo

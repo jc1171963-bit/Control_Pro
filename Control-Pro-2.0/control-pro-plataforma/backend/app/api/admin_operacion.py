@@ -222,4 +222,4 @@ def actualizar_incidencia(iid):
         _pedido(inc.pedido_id)
     if d.get("responsable_id") and not db.session.get(Usuario, d["responsable_id"]):
         raise NoEncontrado("Responsable no encontrado.")
-    return jsonify(serial.incidencia(dev.actualizar_incidencia(inc, d.get("estado"), d.get("comentario"), d.get("responsable_id"))))
+    return jsonify(serial.incidencia(dev.actualizar_incidencia(inc, d.get("estado"), d.get("comentario"), d.get("responsable_id"), d["adjuntos"])))

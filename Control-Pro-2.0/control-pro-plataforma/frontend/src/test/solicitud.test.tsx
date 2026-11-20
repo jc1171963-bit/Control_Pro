@@ -265,7 +265,7 @@ describe('borradores y correcciones', () => {
     vi.mocked(put).mockResolvedValue(guardado('en_revision', 7));
     montar('/cuenta/solicitudes/7/editar');
     expect(await screen.findByText('Corregir solicitud SOL-7')).toBeInTheDocument();
-    expect(screen.getByText(/Observación del distribuidor: Falta justificar la talla/)).toBeInTheDocument();
+    expect(screen.getByText(/Observación del Gerente de compras: Falta justificar la talla/)).toBeInTheDocument();
     fireEvent.click(await screen.findByRole('button', { name: /Revisar solicitud/ }));
     expect(screen.queryAllByRole('button', { name: 'Guardar borrador' })).toHaveLength(0);
     fireEvent.click(await screen.findByRole('button', { name: 'Reenviar a revisión' }));
