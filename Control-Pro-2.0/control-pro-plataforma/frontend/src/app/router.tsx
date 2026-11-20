@@ -85,6 +85,8 @@ export const router = createBrowserRouter([
                 children: [
                   { path: 'empleados', lazy: () => c(import('../features/cuenta/Corporativo'), 'Empleados') },
                   { path: 'mensajes', lazy: () => c(import('../features/colaboracion/Mensajes')) },
+                  { path: 'incidencias', lazy: () => c(import('../features/cuenta/Incidencias')) },
+                  { path: 'incidencias/:id', lazy: () => c(import('../features/cuenta/Incidencias'), 'IncidenciaSucursal') },
                   { path: 'catalogo', lazy: () => c(import('../features/tienda/Catalogo')) },
                   { path: 'catalogo/:slug', lazy: () => c(import('../features/tienda/Producto')) },
                   { path: 'solicitudes/nueva', lazy: () => c(import('../features/cuenta/SolicitudCorporativa')) },

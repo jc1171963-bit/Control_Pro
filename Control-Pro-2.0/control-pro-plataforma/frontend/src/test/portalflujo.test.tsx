@@ -5,7 +5,7 @@ import { beforeEach, vi } from 'vitest';
 import { get, post } from '../api/cliente';
 import type { Pedido } from '../api/tipos';
 import { useAuth } from '../app/auth';
-import DetalleSolicitud, { proximoPaso } from '../features/cuenta/DetalleSolicitud';
+import DetalleSolicitud, { cambioDelGerente, proximoPaso } from '../features/cuenta/DetalleSolicitud';
 import Pedidos from '../features/cuenta/Pedidos';
 
 vi.mock('../api/cliente', () => ({ get: vi.fn(), post: vi.fn(), put: vi.fn(), del: vi.fn() }));
@@ -20,12 +20,21 @@ const base = (estado: string, extra: Partial<Pedido> = {}) => ({
 const paquete = (estado: string, recepcion: unknown = null) => ({ id: 3, folio: 'PAQ-3', estado, recepcion, sucursal: 'Toluca', creado: '2026-11-11T10:00:00Z', contenido: [], envio: null });
 const entrega = (estado: string, conformidad_en: string | null = null) => ({ id: 5, paquete_id: 3, estado, conformidad_en, empleado: emp, detalles: [], registrado_por: null, entregado_en: null, valoracion: null });
 
+describe('cambios del Gerente de compras en el historial', () => {
+  it('reconoce el prefijo actual y el de registros anteriores, y descarta otras entradas', () => {
+    expect(cambioDelGerente('Modificada por el Gerente de compras: talla. se agregó 1× Bata')).toBe('talla. se agregó 1× Bata');
+    expect(cambioDelGerente('Modificada por el distribuidor: talla. se quitó 1× Bata')).toBe('talla. se quitó 1× Bata');
+    expect(cambioDelGerente('Solicitud enviada a revisión')).toBeNull();
+    expect(cambioDelGerente(null)).toBeNull();
+  });
+});
+
 describe('qué sigue (derivado de los datos de la solicitud)', () => {
   it('cubre revisión, devolución con su motivo y rechazo', () => {
     expect(proximoPaso(base('borrador')).titulo).toBe('Revisa y envía tu solicitud');
-    expect(proximoPaso(base('en_revision')).tono).toBe('espera');
+    expect(proximoPaso(base('en_revision'))).toMatchObject({ tono: 'espera', titulo: 'En revisión por el Gerente de compras' });
     const devuelta = proximoPaso(base('devuelto', { aprobaciones: [{ decision: 'devuelto', motivo: 'Falta la talla', usuario: 'x', fecha: '' }] } as never));
-    expect(devuelta).toMatchObject({ tono: 'alerta', texto: 'Observación del distribuidor: Falta la talla' });
+    expect(devuelta).toMatchObject({ tono: 'alerta', texto: 'Observación del Gerente de compras: Falta la talla' });
     expect(proximoPaso(base('rechazado')).tono).toBe('fin');
   });
 

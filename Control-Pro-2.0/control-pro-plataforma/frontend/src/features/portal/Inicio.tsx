@@ -97,7 +97,7 @@ function Pendientes({ r }: { r: ResumenSucursal }) {
     ['Paquetes por recibir', r.paquetes_por_recibir, <PackageCheck className="h-4 w-4" />, '/cuenta/pedidos'],
     ['Entregas pendientes', r.entregas_pendientes, <Users className="h-4 w-4" />, '/cuenta/pedidos'],
     ['Conformidades pendientes', r.conformidades_pendientes, <CheckCircle2 className="h-4 w-4" />, '/cuenta/pedidos'],
-    ['Incidencias abiertas', r.incidencias_abiertas, <ShieldAlert className="h-4 w-4" />, '/cuenta/pedidos'],
+    ['Incidencias abiertas', r.incidencias_abiertas, <ShieldAlert className="h-4 w-4" />, '/cuenta/incidencias'],
     ['Empleados activos', r.empleados_activos, <Users className="h-4 w-4" />, '/cuenta/empleados'],
   ];
   return (
@@ -161,7 +161,7 @@ function InicioEmpresa() {
             <h2 id="t-indicadores" className="sr-only">Estado de tus solicitudes</h2>
             <div className="grid grid-cols-2 gap-2.5 sm:gap-5 xl:grid-cols-4">
               <ConEnlace a="/cuenta/pedidos?estado=borrador"><CifraPortal orden={0} etiqueta="Borradores" valor={s.borradores} detalle="Guardadas sin enviar" icono={<Save aria-hidden />} /></ConEnlace>
-              <ConEnlace a="/cuenta/pedidos?estado=en_revision"><CifraPortal orden={1} etiqueta="En revisión" valor={s.en_revision} detalle="Con el distribuidor" icono={<ClipboardList aria-hidden />} /></ConEnlace>
+              <ConEnlace a="/cuenta/pedidos?estado=en_revision"><CifraPortal orden={1} etiqueta="En revisión" valor={s.en_revision} detalle="Con el Gerente de compras" icono={<ClipboardList aria-hidden />} /></ConEnlace>
               {/* Sin enlace: "aprobadas" agrupa varios estados y /cuenta/pedidos solo filtra por uno (ver B-1 del plan). */}
               <CifraPortal orden={2} etiqueta="Aprobadas" valor={s.en_proceso + s.entregadas} detalle={`${s.en_proceso} en proceso · ${s.entregadas} entregadas`} icono={<CheckCircle2 aria-hidden />} />
               <CifraPortal orden={3} etiqueta="Devueltas o rechazadas" valor={s.por_corregir + s.rechazadas} icono={<Undo2 aria-hidden />} alerta={s.por_corregir > 0}

@@ -5,6 +5,7 @@ from decimal import Decimal
 
 from sqlalchemy import (BigInteger, CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text,
                         UniqueConstraint, func)
+from sqlalchemy import true as sa_true
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -275,6 +276,8 @@ class IncidenciaSeguimiento(db.Model):
     estado_anterior: Mapped[str | None] = mapped_column(String(15))
     estado_nuevo: Mapped[str] = mapped_column(String(15))
     comentario: Mapped[str | None] = mapped_column(Text)
+    # Fotos o documentos del mensaje (URLs de /api/archivos/privados, ligadas a la solicitud).
+    adjuntos: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
     responsable_id: Mapped[int | None] = mapped_column(ForeignKey("usuario.id"))
     usuario_id: Mapped[int | None] = mapped_column(ForeignKey("usuario.id"))
     cliente_id: Mapped[int | None] = mapped_column(ForeignKey("cliente.id"))
@@ -322,7 +325,7 @@ class Auditoria(db.Model):
     __table_args__ = (Index("ix_auditoria_entidad", "entidad", "entidad_id"),)
 
 
-TIPOS_DOCUMENTO = ("orden_compra", "cotizacion", "factura", "comprobante", "evidencia", "otro")
+TIPOS_DOCUMENTO = ("orden_compra", "cotizacion", "factura", "comprobante", "evidencia", "pago", "otro")
 
 
 class Documento(db.Model):
@@ -336,10 +339,12 @@ class Documento(db.Model):
     url: Mapped[str] = mapped_column(String(300))
     subido_por_usuario: Mapped[int | None] = mapped_column(ForeignKey("usuario.id", ondelete="SET NULL"))
     subido_por_cliente: Mapped[int | None] = mapped_column(ForeignKey("cliente.id", ondelete="SET NULL"))
+    # Los documentos de pago los sube la comercializadora y no los ve la sucursal.
+    visible_sucursal: Mapped[bool] = mapped_column(default=True, server_default=sa_true())
     creado: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     usuario = relationship("Usuario", lazy="joined")
     cliente = relationship("Cliente", lazy="joined")
-    __table_args__ = (CheckConstraint("tipo in ('orden_compra','cotizacion','factura','comprobante','evidencia','otro')",
+    __table_args__ = (CheckConstraint("tipo in ('orden_compra','cotizacion','factura','comprobante','evidencia','pago','otro')",
                                       name="ck_documento_tipo"),)
 
 

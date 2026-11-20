@@ -32,8 +32,19 @@ def pagar_y_validar(cliente, finanzas, pedido_id):
     return pago_id
 
 
+def resolver_pago(admin, pedido):
+    """La comercializadora registra el acuerdo de pago y lo marca como resuelto (requisito para autorizar)."""
+    r = admin.post(f"/api/admin/pedidos/{pedido['id']}/acuerdo-pago",
+                   {"forma": "Transferencia SPEI", "condiciones": "Pago a 15 días", "fecha_pago": "2026-12-15"})
+    assert r.status_code == 201, r.get_json()
+    r = admin.post(f"/api/admin/pedidos/{pedido['id']}/pago-resuelto", {"acuerdo_id": r.get_json()["negociacion"]["acuerdo_vigente_id"]})
+    assert r.status_code == 200, r.get_json()
+    return r.get_json()
+
+
 def autorizar(admin, pedido):
-    """La distribuidora autoriza el pedido corporativo aprobado (ya cobrado fuera del sistema): queda listo para surtir."""
+    """La distribuidora resuelve el pago y autoriza el pedido corporativo aprobado: queda listo para surtir."""
+    resolver_pago(admin, pedido)
     r = admin.post(f"/api/admin/pedidos/{pedido['id']}/autorizar", {"nota": "Cobro recibido"})
     assert r.status_code == 200 and r.get_json()["estado"] == "confirmado", r.get_json()
     return r.get_json()

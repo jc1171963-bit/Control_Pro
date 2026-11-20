@@ -97,19 +97,17 @@ def test_aprobador_edita_aprueba_y_da_seguimiento(como, app):
     r = aprob.put(f"/api/admin/pedidos/{p['id']}/partidas", {"partidas": cambios, "motivo": "Sin existencia en talla M"})
     assert r.status_code == 200 and {d["sku"] for d in r.get_json()["detalles"]} == {"BAT-003-B-G", "PIN-001-P-UNITALLA"}
     det = emp.get(f"/api/cuenta/pedidos/{p['id']}").get_json()
-    assert any("Modificada por el distribuidor" in (h["motivo"] or "") for h in det["historial"])
+    assert any("Modificada por el Gerente de compras" in (h["motivo"] or "") for h in det["historial"])
     notifs = emp.get("/api/cuenta/notificaciones").get_json()["items"]
     aviso = next(n for n in notifs if n["evento"].startswith("pedido_modificado"))
     assert "se quitó" in aviso["mensaje"] and "Sin existencia en talla M" in aviso["mensaje"]
     # Aprueba; el surtido y el envío ya no son del aprobador sino de la distribuidora
     pedido = aprob.post(f"/api/admin/pedidos/{p['id']}/decision", {"decision": "aprobado"}).get_json()
     assert pedido["estado"] == "aprobado"
+    # Aprobado no es autorizado: no se aparta inventario ni hay nada que surtir hasta que la distribuidora autoriza
+    assert pedido["asignaciones"] == []
+    pedido = autorizar(como("admin"), pedido)
     assert aprob.post(f"/api/admin/surtido/{pedido['asignaciones'][0]['id']}/iniciar").status_code == 403
-    # Aprobado no es autorizado: el almacén no surte hasta que la distribuidora autoriza
-    asig0 = pedido["asignaciones"][0]
-    r = almacen_de(como, asig0["sucursal"]["nombre"]).post(f"/api/admin/surtido/{asig0['id']}/iniciar")
-    assert r.status_code == 409 and r.get_json()["error"]["codigo"] == "autorizacion_pendiente"
-    autorizar(como("admin"), pedido)
     for asig in pedido["asignaciones"]:
         alm = almacen_de(como, asig["sucursal"]["nombre"])
         paq = surtir_y_empacar(alm, asig["id"])

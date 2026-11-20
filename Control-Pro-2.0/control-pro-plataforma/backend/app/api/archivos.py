@@ -62,14 +62,17 @@ def _meta(url: str) -> tuple[str, dict]:
         return ruta, json.load(fh)
 
 
-def vincular_a_pedido(urls: list[str], pedido_id: int, dueno: str):
+def vincular_a_pedido(urls: list[str], pedido_id: int | None, dueno: str, solo_interno: bool = False):
     """Liga archivos recién subidos a una solicitud para que la sucursal dueña también pueda verlos (p. ej. la evidencia
-    que sube la distribuidora). Solo quien subió el archivo puede ligarlo."""
+    que sube la distribuidora); con `solo_interno` (documentos de pago) solo lo ve el personal con alcance sobre la
+    solicitud. Solo quien subió el archivo puede ligarlo."""
     for url in urls:
         ruta, meta = _meta(url)
         if meta.get("dueno") != dueno:
             raise SinPermiso("Solo puedes adjuntar archivos que tú subiste.")
         meta["pedido_id"] = pedido_id
+        if solo_interno:
+            meta["solo_interno"] = True
         with open(ruta, "w") as fh:
             json.dump(meta, fh)
 
@@ -85,12 +88,12 @@ def ver_privado(nombre):
     meta = os.path.join(ruta, os.path.basename(nombre) + ".meta")
     if not os.path.exists(meta):
         raise NoEncontrado("Archivo no encontrado.")
+    with open(meta) as fh:
+        datos = json.load(fh)
     if get_jwt().get("tipo") == "cliente":
-        with open(meta) as fh:
-            datos = json.load(fh)
         cliente = _cargar_cliente()
         propio = datos["dueno"] == f"c{cliente.id}"
-        if not propio and datos.get("pedido_id"):
+        if not propio and datos.get("pedido_id") and not datos.get("solo_interno"):
             from ..extensions import db
             from ..models import Pedido
             p = db.session.get(Pedido, datos["pedido_id"])
@@ -98,7 +101,12 @@ def ver_privado(nombre):
         if not propio:
             raise NoEncontrado("Archivo no encontrado.")
     else:
-        _cargar_usuario()
+        usuario = _cargar_usuario()
+        # Ligado a una solicitud: solo el personal con alcance sobre ella (mismo 404 que al consultar la solicitud).
+        # Los archivos sin solicitud (p. ej. comprobantes de la tienda) conservan el acceso del personal interno.
+        if datos.get("pedido_id") and datos.get("dueno") != f"u{usuario.id}":
+            from .admin_pedidos import _pedido
+            _pedido(datos["pedido_id"])
     return send_from_directory(ruta, os.path.basename(nombre), max_age=0)
 
 

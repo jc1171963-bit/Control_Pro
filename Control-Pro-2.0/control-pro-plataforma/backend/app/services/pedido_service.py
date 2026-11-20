@@ -91,10 +91,12 @@ def _habilitados(producto_ids: set[int]) -> set[tuple[int, int]]:
     return {(f.producto_id, f.sucursal_id) for f in filas}
 
 
-def calcular_asignacion(necesidades: dict[int, int], sucursales: list[Sucursal], permitir_division: bool):
+def calcular_asignacion(necesidades: dict[int, int], sucursales: list[Sucursal], permitir_division: bool,
+                        parcial: bool = False):
     """Bloquea las filas de inventario candidatas y decide qué sucursal surte cada variante.
 
-    Devuelve {sucursal_id: {variante_id: cantidad}} o lanza Conflicto con el detalle de faltantes.
+    Devuelve {sucursal_id: {variante_id: cantidad}} o lanza Conflicto con el detalle de faltantes. Con `parcial`
+    (autorización corporativa) no lanza: devuelve lo que alcanza con las existencias disponibles, aunque sea nada.
     """
     variantes = {v.id: v for v in db.session.scalars(select(Variante).where(Variante.id.in_(necesidades)))}
     deshabilitado = _habilitados({v.producto_id for v in variantes.values()})
@@ -123,8 +125,15 @@ def calcular_asignacion(necesidades: dict[int, int], sucursales: list[Sucursal],
             for v, q in cubre.items():
                 pendiente[v] -= q
             restantes.remove(mejor)
-        if not any(pendiente.values()):
+        if not any(pendiente.values()) or parcial:
             return plan, invs
+
+    if parcial:  # sin división: la sucursal que más unidades cubre (en empate, la más cercana)
+        if not sucursales:
+            return {}, invs
+        mejor = max(sucursales, key=lambda s: (sum(min(disp(s.id, v), q) for v, q in necesidades.items()), -sucursales.index(s)))
+        cubre = {v: min(disp(mejor.id, v), q) for v, q in necesidades.items() if disp(mejor.id, v) > 0}
+        return ({mejor.id: cubre} if cubre else {}), invs
 
     faltantes = []
     for v, q in necesidades.items():
@@ -139,11 +148,11 @@ def calcular_asignacion(necesidades: dict[int, int], sucursales: list[Sucursal],
                     codigo="sin_existencias")
 
 
-def asignar_y_reservar(pedido: Pedido, sucursales: list[Sucursal], permitir_division: bool, expira):
+def asignar_y_reservar(pedido: Pedido, sucursales: list[Sucursal], permitir_division: bool, expira, parcial: bool = False):
     necesidades: dict[int, int] = defaultdict(int)
     for d in pedido.detalles:
         necesidades[d.variante_id] += d.cantidad
-    plan, invs = calcular_asignacion(dict(necesidades), sucursales, permitir_division)
+    plan, invs = calcular_asignacion(dict(necesidades), sucursales, permitir_division, parcial)
 
     # Repartir lo asignado a cada sucursal entre las partidas del pedido (varias partidas pueden compartir variante).
     restante_por_suc = {sid: dict(vs) for sid, vs in plan.items()}
@@ -329,7 +338,10 @@ def cancelar(pedido: Pedido, motivo: str, por_cliente: bool):
     _liberar_inventario(pedido, "liberada")
     for d in pedido.detalles:
         d.cantidad_cancelada = d.cantidad - d.cantidad_entregada
+        d.cantidad_por_producir = 0  # shortcut: también anula lo pendiente de producción; revisar al definir D-26
     _reembolsar_pagos(pedido, f"Cancelación del pedido {pedido.folio}")
+    from .negociacion_service import descartar_pendientes
+    descartar_pendientes(pedido, "Pedido cancelado")
     transicionar(pedido, "cancelado", motivo)
     auditar("pedido.cancelar", "pedido", pedido.id, despues={"motivo": motivo, "por_cliente": por_cliente})
     db.session.commit()
@@ -352,9 +364,11 @@ def expirar_reservas() -> int:
         for d in p.detalles:
             d.cantidad_cancelada = d.cantidad
         if p.estado == "aprobado":
-            transicionar(p, "expirado", "Reserva vencida sin autorización de la distribuidora; envía una nueva solicitud")
+            from .negociacion_service import descartar_pendientes
+            descartar_pendientes(p, "Pedido expirado")
+            transicionar(p, "expirado", "Plazo vencido sin autorización de la distribuidora; envía una nueva solicitud")
             notificar_personal("orden.recibir", "orden_expirada", "pedido", p.id,
-                               f"La orden {p.folio} expiró sin autorización; se liberó su inventario.",
+                               f"La orden {p.folio} expiró sin autorización.",
                                enlace=f"/admin/pedidos/{p.id}")
         else:
             transicionar(p, "expirado", "Reserva vencida sin pago registrado")
@@ -567,9 +581,9 @@ def editar_por_distribuidor(pedido: Pedido, partidas: list[dict], motivo: str):
         raise AppError("La solicitud debe conservar al menos un artículo; si no procede, recházala.")
     antes = {(d.empleado_id, d.variante_id): (d.cantidad, _linea(d)) for d in pedido.detalles}
     _reemplazar_partidas(pedido.cliente, pedido, partidas, estricto=False)
-    for d in pedido.detalles:  # lo que agrega el distribuidor fuera de la regla por puesto queda autorizado por él
+    for d in pedido.detalles:  # lo que agrega el Gerente de compras fuera de la regla por puesto queda autorizado por él
         if d.excepcion is None and d.empleado and d.empleado.puesto not in {pp.puesto for pp in d.variante.producto.puestos}:
-            d.excepcion = "Autorizado por el distribuidor al editar la solicitud"
+            d.excepcion = "Autorizado por el Gerente de compras al editar la solicitud"
     despues = {(d.empleado_id, d.variante_id): (d.cantidad, _linea(d)) for d in pedido.detalles}
     cambios = []
     for k, (cant, texto) in despues.items():
@@ -581,14 +595,15 @@ def editar_por_distribuidor(pedido: Pedido, partidas: list[dict], motivo: str):
     if not cambios:
         raise AppError("No hay cambios que guardar.")
     resumen = "; ".join(cambios)
-    registrar_historial("pedido", pedido.id, pedido.estado, pedido.estado, f"Modificada por el distribuidor: {motivo}. {resumen}"[:500])
+    pedido.version_condiciones += 1
+    registrar_historial("pedido", pedido.id, pedido.estado, pedido.estado, f"Modificada por el Gerente de compras: {motivo}. {resumen}"[:500])
     auditar("pedido.editar_distribuidor", "pedido", pedido.id,
             antes={"partidas": [f"{c}× {t}" for c, t in antes.values()]},
             despues={"partidas": [f"{c}× {t}" for c, t in despues.values()], "motivo": motivo})
     n = sum(1 for _ in db.session.scalars(select(HistorialEstado.id).where(HistorialEstado.entidad == "pedido",
                                                                         HistorialEstado.entidad_id == pedido.id)))
     notificar_cliente(pedido.cliente_id, f"pedido_modificado_{n}", "pedido", pedido.id,
-                      f"El distribuidor modificó tu solicitud {pedido.folio} ({motivo}): {resumen}", f"/cuenta/pedidos/{pedido.id}")
+                      f"El Gerente de compras modificó tu solicitud {pedido.folio} ({motivo}): {resumen}", f"/cuenta/pedidos/{pedido.id}")
     db.session.commit()
     return pedido
 
@@ -612,24 +627,17 @@ def decidir_corporativo(pedido: Pedido, decision: str, motivo: str | None, acept
     if any(d.excepcion for d in pedido.detalles) and not aceptar_excepciones:
         raise Conflicto("El pedido contiene excepciones por puesto; confirma explícitamente que las autorizas.",
                         codigo="excepciones_sin_aceptar")
-    cp = (pedido.direccion_envio or {}).get("cp")
-    sucursales = ranking_sucursales(cp, pedido.sucursal_recoger_id)
-    division = current_app.config["PERMITIR_DIVISION"] and pedido.modalidad == "envio"
-    # El inventario queda reservado mientras la distribuidora cobra (fuera del sistema) y autoriza; al vencer se libera.
-    expira = ahora() + timedelta(hours=current_app.config["CORPORATIVO_RESERVA_HORAS"])
-    asignar_y_reservar(pedido, sucursales, division, expira)
-    pedido.reserva_expira = expira
+    # Aprobar no aparta inventario: la reserva se hace al autorizar. Se conserva el plazo para que la
+    # distribuidora cobre (fuera del sistema) y autorice; al vencer, la solicitud expira.
+    pedido.reserva_expira = ahora() + timedelta(hours=current_app.config["CORPORATIVO_RESERVA_HORAS"])
     db.session.add(Aprobacion(pedido_id=pedido.id, decision="aprobado", motivo=motivo, usuario_id=usuario_id))
     transicionar(pedido, "aprobado", motivo or "Aprobado")
-    # La orden aprobada llega a la distribuidora para que cobre a la sucursal y la autorice; todavía no se surte.
-    # Llega a los roles globales y a los de cada centro de distribución que surtirá la orden.
+    # La orden aprobada llega a la distribuidora (roles globales) para que cobre a la sucursal y la autorice.
     cliente = pedido.cliente
     aviso = (f"Orden aprobada {pedido.folio} de {cliente.razon_social or cliente.nombre} "
              f"({sum(d.cantidad for d in pedido.detalles)} artículo(s)). Cobra a la sucursal y autorízala para surtir.")
-    for sucursal_id in sorted({a.sucursal_id for a in pedido.asignaciones}) or [None]:
-        notificar_personal("orden.recibir", "orden_aprobada", "pedido", pedido.id, aviso, sucursal_id=sucursal_id,
-                           enlace=f"/admin/pedidos/{pedido.id}")
-    auditar("pedido.aprobado", "pedido", pedido.id, despues={"sucursales": [a.sucursal_id for a in pedido.asignaciones]})
+    notificar_personal("orden.recibir", "orden_aprobada", "pedido", pedido.id, aviso, enlace=f"/admin/pedidos/{pedido.id}")
+    auditar("pedido.aprobado", "pedido", pedido.id)
     db.session.commit()
     return pedido
 
@@ -642,11 +650,28 @@ def autorizar_corporativo(pedido: Pedido, nota: str | None = None):
         raise TransicionInvalida("Solo se autorizan pedidos aprobados pendientes de autorización.",
                                  detalles={"estado": pedido.estado})
     if pedido.reserva_expira and pedido.reserva_expira < ahora():
-        raise TransicionInvalida("La reserva de inventario venció; la sucursal debe enviar una nueva solicitud.",
+        raise TransicionInvalida("El plazo de autorización venció; la sucursal debe enviar una nueva solicitud.",
                                  codigo="reserva_vencida")
+    from .negociacion_service import exigir_para_autorizar
+    exigir_para_autorizar(pedido)  # sin propuesta pendiente y con el pago resuelto (acuerdo definitivo)
     nota = (nota or "").strip() or None
-    confirmar(pedido, f"Autorizado por la distribuidora{': ' + nota if nota else ''}")
-    auditar("pedido.autorizar", "pedido", pedido.id, despues={"nota": nota})
+    # Aprobadas antes de que la reserva pasara a la autorización: ya traen su inventario apartado.
+    if not any(a.estado != "cancelada" for a in pedido.asignaciones):
+        cp = (pedido.direccion_envio or {}).get("cp")
+        division = current_app.config["PERMITIR_DIVISION"] and pedido.modalidad == "envio"
+        # Se aparta lo disponible; lo que no alcanza queda pendiente de producción (sin mermas ni existencias ficticias).
+        asignar_y_reservar(pedido, ranking_sucursales(cp, pedido.sucursal_recoger_id), division, None, parcial=True)
+        for d in pedido.detalles:
+            apartado = sum(ad.cantidad for a in pedido.asignaciones for ad in a.detalles if ad.pedido_detalle is d)
+            d.cantidad_por_producir = d.cantidad - d.cantidad_cancelada - apartado
+    por_producir = sum(d.cantidad_por_producir for d in pedido.detalles)
+    motivo = f"Autorizado por la distribuidora{': ' + nota if nota else ''}"
+    if por_producir:
+        motivo += f". Pendiente de producción: {por_producir} pieza(s)"
+    confirmar(pedido, motivo)
+    auditar("pedido.autorizar", "pedido", pedido.id, despues={
+        "nota": nota, "partidas": [{"pedido_detalle_id": d.id, "sku": d.sku, "cantidad": d.cantidad,
+                                    "por_producir": d.cantidad_por_producir} for d in pedido.detalles]})
     db.session.commit()
     return pedido
 

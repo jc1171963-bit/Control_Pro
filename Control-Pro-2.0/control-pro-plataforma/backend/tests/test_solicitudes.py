@@ -89,7 +89,7 @@ def test_recepcion_por_articulo_entrega_y_conformidad(app, como):
     p = emp.post("/api/cuenta/pedidos-corporativos", {"modalidad": "envio", "direccion_id": dir_emp, "partidas": partidas,
                                                       "clave_idempotencia": clave()}).get_json()
     pedido = aprob.post(f"/api/admin/pedidos/{p['id']}/decision", {"decision": "aprobado"}).get_json()
-    autorizar(como("admin"), pedido)
+    pedido = autorizar(como("admin"), pedido)
     for asig in pedido["asignaciones"]:
         alm = almacen_de(como, asig["sucursal"]["nombre"])
         paq = surtir_y_empacar(alm, asig["id"])

@@ -63,7 +63,7 @@ export type DetallePedido = {
   id: number; variante_id: number; sku: string; nombre: string; talla: string; color: string; cantidad: number;
   precio_unitario: string; descuento_unitario: string; importe: string; excepcion: string | null;
   empleado: { id: number; nombre: string; puesto: string } | null;
-  cantidad_cancelada: number; cantidad_entregada: number; cantidad_devuelta: number;
+  cantidad_cancelada: number; cantidad_entregada: number; cantidad_devuelta: number; cantidad_por_producir?: number;
 };
 export type Historial = { fecha: string; anterior: string | null; nuevo: string; motivo: string | null; actor: string };
 export type Devolucion = {
@@ -92,7 +92,8 @@ export type Incidencia = {
   resolucion: string | null; responsable_id: number | null; creado: string; actualizado: string; evidencias?: string[];
   empleado: { id: number; nombre: string; puesto: string } | null;
   articulo: { pedido_detalle_id: number; nombre: string; talla: string; sku: string } | null;
-  seguimiento: { fecha: string; anterior: string | null; nuevo: string; comentario: string | null; actor: string; responsable: string | null }[];
+  seguimiento: { fecha: string; anterior: string | null; nuevo: string; comentario: string | null; actor: string; responsable: string | null; adjuntos?: string[] }[];
+  pedido_folio?: string | null; cierre_por_sucursal?: boolean; respondio_sucursal?: boolean; transiciones?: string[];
 };
 export type ResumenSucursal = {
   solicitudes: { borradores: number; en_revision: number; por_corregir: number; en_proceso: number; entregadas: number; rechazadas: number };
@@ -106,10 +107,31 @@ export type PedidoResumen = {
   metodo_pago: string; total: string; creado: string; cliente: { id: number; nombre: string; cnr?: boolean }; articulos: number;
   sucursales: string[]; reserva_expira: string | null;
 };
+export type PartidaPropuesta = {
+  pedido_detalle_id: number | null; empleado_id: number | null; empleado: string | null; variante_id: number; sku: string; nombre: string;
+  talla: string; color: string; cantidad: number; precio_unitario: string; descuento_unitario: string; importe: string;
+  precio_catalogo: string; excepcion: string | null;
+};
+export type Totales = { subtotal: string; descuento: string; total: string };
+export type Propuesta = {
+  id: number; numero: number; estado: 'pendiente' | 'aceptada' | 'descartada'; creado: string; creado_por: string | null;
+  aceptada_por: string | null; aceptada_en: string | null; motivo_descarte: string | null;
+  versiones: { id: number; numero: number; nota: string; creado: string; total: string; creado_por: string | null }[];
+  version_actual: { id: number; numero: number; partidas: PartidaPropuesta[] };
+  comparacion: { filas: { cambio: 'sin_cambio' | 'modificada' | 'eliminada' | 'agregada'; antes: PartidaPropuesta | null; despues: PartidaPropuesta | null }[];
+    antes: Totales; despues: Totales; diferencia: Totales };
+};
+export type AcuerdoPago = { id: number; version: number; forma: string; condiciones: string; fecha_pago: string; observaciones: string | null;
+  creado: string; registrado_por: string | null };
+export type Negociacion = {
+  version_condiciones: number; pendiente: Propuesta | null; propuestas: Propuesta[]; acuerdos: AcuerdoPago[];
+  pago_resuelto: { vigente: boolean; en: string | null; acuerdo_id: number | null } | null; acuerdo_vigente_id: number | null;
+};
 export type Pedido = PedidoResumen & {
   subtotal: string; descuento: string; costo_envio: string; impuestos: string; notas: string | null;
   direccion_envio: Record<string, string> | null; sucursal_recoger: Sucursal | null; confirmado_en: string | null;
-  detalles: DetallePedido[]; pagos: Pago[]; paquetes: Paquete[]; historial: Historial[]; saldo: string;
+  detalles: DetallePedido[]; pagos: Pago[]; paquetes: Paquete[]; historial: Historial[]; saldo: string; por_producir?: number;
+  negociacion?: Negociacion;
   devoluciones: Devolucion[]; aprobaciones?: { decision: string; motivo: string | null; usuario: string; fecha: string }[];
   entregas_individuales?: EntregaIndividual[]; asignaciones?: Asignacion[]; incidencias?: Incidencia[];
   cliente: any;

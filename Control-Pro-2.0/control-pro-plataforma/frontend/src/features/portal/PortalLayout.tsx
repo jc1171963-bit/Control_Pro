@@ -5,7 +5,7 @@
  */
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, ScrollRestoration, useLocation, useNavigate } from 'react-router-dom';
-import { Bell, Building2, ChevronDown, ChevronRight, ChevronsLeft, ChevronsRight, ClipboardList, Home, Menu, MessagesSquare, PenLine, PlusCircle, Search, Shirt, User, Users, X } from 'lucide-react';
+import { Bell, Building2, ChevronDown, ChevronRight, ChevronsLeft, ChevronsRight, ClipboardList, Home, Menu, MessagesSquare, PenLine, PlusCircle, Search, ShieldAlert, Shirt, User, Users, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuth } from '../../app/auth';
 import { useBorradores } from '../../app/borradores';
@@ -29,7 +29,7 @@ import SelloCNR from '../../components/SelloCNR';
 // "Dirección de entrega" vive dentro de "Mi cuenta"; /cuenta/direcciones redirige allí.
 const ITEMS: [string, string, LucideIcon][] = [
   ['/cuenta', 'Inicio', Home], [RUTA_CATALOGO_PORTAL, 'Catálogo', Shirt], ['/cuenta/solicitudes/nueva', 'Crear solicitud', PlusCircle],
-  ['/cuenta/pedidos', 'Solicitudes', ClipboardList], ['/cuenta/empleados', 'Empleados', Users], ['/cuenta/mensajes', 'Mensajes', MessagesSquare],
+  ['/cuenta/pedidos', 'Solicitudes', ClipboardList], ['/cuenta/empleados', 'Empleados', Users], ['/cuenta/incidencias', 'Incidencias', ShieldAlert], ['/cuenta/mensajes', 'Mensajes', MessagesSquare],
   ['/cuenta/notificaciones', 'Notificaciones', Bell],
   ['/cuenta/perfil', 'Mi cuenta', User],
 ];
