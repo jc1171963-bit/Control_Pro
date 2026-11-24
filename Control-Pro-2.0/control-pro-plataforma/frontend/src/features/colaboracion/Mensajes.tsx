@@ -178,13 +178,13 @@ function Burbuja({ m, primera, ultima, domId, onReintentar, onResponder, onIrA, 
 function BotonResponder({ onClick }: { onClick: () => void }) {
   return (
     <button type="button" onClick={onClick} aria-label="Responder a este mensaje" title="Responder"
-      className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/80 text-tinta-500 opacity-0 shadow-sm ring-1 ring-tinta-100 transition hover:text-menta-700 focus:opacity-100 group-hover:opacity-100 max-md:hidden">
+      className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/80 text-tinta-500 opacity-0 shadow-sm ring-1 ring-tinta-100 transition hover:text-menta-700 focus:opacity-100 group-hover:opacity-100 max-md:hidden [@media(hover:none)]:hidden">
       <Reply className="h-4 w-4" /></button>
   );
 }
 
 /** Hilo de una conversación: mensajes, notas de voz, fotos, respuestas, "escribiendo…" y caja para escribir. */
-export function Hilo({ conversacionId, alto = 'h-[58vh]' }: { conversacionId: number; alto?: string }) {
+export function Hilo({ conversacionId, alto = 'alto-chat' }: { conversacionId: number; alto?: string }) {
   const api = useApiChat();
   const qc = useQueryClient();
   const clave = ['chat-mensajes', api, conversacionId];

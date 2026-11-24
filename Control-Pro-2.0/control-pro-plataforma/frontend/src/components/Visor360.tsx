@@ -154,7 +154,7 @@ export default function Visor360({ frames, alt, compacto = false }: { frames: st
       </span>
 
       {listo && (
-        <div className={cls('absolute right-3 top-3 flex flex-col gap-1.5 transition', !compacto && 'sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100')}>
+        <div className={cls('absolute right-3 top-3 flex flex-col gap-1.5 transition', !compacto && 'sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 sm:[@media(hover:none)]:opacity-100')}>
           <BotonVisor etiqueta={girando ? 'Pausar giro' : 'Girar automáticamente'} onClick={() => { setTocado(true); setZoom(false); setGirando((g) => !g); }}>
             {girando ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
           </BotonVisor>

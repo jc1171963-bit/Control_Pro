@@ -78,7 +78,13 @@ class Paquete(ConFechas, db.Model):
     asignacion_id: Mapped[int] = mapped_column(ForeignKey("asignacion_surtido.id"), index=True)
     estado: Mapped[str] = mapped_column(String(25), default="preparado")
     peso_kg: Mapped[Decimal | None] = mapped_column(Dinero)
+    # Paquete de reposición: envío adicional (con su propia guía) que resuelve una incidencia de la solicitud.
+    # No cuenta en el surtido original: sale del inventario disponible del almacén.
+    # use_alter: la incidencia también apunta al paquete (ciclo); la llave se crea y se borra aparte.
+    incidencia_id: Mapped[int | None] = mapped_column(ForeignKey("incidencia.id", use_alter=True, name="fk_paquete_incidencia"),
+                                                      index=True)
     asignacion = relationship("AsignacionSurtido", back_populates="paquetes")
+    incidencia = relationship("Incidencia", foreign_keys=[incidencia_id], lazy="select")
     detalles = relationship("PaqueteDetalle", lazy="selectin", cascade="all, delete-orphan")
     envio = relationship("Envio", back_populates="paquete", uselist=False, lazy="selectin")
     __table_args__ = (
@@ -149,6 +155,8 @@ class RecepcionDetalle(db.Model):
     recibida: Mapped[int] = mapped_column(Integer)
     problema: Mapped[str | None] = mapped_column(String(12))
     nota: Mapped[str | None] = mapped_column(String(300))
+    # Fotos o PDF que respaldan el problema de este artículo (URLs de /api/archivos/privados).
+    evidencias: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
     pedido_detalle = relationship("PedidoDetalle", lazy="joined")
     __table_args__ = (
         UniqueConstraint("recepcion_id", "pedido_detalle_id", name="uq_recdet_partida"),

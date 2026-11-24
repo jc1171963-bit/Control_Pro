@@ -131,7 +131,7 @@ export default function PortalLayout() {
       {/* Barra lateral de cristal: en escritorio flota separada de los bordes; en móvil es un drawer. */}
       <aside id="navegacion-portal" ref={panel}
         {...(drawerAbierto ? { role: 'dialog', 'aria-modal': true, 'aria-label': 'Menú de navegación' } : {})}
-        className={cls('fixed inset-y-0 left-0 z-40 flex w-72 max-w-[85vw] flex-col bg-white/90 text-[#142d32] shadow-[0_18px_55px_rgba(25,91,87,.13)] backdrop-blur-2xl transition-[transform,width] duration-200',
+        className={cls('fixed inset-y-0 left-0 z-40 flex w-72 max-w-[85vw] flex-col bg-white/90 pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pt-[env(safe-area-inset-top)] text-[#142d32] shadow-[0_18px_55px_rgba(25,91,87,.13)] backdrop-blur-2xl transition-[transform,width] duration-200',
           'lg:visible lg:inset-y-6 lg:left-6 lg:z-30 lg:max-w-none lg:translate-x-0 lg:rounded-[28px] lg:border lg:border-white/80 lg:bg-white/50',
           rail ? 'lg:w-[72px]' : 'lg:w-64', menu ? 'translate-x-0' : 'invisible -translate-x-full')}>
         <div className={cls('flex min-h-16 items-center justify-between px-4 pt-2 lg:px-5 lg:pt-5', rail && 'lg:hidden')}>
@@ -180,7 +180,7 @@ export default function PortalLayout() {
         <button ref={botonMenu} type="button" onClick={() => setMenu(true)} aria-label="Abrir menú" aria-expanded={drawerAbierto} aria-controls="navegacion-portal"
           className="-ml-1 grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/80 bg-white/60 text-tinta-800 backdrop-blur-md lg:hidden"><Menu className="h-5 w-5" aria-hidden /></button>
         {/* El logotipo vive en la barra lateral; en móvil y con la barra contraída pasa al encabezado. */}
-        <div className={cls('shrink-0', !rail && 'lg:hidden')}><MarcaPortal minima /></div>
+        <div className={cls('min-w-0 shrink', !rail && 'lg:hidden')}><MarcaPortal minima /></div>
         <div className={cls('hidden min-w-0 shrink-0 border-l border-white/80 pl-4', rail && 'lg:block')}>
           <p className="text-xs text-[#71858b]">Portal empresarial</p>
           <p className="max-w-[14rem] truncate font-display font-bold">{nombreSucursal}</p>
@@ -202,7 +202,7 @@ export default function PortalLayout() {
               <span className="grid h-5 min-w-5 place-items-center rounded-full bg-menta-500 px-1 text-[11px] font-bold text-white" aria-hidden>{enCurso.articulos}</span>
             </Link>
           )}
-          <InterruptorTema className="h-10 w-10 shrink-0 sm:h-12 sm:w-12" />
+          <InterruptorTema className="h-10 w-10 shrink-0 max-[399px]:hidden sm:h-12 sm:w-12" />
           <Link to="/cuenta/notificaciones" className="relative grid h-10 w-10 place-items-center sm:h-12 sm:w-12 rounded-full border border-white/80 bg-white/60 text-[#102a31] backdrop-blur-md transition hover:bg-white/80" aria-label={`Notificaciones${noLeidas ? `: ${noLeidas} sin leer` : ''}`}>
             <Bell className="h-5 w-5" aria-hidden />
             {noLeidas > 0 && <span className="absolute right-1.5 top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-[#e43e43] px-1 text-[10px] font-bold text-white" aria-hidden>{noLeidas}</span>}

@@ -80,9 +80,9 @@ export default function GaleriaProducto({ fotos, video, giro, nombre }: {
 
         {vistas.length > 1 && <>
           <button type="button" onClick={() => ir(i - 1)} aria-label="Vista anterior"
-            className="absolute left-3 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-white/85 text-lurima-900 shadow-md opacity-0 backdrop-blur transition hover:bg-white focus-visible:opacity-100 group-hover:opacity-100 max-md:opacity-100"><ChevronLeft className="h-5 w-5" /></button>
+            className="absolute left-3 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-white/85 text-lurima-900 shadow-md opacity-0 backdrop-blur transition hover:bg-white focus-visible:opacity-100 group-hover:opacity-100 max-md:opacity-100 [@media(hover:none)]:opacity-100"><ChevronLeft className="h-5 w-5" /></button>
           <button type="button" onClick={() => ir(i + 1)} aria-label="Vista siguiente"
-            className="absolute right-3 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-white/85 text-lurima-900 shadow-md opacity-0 backdrop-blur transition hover:bg-white focus-visible:opacity-100 group-hover:opacity-100 max-md:opacity-100"><ChevronRight className="h-5 w-5" /></button>
+            className="absolute right-3 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-white/85 text-lurima-900 shadow-md opacity-0 backdrop-blur transition hover:bg-white focus-visible:opacity-100 group-hover:opacity-100 max-md:opacity-100 [@media(hover:none)]:opacity-100"><ChevronRight className="h-5 w-5" /></button>
           <div className="absolute inset-x-0 bottom-3 flex items-center justify-center gap-1.5">
             {vistas.map((_, n) => (
               <button key={n} type="button" onClick={() => ir(n)} aria-label={`Ir a la vista ${n + 1}`} aria-current={n === i ? 'true' : undefined}

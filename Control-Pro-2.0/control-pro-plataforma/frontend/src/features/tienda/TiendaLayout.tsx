@@ -141,7 +141,7 @@ export default function TiendaLayout() {
           </div>
         </div>
         {menu && (
-          <div id="menu-movil" className="max-h-[calc(100vh-6rem)] overflow-y-auto border-t border-lurima-100 bg-white lg:hidden">
+          <div id="menu-movil" className="max-h-[calc(100dvh-6rem)] overflow-y-auto border-t border-lurima-100 bg-white lg:hidden">
             <form onSubmit={buscar} className="contenedor py-3 md:hidden" role="search">
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar productos" aria-label="Buscar productos"
                 className="h-11 w-full rounded-full border-0 bg-lurima-50 px-4 text-sm ring-1 ring-lurima-100 focus:ring-2 focus:ring-lurima-500" />

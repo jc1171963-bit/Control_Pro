@@ -15,6 +15,7 @@ import { AdjuntarEvidencias, GaleriaEvidencias } from '../../components/Archivos
 import FirmaEnLinea from '../../components/FirmaEnLinea';
 import Expediente from '../../components/Expediente';
 import { CabezaIndividual, ContenidoPorPersona, individualesDe } from '../../components/PaqueteIndividual';
+import { ListaReposiciones } from '../../components/Reposiciones';
 import { Aparecer, Etapa, LineaProceso, Palomita } from '../../components/movimiento';
 import ComprobanteEntrega from './ComprobanteEntrega';
 import LineaTiempoSolicitud from '../../components/LineaTiempoSolicitud';
@@ -103,51 +104,98 @@ function RecepcionPaquete({ pq, p, onCerrar }: { pq: Paquete; p: Pedido; onCerra
   const qc = useQueryClient();
   const avisar = useAviso();
   const filas = pq.contenido;
-  const [recibida, setRecibida] = useState<Record<number, number>>(Object.fromEntries(filas.map((c) => [c.pedido_detalle_id, c.cantidad])));
+  // Por artículo: si llegó bien o con problema; con problema, cuántas piezas sirven (en buen estado), tipo, nota y fotos.
   const [problema, setProblema] = useState<Record<number, string>>({});
+  const [buenas, setBuenas] = useState<Record<number, number>>({});
   const [nota, setNota] = useState<Record<number, string>>({});
+  const [fotos, setFotos] = useState<Record<number, string[]>>({});
+  const [fotosPaquete, setFotosPaquete] = useState<string[]>([]);
   const [obs, setObs] = useState('');
+  const conProblema = filas.filter((c) => problema[c.pedido_detalle_id]);
   const m = useMutation({
     mutationFn: () => post(`/cuenta/paquetes/${pq.id}/recepcion`, {
-      completa: true, diferencias: obs || null,
-      partidas: filas.map((c) => ({ pedido_detalle_id: c.pedido_detalle_id, recibida: recibida[c.pedido_detalle_id], problema: problema[c.pedido_detalle_id] || null, nota: nota[c.pedido_detalle_id] || null })),
+      completa: conProblema.length === 0, diferencias: obs || null, evidencias: fotosPaquete,
+      partidas: filas.map((c) => {
+        const id = c.pedido_detalle_id;
+        return problema[id]
+          ? { pedido_detalle_id: id, recibida: buenas[id] ?? 0, problema: problema[id], nota: nota[id] || null, evidencias: fotos[id] || [] }
+          : { pedido_detalle_id: id, recibida: c.cantidad };
+      }),
     }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['pedido', String(p.id)] }); qc.invalidateQueries({ queryKey: ['resumen-sucursal'] }); avisar(`Recepción del paquete ${pq.folio} registrada.`); onCerrar(); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['pedido', String(p.id)] }); qc.invalidateQueries({ queryKey: ['resumen-sucursal'] });
+      avisar(conProblema.length ? `Recepción de ${pq.folio} registrada con incidencia.` : `Recepción del paquete ${pq.folio} registrada.`); onCerrar();
+    },
   });
-  const conDiferencias = filas.some((c) => recibida[c.pedido_detalle_id] < c.cantidad || problema[c.pedido_detalle_id]);
+  const marcar = (id: number, tipo: string) => {
+    setProblema({ ...problema, [id]: tipo });
+    if (tipo && buenas[id] === undefined) setBuenas({ ...buenas, [id]: 0 });
+  };
+  const piezasMal = conProblema.reduce((t, c) => t + c.cantidad - (buenas[c.pedido_detalle_id] ?? 0), 0);
   return (
     <div className="space-y-4">
-      <Aviso>Abre el paquete grande y revisa cada paquete individual con el nombre de la persona. Recibir el paquete <b>no</b> equivale a entregar los artículos a cada empleado.</Aviso>
+      <Aviso>Abre el paquete grande y revisa cada paquete individual con el nombre de la persona. Marca solo lo que llegó con
+        problema; todo lo demás se registra como recibido completo.</Aviso>
       <div className="space-y-4">
       {individualesDe(pq).map((g) => (
       <section key={g.empleado ? `e${g.empleado.id}` : 'sin'} className="rounded-2xl bg-arena-50/60 p-3 ring-1 ring-arena-200"
         aria-label={g.empleado ? `Paquete individual de ${g.empleado.nombre}` : 'Piezas sin asignar'}>
       <CabezaIndividual g={g} />
       <ul className="mt-3 space-y-2">
-        {g.piezas.map((c) => (
-          <li key={c.pedido_detalle_id} className={cls('rounded-xl p-3 ring-1 text-sm', recibida[c.pedido_detalle_id] < c.cantidad || problema[c.pedido_detalle_id] ? 'bg-amber-50 ring-amber-200' : 'bg-white ring-arena-200')}>
+        {g.piezas.map((c) => {
+          const id = c.pedido_detalle_id;
+          const mal = !!problema[id];
+          return (
+          <li key={id} className={cls('rounded-xl p-3 text-sm ring-1', mal ? 'bg-amber-50 ring-amber-200' : 'bg-white ring-arena-200')}>
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span><b>{c.nombre}</b> · {c.talla}{c.color ? <span className="text-tinta-500"> · {c.color}</span> : null}</span>
-              <label className="flex items-center gap-2 text-xs">Recibidas
-                <Selector className="w-20" value={recibida[c.pedido_detalle_id]} onChange={(e) => setRecibida({ ...recibida, [c.pedido_detalle_id]: Number(e.target.value) })}>
-                  {Array.from({ length: c.cantidad + 1 }, (_, i) => <option key={i} value={i}>{i}</option>)}</Selector> de {c.cantidad}</label>
+              <span className="min-w-0"><b>{c.nombre}</b> · {c.talla}{c.color ? <span className="text-tinta-500"> · {c.color}</span> : null}
+                <span className="text-tinta-500"> · {c.cantidad} pieza(s)</span></span>
+              <div role="radiogroup" aria-label={`¿Cómo llegó ${c.nombre}?`} className="flex rounded-full bg-tinta-50 p-0.5 ring-1 ring-tinta-100">
+                <button type="button" role="radio" aria-checked={!mal} onClick={() => marcar(id, '')}
+                  className={cls('min-h-9 rounded-full px-3 text-xs font-semibold transition', !mal ? 'bg-menta-500 text-white shadow' : 'text-tinta-600')}>Llegó bien</button>
+                <button type="button" role="radio" aria-checked={mal} onClick={() => marcar(id, problema[id] || 'danado')}
+                  className={cls('min-h-9 rounded-full px-3 text-xs font-semibold transition', mal ? 'bg-amber-500 text-white shadow' : 'text-tinta-600')}>Con problema</button>
+              </div>
             </div>
-            <div className="mt-2 grid gap-2 sm:grid-cols-[180px_1fr]">
-              <Selector value={problema[c.pedido_detalle_id] || ''} onChange={(e) => setProblema({ ...problema, [c.pedido_detalle_id]: e.target.value })} aria-label={`Problema con ${c.nombre}`}>
-                <option value="">{recibida[c.pedido_detalle_id] < c.cantidad ? 'Faltante' : 'Sin problema'}</option>
-                {Object.entries(PROBLEMAS_RECEPCION).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</Selector>
-              {(recibida[c.pedido_detalle_id] < c.cantidad || problema[c.pedido_detalle_id]) && <Entrada placeholder="Nota (opcional)" value={nota[c.pedido_detalle_id] || ''} onChange={(e) => setNota({ ...nota, [c.pedido_detalle_id]: e.target.value })} />}
-            </div>
+            {mal && (
+              <div className="mt-3 space-y-3">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Campo etiqueta="¿Qué pasó?">
+                    <Selector value={problema[id]} onChange={(e) => marcar(id, e.target.value)} aria-label={`Problema con ${c.nombre}`}>
+                      {Object.entries(PROBLEMAS_RECEPCION).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</Selector>
+                  </Campo>
+                  <Campo etiqueta="Piezas en buen estado" ayuda="Las que sí se pueden entregar.">
+                    <Selector value={buenas[id] ?? 0} onChange={(e) => setBuenas({ ...buenas, [id]: Number(e.target.value) })} aria-label={`Piezas de ${c.nombre} en buen estado`}>
+                      {Array.from({ length: c.cantidad }, (_, i) => <option key={i} value={i}>{i} de {c.cantidad}</option>)}</Selector>
+                  </Campo>
+                </div>
+                <Entrada placeholder="Describe el problema (opcional): manga rota, talla equivocada…" value={nota[id] || ''} onChange={(e) => setNota({ ...nota, [id]: e.target.value })} aria-label={`Nota sobre ${c.nombre}`} />
+                <div>
+                  <p className="mb-1.5 text-xs font-semibold text-tinta-700">Fotos del problema <span className="font-normal text-tinta-500">(recomendado)</span></p>
+                  <AdjuntarEvidencias valor={fotos[id] || []} onCambio={(u) => setFotos({ ...fotos, [id]: u })} pdf={false} />
+                </div>
+              </div>
+            )}
           </li>
-        ))}
+          );
+        })}
       </ul>
       </section>
       ))}
       </div>
+      <Campo etiqueta="Fotos del paquete (opcional)" ayuda="Caja golpeada, abierta o mojada, etiqueta, etc.">
+        <AdjuntarEvidencias valor={fotosPaquete} onCambio={setFotosPaquete} pdf={false} max={6} />
+      </Campo>
       <Campo etiqueta="Observaciones generales (opcional)"><Texto value={obs} onChange={(e) => setObs(e.target.value)} /></Campo>
-      {conDiferencias && <Aviso tipo="alerta">Se registrará como recepción parcial y se abrirá una incidencia para darle seguimiento.</Aviso>}
+      {conProblema.length > 0 && (
+        <Aviso tipo="alerta">
+          <b>{piezasMal} pieza(s) con problema.</b> Se abrirá una incidencia con tus fotos. La entrega a cada persona solo pedirá lo
+          que llegó en buen estado, y lo que falta llegará en un <b>envío de reposición con su propia guía</b>.
+        </Aviso>
+      )}
       <ErrorCaja error={m.error} />
-      <div className="flex justify-end gap-2"><Boton variante="secundario" onClick={onCerrar}>Cancelar</Boton><Boton cargando={m.isPending} onClick={() => m.mutate()}>Confirmar recepción</Boton></div>
+      <div className="flex flex-wrap justify-end gap-2"><Boton variante="secundario" onClick={onCerrar}>Cancelar</Boton>
+        <Boton cargando={m.isPending} onClick={() => m.mutate()}>{conProblema.length ? 'Registrar recepción con incidencia' : 'Confirmar recepción completa'}</Boton></div>
     </div>
   );
 }
@@ -316,6 +364,7 @@ function TarjetaIncidencia({ i }: { i: Incidencia }) {
       </button>
       <p className="mt-1 text-xs text-tinta-600">{i.descripcion}</p>
       {!!i.evidencias?.length && <div className="mt-2"><GaleriaEvidencias urls={i.evidencias} titulo={`Evidencia de ${i.folio}`} /></div>}
+      <ListaReposiciones paquetes={i.reposiciones} />
       {abierta && <HistorialIncidencia i={i} />}
       <Link to={`/cuenta/incidencias/${i.id}`} className="mt-2 inline-flex min-h-8 items-center text-xs font-semibold text-menta-700 hover:underline">{i.estado === 'resuelta' ? 'Confirmar o reabrir' : 'Abrir conversación'}</Link>
     </div>
@@ -443,9 +492,11 @@ export default function DetalleSolicitud({ p }: { p: Pedido }) {
           <div className="space-y-4">
             {p.paquetes.map((pq, i) => (
               <Aparecer key={pq.id} orden={i}>
-                <div className="rounded-xl p-4 ring-1 ring-arena-200">
+                <div className={cls('rounded-xl p-4 ring-1', pq.reposicion ? 'bg-sky-50/50 ring-sky-200' : 'ring-arena-200')}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="flex items-center gap-2 font-semibold"><Package className="h-4 w-4 text-menta-600" />{pq.folio}<span className="text-xs font-normal text-tinta-400">desde {pq.sucursal} · {fechaHora(pq.creado)}</span></p>
+                    <p className="flex min-w-0 flex-wrap items-center gap-2 font-semibold"><Package className="h-4 w-4 text-menta-600" />{pq.folio}
+                      {pq.reposicion && <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-bold text-sky-800">Reposición de la incidencia {pq.reposicion.folio}</span>}
+                      <span className="text-xs font-normal text-tinta-400">desde {pq.sucursal} · {fechaHora(pq.creado)}</span></p>
                     {pq.estado === 'entregado' && !pq.recepcion && <Boton tam="sm" icono={<ClipboardCheck className="h-3.5 w-3.5" />} onClick={() => setRecibir(pq)}>Registrar recepción</Boton>}
                   </div>
                   <div className="mt-4 overflow-x-auto rounded-lg pb-1" tabIndex={0} role="region" aria-label={`Avance del paquete ${pq.folio}`}><div className="min-w-[420px]"><LineaProceso compacta etapas={etapasPaquete(pq)} /></div></div>
@@ -463,7 +514,12 @@ export default function DetalleSolicitud({ p }: { p: Pedido }) {
                       <p className="font-semibold">Recepción {etiqueta(pq.recepcion.estado).toLowerCase()} · {fechaHora(pq.recepcion.fecha)}</p>
                       {pq.recepcion.detalles.filter((x) => x.problema).map((x) => {
                         const c = pq.contenido.find((y) => y.pedido_detalle_id === x.pedido_detalle_id);
-                        return <p key={x.pedido_detalle_id}><AlertTriangle className="mr-1 inline h-3 w-3" />{c?.nombre}{c?.empleado ? ` (${c.empleado})` : ''}: {PROBLEMAS_RECEPCION[x.problema!]} · recibidas {x.recibida} de {x.esperada}{x.nota ? ` — ${x.nota}` : ''}</p>;
+                        return (
+                          <div key={x.pedido_detalle_id} className="mt-1">
+                            <p><AlertTriangle className="mr-1 inline h-3 w-3" />{c?.nombre}{c?.empleado ? ` (${c.empleado})` : ''}: {PROBLEMAS_RECEPCION[x.problema!]} · en buen estado {x.recibida} de {x.esperada}{x.nota ? ` — ${x.nota}` : ''}</p>
+                            {!!x.evidencias?.length && <div className="mt-1.5"><GaleriaEvidencias urls={x.evidencias} titulo={`Fotos de ${c?.nombre ?? 'el artículo'}`} /></div>}
+                          </div>
+                        );
                       })}
                       {pq.recepcion.diferencias && !pq.recepcion.detalles.length && <p>{pq.recepcion.diferencias}</p>}
                     </div>

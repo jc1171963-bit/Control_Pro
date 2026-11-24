@@ -79,6 +79,29 @@
   .texto-equilibrado { text-wrap: balance; }
 }
 
+/* ===== iPhone, iPad y pantallas táctiles ===== */
+@layer base {
+  html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
+  /* Con viewport-fit=cover la app llega hasta el notch y la barra de inicio del iPhone: el contenido se separa de esas
+     zonas y el fondo del panel las cubre (sin franjas blancas). En equipos sin notch los márgenes valen 0. */
+  body { padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+  body:has(.tema-sd) { background-color: #d9eee9; }
+  body:has(.tema-lu) { background-color: #e8eef8; }
+}
+/* Alto del chat: en iPhone `vh` cuenta la pantalla sin las barras de Safari, así que la caja de escribir quedaba
+   tapada; `dvh` usa el alto visible real (con respaldo en `vh` para navegadores anteriores). */
+@layer components {
+  .alto-chat { height: 58vh; height: 58dvh; min-height: 20rem; }
+  @media (max-width: 1023px) { .alto-chat { height: 64vh; height: 64dvh; } }
+}
+/* Safari del iPhone acerca la pantalla al tocar un campo con letra menor a 16 px (y no la regresa). En pantallas
+   táctiles todos los campos usan 16 px; en computadora conservan su tamaño. */
+@media (pointer: coarse) {
+  input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=color]), textarea, select {
+    font-size: 16px !important;
+  }
+}
+
 /* ===== MODO OSCURO ===== */
 /* Modo oscuro de los paneles (sucursales, aprobador y distribuidora). La clase `oscuro` en <html> la ponen solo los
    layouts de los paneles (app/tema.ts). Superficies azul noche; los acentos de cada marca se conservan.

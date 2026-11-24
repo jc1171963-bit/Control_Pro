@@ -22,6 +22,7 @@ export const ESTADOS: Record<string, [string, Tono]> = {
   en_surtido: ['En surtido', 'azul'], empacada: ['Empacada', 'azul'], despachada: ['Despachada', 'violeta'], entregada: ['Entregada', 'verde'],
   cancelada: ['Cancelada', 'gris'], preparado: ['Preparado', 'azul'], despachado: ['Despachado', 'violeta'], en_transito: ['En tránsito', 'violeta'],
   listo_para_recoger: ['Listo para recoger', 'menta'], incidencia: ['Con incidencia', 'coral'],
+  recepcion_completa: ['Recibida completa', 'verde'], recepcion_parcial: ['Recibida con problema', 'coral'],
   // devoluciones / transferencias / incidencias
   solicitada: ['Solicitada', 'ambar'], autorizada: ['Autorizada', 'azul'], rechazada: ['Rechazada', 'coral'], en_camino: ['En camino', 'violeta'],
   recibida: ['Recibida', 'menta'], recibida_parcial: ['Recibida con faltantes', 'coral'], inspeccionada: ['Inspeccionada', 'azul'],

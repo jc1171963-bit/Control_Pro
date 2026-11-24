@@ -26,7 +26,7 @@ import ConfirmarEnvio from '../portal/ConfirmarEnvio';
 type Linea = PartidaSolicitud & { clave: string; nombre: string; talla: string; color: string; imagen: string | null; producto_id: number | null };
 const PASOS = ['Empleados', 'Artículos', 'Revisar y enviar'];
 // En pantallas pequeñas la acción principal queda fija al pie de la tarjeta (las listas son largas); desde 1024 px vuelve a su lugar.
-const barraAccion = 'sticky bottom-0 z-10 -mx-5 -mb-5 mt-5 rounded-b-2xl border-t border-tinta-100 bg-white/95 px-5 py-3 backdrop-blur lg:static lg:z-auto lg:m-0 lg:mt-5 lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none';
+const barraAccion = 'sticky bottom-0 z-10 -mx-5 -mb-5 mt-5 rounded-b-2xl border-t border-tinta-100 bg-white/95 px-5 py-3 pb-[max(.75rem,env(safe-area-inset-bottom))] backdrop-blur lg:static lg:z-auto lg:m-0 lg:mt-5 lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none';
 
 function SelectorArticulo({ producto, empleado, puestos, onAgregar, onCerrar }: {
   producto: ProductoResumen; empleado: EmpleadoCorporativo; puestos: PuestosAutorizados | undefined;

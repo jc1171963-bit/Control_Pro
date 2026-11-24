@@ -15,8 +15,8 @@ from ..models import (AsignacionDetalle, AsignacionSurtido, EntregaIndividual, E
                       ReservaInventario, ahora)
 from . import inventario_service as inv_srv
 from . import pedido_service as ped
-from .comun import (actor_ids, asignar_folio, auditar, dinero, notificar_cliente, registrar_historial,
-                    registrar_incidencia)
+from .comun import (actor_ids, asignar_folio, auditar, cambiar_estado, dinero, notificar_cliente, notificar_personal,
+                    registrar_historial, registrar_incidencia)
 
 ACTIVOS = {"confirmado", "en_preparacion", "parcialmente_enviado", "enviado", "parcialmente_entregado"}
 
@@ -123,8 +123,9 @@ def _actualizar_asignacion(a: AsignacionSurtido):
         _estado_asig(a, "cancelada")
         return
     if all(d.despachada == q for q, d in efectivo):
-        entregados = all(p.estado in {"entregado", "cancelado"} for p in a.paquetes)
-        _estado_asig(a, "entregada" if entregados and a.paquetes else "despachada")
+        normales = [p for p in a.paquetes if p.incidencia_id is None]  # las reposiciones no cambian el surtido
+        entregados = all(p.estado in {"entregado", "cancelado"} for p in normales)
+        _estado_asig(a, "entregada" if entregados and normales else "despachada")
     elif all(d.empacada == q for q, d in efectivo):
         _estado_asig(a, "empacada")
 
@@ -153,7 +154,7 @@ def _validar_por_persona(a: AsignacionSurtido, paq: Paquete, ids_en_paquete: set
                             f"Agrega también: {faltan}.", codigo="persona_dividida",
                             detalles={"empleado_id": emp_id, "asignacion_detalle_ids": [d.id for d in sueltas]})
         ids_suyas = {d.id for d in suyas}
-        otro = next((p for p in a.paquetes if p is not paq and p.estado == "preparado"
+        otro = next((p for p in a.paquetes if p is not paq and p.estado == "preparado" and p.incidencia_id is None
                      and any(x.asignacion_detalle_id in ids_suyas for x in p.detalles)), None)
         if otro:
             raise Conflicto(f"{nombre} ya tiene piezas en el paquete {otro.folio}, que aún no sale. "
@@ -207,6 +208,8 @@ def agregar_a_paquete(a: AsignacionSurtido, paq: Paquete, partidas: list[dict]) 
     """Agrega piezas a un paquete que aún no sale (para completar el paquete individual de una persona)."""
     if paq.asignacion_id != a.id:
         raise NoEncontrado("El paquete no pertenece a esta asignación.")
+    if paq.incidencia_id:
+        raise TransicionInvalida("Es un paquete de reposición; su contenido se define desde la incidencia.")
     if paq.estado != "preparado":
         raise TransicionInvalida("Solo se pueden agregar piezas a un paquete que aún no sale.")
     if a.estado not in {"en_surtido", "empacada"}:
@@ -225,8 +228,10 @@ def _salida(paq: Paquete, a: AsignacionSurtido, pedido: Pedido):
         d = pd.asignacion_detalle
         inv = invs[(a.sucursal_id, d.pedido_detalle.variante_id)]
         inv.comprometido -= pd.cantidad
-        inv_srv.movimiento(inv, "salida_venta", -pd.cantidad, f"Salida de {paq.folio} ({pedido.folio})", "paquete", paq.id)
-        d.despachada += pd.cantidad
+        motivo = f"Reposición {paq.folio} ({pedido.folio})" if paq.incidencia_id else f"Salida de {paq.folio} ({pedido.folio})"
+        inv_srv.movimiento(inv, "salida_venta", -pd.cantidad, motivo, "paquete", paq.id)
+        if not paq.incidencia_id:  # la reposición es mercancía adicional: no avanza el surtido original
+            d.despachada += pd.cantidad
 
 
 def despachar(paq: Paquete, paqueteria: str, guia: str):
@@ -247,8 +252,13 @@ def despachar(paq: Paquete, paqueteria: str, guia: str):
     db.session.add(envio)
     _actualizar_asignacion(a)
     ped.recalcular(pedido)
-    notificar_cliente(pedido.cliente_id, f"paquete_despachado_{paq.id}", "paquete", paq.id,
-                      f"Tu paquete {paq.folio} salió con {paqueteria}, guía {guia}.", f"/cuenta/pedidos/{pedido.id}")
+    if paq.incidencia_id:
+        inc = paq.incidencia
+        _nota_incidencia(inc, f"Reposición {paq.folio} enviada con {paqueteria.strip()}, guía {guia.strip()}.")
+        aviso = f"La reposición de la incidencia {inc.folio} salió: paquete {paq.folio} con {paqueteria}, guía {guia}."
+    else:
+        aviso = f"Tu paquete {paq.folio} salió con {paqueteria}, guía {guia}."
+    notificar_cliente(pedido.cliente_id, f"paquete_despachado_{paq.id}", "paquete", paq.id, aviso, f"/cuenta/pedidos/{pedido.id}")
     auditar("paquete.despachar", "paquete", paq.id, despues={"paqueteria": paqueteria, "guia": guia},
             sucursal_id=a.sucursal_id)
     db.session.commit()
@@ -357,11 +367,44 @@ def contenido_por_partida(paq: Paquete) -> dict[int, int]:
     return total
 
 
+def _nota_incidencia(inc, comentario: str, estado: str | None = None, resolucion: str | None = None):
+    """Agrega una entrada al seguimiento de la incidencia (y cambia su estado si se indica). No hace commit."""
+    from ..models import IncidenciaSeguimiento
+    from .devolucion_service import TRANSICIONES_INCIDENCIA
+    anterior = inc.estado
+    if estado and estado != inc.estado and estado in TRANSICIONES_INCIDENCIA.get(inc.estado, set()):
+        if resolucion:
+            inc.resolucion = resolucion
+        cambiar_estado(inc, "incidencia", estado, TRANSICIONES_INCIDENCIA, comentario)
+    usuario_id, cliente_id = actor_ids()
+    db.session.add(IncidenciaSeguimiento(incidencia_id=inc.id, estado_anterior=anterior, estado_nuevo=inc.estado,
+                                         comentario=comentario, adjuntos=[], usuario_id=usuario_id, cliente_id=cliente_id))
+
+
+def _ajustar_entregas(paq: Paquete, faltan: dict[int, int]):
+    """Lo que no llegó en buen estado no se entrega al empleado: se descuenta de su entrega individual (y de lo
+    entregado en la solicitud). Así la entrega pide solo lo que de verdad está en la sucursal y no se abre una
+    segunda incidencia por el mismo problema; lo que falta llega en la reposición, con su propia entrega."""
+    for ent in db.session.scalars(select(EntregaIndividual).where(EntregaIndividual.paquete_id == paq.id)).all():
+        for det in list(ent.detalles):
+            menos = min(faltan.get(det.pedido_detalle_id, 0), det.esperada)
+            if not menos:
+                continue
+            det.esperada -= menos
+            det.pedido_detalle.cantidad_entregada -= menos
+            if det.esperada == 0:
+                ent.detalles.remove(det)  # delete-orphan: se borra al guardar
+        if not ent.detalles:
+            db.session.delete(ent)
+
+
 def registrar_recepcion(paq: Paquete, cliente_id: int, completa: bool, diferencias: str | None,
-                        partidas: list[dict] | None = None):
+                        partidas: list[dict] | None = None, evidencias: list[str] | None = None):
     """Recepción física del paquete por la sucursal. No equivale a la entrega a cada empleado.
 
-    `partidas` (opcional): [{pedido_detalle_id, recibida, problema, nota}] para registrar diferencias por artículo.
+    `partidas` (opcional): [{pedido_detalle_id, recibida, problema, nota, evidencias}] por artículo. `recibida` son
+    las piezas que llegaron EN BUEN ESTADO (las que se pueden entregar); si hay problema, debe ser menor a lo esperado.
+    `evidencias`: fotos generales del paquete (caja golpeada, etiqueta, etc.).
     """
     a = paq.asignacion
     pedido = a.pedido
@@ -372,7 +415,7 @@ def registrar_recepcion(paq: Paquete, cliente_id: int, completa: bool, diferenci
     if db.session.scalars(select(Recepcion).where(Recepcion.paquete_id == paq.id)).first():
         raise Conflicto("La recepción de este paquete ya fue registrada.")
     esperado = contenido_por_partida(paq)
-    detalles, lineas = [], []
+    detalles, lineas, faltan, fotos = [], [], {}, list(dict.fromkeys(evidencias or []))
     for p in partidas or []:
         pid = p["pedido_detalle_id"]
         if pid not in esperado:
@@ -384,14 +427,20 @@ def registrar_recepcion(paq: Paquete, cliente_id: int, completa: bool, diferenci
             problema = "faltante"
         if problema and problema not in PROBLEMAS_RECEPCION:
             raise AppError("Tipo de problema inválido.")
+        pdet = db.session.get(PedidoDetalle, pid)
+        if problema and recibida >= esperado[pid]:
+            raise AppError(f"{pdet.nombre} ({pdet.talla}): si hay un problema, en «en buen estado» anota solo las piezas "
+                           f"que sí se pueden entregar (menos de {esperado[pid]}).", codigo="recibida_con_problema")
         nota = (p.get("nota") or "").strip() or None
+        propias = list(dict.fromkeys(p.get("evidencias") or [])) if problema else []
         detalles.append(RecepcionDetalle(pedido_detalle_id=pid, esperada=esperado[pid], recibida=recibida,
-                                         problema=problema, nota=nota))
+                                         problema=problema, nota=nota, evidencias=propias))
         if problema:
-            pdet = db.session.get(PedidoDetalle, pid)
+            fotos += [u for u in propias if u not in fotos]
+            faltan[pid] = esperado[pid] - recibida
             destinatario = pdet.empleado.nombre if pdet.empleado else "sin empleado"
             lineas.append((pdet, f"{pdet.nombre} ({pdet.talla}) para {destinatario}: {PROBLEMAS_RECEPCION[problema]}, "
-                                 f"recibidas {recibida} de {esperado[pid]}" + (f" — {nota}" if nota else "")))
+                                 f"en buen estado {recibida} de {esperado[pid]}" + (f" — {nota}" if nota else "")))
     if detalles:
         completa = not lineas
         if lineas:
@@ -403,14 +452,23 @@ def registrar_recepcion(paq: Paquete, cliente_id: int, completa: bool, diferenci
                     diferencias=None if completa else diferencias.strip(), cliente_id=cliente_id)
     rec.detalles = detalles
     db.session.add(rec)
+    if fotos:
+        from ..api.archivos import dueno_actual, vincular_a_pedido
+        vincular_a_pedido(fotos, pedido.id, dueno_actual())
+    if faltan:
+        _ajustar_entregas(paq, faltan)
     if not completa:
         unico = lineas[0][0] if len(lineas) == 1 else None
         registrar_incidencia(tipo="diferencia_recepcion", prioridad="alta", pedido_id=pedido.id, paquete_id=paq.id,
-                             sucursal_id=a.sucursal_id, descripcion=diferencias.strip(),
+                             sucursal_id=a.sucursal_id, descripcion=diferencias.strip(), evidencias=fotos,
                              pedido_detalle_id=unico.id if unico else None,
                              empleado_id=unico.empleado_id if unico else None)
+    elif paq.incidencia_id and paq.incidencia.estado in {"abierta", "en_atencion"}:
+        # La reposición llegó completa y en buen estado: la incidencia queda resuelta y la sucursal confirma el cierre.
+        _nota_incidencia(paq.incidencia, f"La sucursal recibió completa la reposición {paq.folio}.", estado="resuelta",
+                         resolucion=f"Reposición {paq.folio} recibida completa y en buen estado.")
     auditar("recepcion.registrar", "paquete", paq.id, despues={"completa": completa, "diferencias": diferencias,
-                                                               "partidas": partidas or []})
+                                                               "partidas": partidas or [], "evidencias": fotos})
     db.session.commit()
     return rec
 
@@ -487,3 +545,98 @@ def registrar_conformidad(ent: EntregaIndividual, cliente_id: int, valoracion: i
             despues={"valoracion": valoracion, "problema": problema, "estado": ent.estado})
     db.session.commit()
     return ent
+
+
+# ---------------------------------------------------------------- reposición de incidencias (envío adicional con guía)
+
+def reposicion_sugerida(inc) -> list[dict]:
+    """Lo que habría que reponer según la incidencia: lo que no llegó en buen estado en la recepción del paquete o,
+    si la incidencia señala un artículo, una pieza de ese artículo."""
+    if inc.paquete_id:
+        rec = db.session.scalars(select(Recepcion).where(Recepcion.paquete_id == inc.paquete_id)).first()
+        if rec:
+            sugerida = [{"pedido_detalle_id": d.pedido_detalle_id, "cantidad": d.esperada - d.recibida}
+                        for d in rec.detalles if d.recibida < d.esperada]
+            if sugerida:
+                return sugerida
+    if inc.pedido_detalle_id:
+        return [{"pedido_detalle_id": inc.pedido_detalle_id, "cantidad": 1}]
+    return []
+
+
+def preparar_reposicion(inc, partidas: list[dict]) -> list[Paquete]:
+    """Prepara el paquete de reposición de una incidencia: piezas nuevas del inventario disponible del almacén que
+    surtió cada artículo, agrupadas por persona. Sale con su propia paquetería y guía (despacho normal); al llegar, la
+    sucursal registra su recepción y entrega a cada empleado como con cualquier paquete.
+
+    partidas: [{pedido_detalle_id, cantidad}]. Si los artículos los surtieron dos almacenes, se arma un paquete por
+    almacén."""
+    if not inc.pedido_id:
+        raise AppError("Solo las incidencias de una solicitud se resuelven con reposición.")
+    if inc.estado not in {"abierta", "en_atencion"}:
+        raise TransicionInvalida("La incidencia ya está resuelta o cerrada.")
+    pedido = ped.bloquear_pedido(inc.pedido_id)
+    por_asig: dict[int, list[tuple[AsignacionDetalle, int]]] = {}
+    preferida = db.session.get(Paquete, inc.paquete_id).asignacion_id if inc.paquete_id else None
+    vistos = set()
+    for p in partidas:
+        pid, cant = int(p["pedido_detalle_id"]), int(p["cantidad"])
+        if cant <= 0:
+            continue
+        if pid in vistos:
+            raise AppError("Cada artículo va una sola vez en la reposición.")
+        vistos.add(pid)
+        pdet = db.session.get(PedidoDetalle, pid)
+        if not pdet or pdet.pedido_id != pedido.id:
+            raise NoEncontrado("El artículo no pertenece a la solicitud.")
+        if cant > pdet.cantidad:
+            raise AppError(f"{pdet.nombre} ({pdet.talla}): no se pueden reponer más de {pdet.cantidad} pieza(s).")
+        opciones = [ad for a in pedido.asignaciones if a.estado != "cancelada" for ad in a.detalles if ad.pedido_detalle_id == pid]
+        if not opciones:
+            raise Conflicto(f"{pdet.nombre} ({pdet.talla}) no tiene almacén asignado.")
+        ad = next((o for o in opciones if o.asignacion_id == preferida), opciones[0])
+        por_asig.setdefault(ad.asignacion_id, []).append((ad, cant))
+    if not por_asig:
+        raise AppError("Indica al menos una pieza a reponer.")
+    paquetes = []
+    for aid, items in por_asig.items():
+        a = bloquear_asignacion(aid)
+        invs = inv_srv.bloquear_varios([(a.sucursal_id, ad.pedido_detalle.variante_id) for ad, _ in items])
+        paq = Paquete(asignacion_id=a.id, estado="preparado", incidencia_id=inc.id)
+        for ad, cant in sorted(items, key=lambda x: (x[0].pedido_detalle.empleado.nombre if x[0].pedido_detalle.empleado else "~")):
+            inv = invs[(a.sucursal_id, ad.pedido_detalle.variante_id)]
+            disponible = inv.fisico - inv.reservado - inv.comprometido
+            if disponible < cant:
+                raise Conflicto(f"Sin existencia suficiente de {ad.pedido_detalle.sku} en {a.sucursal.nombre} "
+                                f"(disponible {disponible}, se necesitan {cant}).", codigo="sin_existencia")
+            inv.comprometido += cant  # apartado hasta que salga el paquete
+            paq.detalles.append(PaqueteDetalle(asignacion_detalle_id=ad.id, cantidad=cant))
+        db.session.add(paq)
+        asignar_folio(paq, "PAQ")
+        paquetes.append(paq)
+    resumen = ", ".join(p.folio for p in paquetes)
+    _nota_incidencia(inc, f"Se preparó la reposición {resumen}. Saldrá con su propia guía.", estado="en_atencion")
+    notificar_cliente(pedido.cliente_id, f"reposicion_{inc.id}_{paquetes[0].id}", "incidencia", inc.id,
+                      f"Estamos preparando la reposición de la incidencia {inc.folio} ({resumen}).",
+                      f"/cuenta/pedidos/{pedido.id}")
+    auditar("incidencia.reposicion", "incidencia", inc.id, despues={"paquetes": [p.id for p in paquetes],
+                                                                     "partidas": partidas}, sucursal_id=inc.sucursal_id)
+    db.session.commit()
+    return paquetes
+
+
+def cancelar_reposicion(paq: Paquete):
+    """Cancela un paquete de reposición que aún no sale y libera lo apartado."""
+    if not paq.incidencia_id:
+        raise TransicionInvalida("Solo se cancelan aquí los paquetes de reposición.")
+    if paq.estado != "preparado":
+        raise TransicionInvalida("El paquete ya salió; no se puede cancelar.")
+    a = bloquear_asignacion(paq.asignacion_id)
+    invs = inv_srv.bloquear_varios([(a.sucursal_id, x.asignacion_detalle.pedido_detalle.variante_id) for x in paq.detalles])
+    for x in paq.detalles:
+        invs[(a.sucursal_id, x.asignacion_detalle.pedido_detalle.variante_id)].comprometido -= x.cantidad
+    paq.estado = "cancelado"
+    _nota_incidencia(paq.incidencia, f"Se canceló la reposición {paq.folio} antes de salir.")
+    auditar("paquete.cancelar_reposicion", "paquete", paq.id, sucursal_id=a.sucursal_id)
+    db.session.commit()
+    return paq

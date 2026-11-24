@@ -172,7 +172,9 @@ def paquete(pq, interno=True):
                           "empleado_id": pd.empleado_id, "puesto": pd.empleado.puesto if pd.empleado else None})
     d = {"id": pq.id, "folio": pq.folio, "estado": pq.estado, "peso_kg": m(pq.peso_kg), "creado": f(pq.creado),
          "sucursal": pq.asignacion.sucursal.nombre, "contenido": contenido, "individuales": individuales(contenido),
-         "envio": None}
+         "envio": None,
+         # Envío adicional que repone lo que llegó mal o no llegó: lleva su propia guía y su propia recepción.
+         "reposicion": {"incidencia_id": pq.incidencia_id, "folio": pq.incidencia.folio} if pq.incidencia_id else None}
     if pq.envio:
         e = pq.envio
         d["envio"] = {"paqueteria": e.paqueteria, "guia": e.guia, "estado": e.estado, "proveedor": e.proveedor,
@@ -252,7 +254,8 @@ def pedido(p, interno=False):
             r = recs.get(pq["id"])
             pq["recepcion"] = {"estado": r.estado, "diferencias": r.diferencias, "fecha": f(r.creado),
                                "detalles": [{"pedido_detalle_id": x.pedido_detalle_id, "esperada": x.esperada,
-                                             "recibida": x.recibida, "problema": x.problema, "nota": x.nota}
+                                             "recibida": x.recibida, "problema": x.problema, "nota": x.nota,
+                                             "evidencias": x.evidencias or []}
                                             for x in r.detalles]} if r else None
         d["entregas_individuales"] = [entrega_individual(e) for e in db.session.scalars(
             select(EntregaIndividual).where(EntregaIndividual.paquete_id.in_(paq_ids or [-1])).order_by(EntregaIndividual.id)).unique()]
@@ -310,6 +313,12 @@ def incidencia(i, interno=True):
              "respondio_sucursal": bool(i.seguimiento and i.seguimiento[-1].cliente_id and i.estado not in ("resuelta", "cerrada"))}
     if interno:
         extra["transiciones"] = transiciones_personal(i)
+        from ..services.logistica_service import reposicion_sugerida
+        extra["reposicion_sugerida"] = reposicion_sugerida(i) if i.pedido_id else []
+    if i.pedido_id:
+        from ..models import Paquete
+        extra["reposiciones"] = [paquete(pq) for pq in db.session.scalars(
+            select(Paquete).where(Paquete.incidencia_id == i.id).order_by(Paquete.id)).unique()]
     return {**extra, "id": i.id, "folio": i.folio, "tipo": i.tipo, "prioridad": i.prioridad, "estado": i.estado,
             "pedido_id": i.pedido_id, "paquete_id": i.paquete_id, "devolucion_id": i.devolucion_id,
             "transferencia_id": i.transferencia_id, "sucursal_id": i.sucursal_id, "descripcion": i.descripcion,

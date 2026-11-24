@@ -13,6 +13,7 @@ import { Aviso, Boton, Cargando, Campo, ErrorCaja, Estado, Modal, Paginacion, Ta
 import { AdjuntarEvidencias, GaleriaEvidencias } from '../../components/Archivos';
 import { cls, fechaHora, tipoIncidencia } from '../../lib/formato';
 import { HistorialIncidencia } from './DetalleSolicitud';
+import { ListaReposiciones } from '../../components/Reposiciones';
 
 const FILTROS: [string, string][] = [['abierta,en_atencion', 'En curso'], ['resuelta', 'Por confirmar'], ['cerrada', 'Cerradas'], ['', 'Todas']];
 
@@ -87,6 +88,8 @@ export function IncidenciaSucursal() {
         <p className="rounded-lg bg-tinta-50 p-3 text-sm"><b>Descripción:</b> {i.descripcion}</p>
         {(i.empleado || i.articulo) && <p className="mt-2 text-xs text-tinta-600"><b>Relacionada con:</b> {[i.empleado && `${i.empleado.nombre} (${i.empleado.puesto})`, i.articulo && `${i.articulo.nombre} talla ${i.articulo.talla}`].filter(Boolean).join(' · ')}</p>}
         {!!i.evidencias?.length && <div className="mt-3"><GaleriaEvidencias urls={i.evidencias} titulo={`Evidencia de ${i.folio}`} /></div>}
+        {!!i.reposiciones?.length && <div className="mt-4"><p className="text-xs font-bold uppercase tracking-wide text-tinta-500">Envío de reposición</p>
+          <ListaReposiciones paquetes={i.reposiciones} /></div>}
 
         {i.estado === 'resuelta' && i.cierre_por_sucursal && (
           <div className="mt-4 space-y-3 rounded-xl bg-menta-50 p-4 ring-1 ring-menta-200">

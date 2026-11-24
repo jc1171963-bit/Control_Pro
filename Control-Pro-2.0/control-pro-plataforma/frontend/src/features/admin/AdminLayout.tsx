@@ -62,8 +62,8 @@ export default function AdminLayout() {
       <FondoPortal paleta="lurima" />
       {abierto && <div className="fixed inset-0 z-30 bg-lurima-950/40 backdrop-blur-sm lg:hidden" onClick={() => setAbierto(false)} aria-hidden />}
 
-      <aside className={cls('fixed inset-y-0 left-0 z-40 flex w-72 max-w-[85vw] flex-col overflow-hidden bg-white/90 shadow-[0_18px_55px_rgba(18,58,115,.15)] backdrop-blur-2xl transition-transform duration-200',
-        'lg:inset-y-6 lg:left-6 lg:w-64 lg:translate-x-0 lg:rounded-[28px] lg:border lg:border-white/80 lg:bg-white/55', abierto ? 'translate-x-0' : '-translate-x-full')}>
+      <aside className={cls('fixed inset-y-0 left-0 z-40 flex w-72 max-w-[85vw] flex-col overflow-hidden bg-white/90 pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pt-[env(safe-area-inset-top)] shadow-[0_18px_55px_rgba(18,58,115,.15)] backdrop-blur-2xl transition-transform duration-200',
+        'lg:visible lg:inset-y-6 lg:left-6 lg:w-64 lg:translate-x-0 lg:rounded-[28px] lg:border lg:border-white/80 lg:bg-white/55', abierto ? 'translate-x-0' : 'invisible -translate-x-full')}>
         <div className="h-1 shrink-0 bg-gradient-to-r from-lurima-500 via-bienestar-500 to-coral-500" aria-hidden />
         <div className="flex min-h-16 items-center justify-between px-4 pt-3 lg:px-5">
           <MarcaLurima />

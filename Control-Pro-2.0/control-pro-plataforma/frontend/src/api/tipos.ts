@@ -66,7 +66,9 @@ export type Paquete = {
   envio: null | { paqueteria: string; guia: string; estado: string; proveedor: string; rastreo_externo: boolean;
     eventos: { estado: string; descripcion: string; origen: string; fecha: string }[] };
   recepcion?: { estado: string; diferencias: string | null; fecha: string;
-    detalles: { pedido_detalle_id: number; esperada: number; recibida: number; problema: string | null; nota: string | null }[] } | null;
+    detalles: { pedido_detalle_id: number; esperada: number; recibida: number; problema: string | null; nota: string | null; evidencias?: string[] }[] } | null;
+  /** Paquete de reposición: envío adicional (con su propia guía) que resuelve una incidencia de la solicitud. */
+  reposicion?: { incidencia_id: number; folio: string } | null;
 };
 export type DetallePedido = {
   id: number; variante_id: number; sku: string; nombre: string; talla: string; color: string; cantidad: number;
@@ -104,6 +106,10 @@ export type Incidencia = {
   articulo: { pedido_detalle_id: number; nombre: string; talla: string; sku: string } | null;
   seguimiento: { fecha: string; anterior: string | null; nuevo: string; comentario: string | null; actor: string; responsable: string | null; adjuntos?: string[] }[];
   pedido_folio?: string | null; cierre_por_sucursal?: boolean; respondio_sucursal?: boolean; transiciones?: string[];
+  /** Paquetes de reposición de esta incidencia (con su guía y su estado). */
+  reposiciones?: Paquete[];
+  /** Solo personal: lo que conviene reponer según la recepción o el artículo señalado. */
+  reposicion_sugerida?: { pedido_detalle_id: number; cantidad: number }[];
 };
 export type ResumenSucursal = {
   solicitudes: { borradores: number; en_revision: number; por_corregir: number; en_proceso: number; entregadas: number; rechazadas: number };

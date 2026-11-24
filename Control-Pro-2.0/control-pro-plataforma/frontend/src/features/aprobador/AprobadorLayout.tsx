@@ -137,7 +137,7 @@ export default function AprobadorLayout() {
       {drawerAbierto && <div className="fixed inset-0 z-30 bg-[#092f2b]/40 backdrop-blur-sm lg:hidden" onClick={cerrarMenu} aria-hidden />}
 
       <aside id="navegacion-aprobador" ref={panel} {...(drawerAbierto ? { role: 'dialog', 'aria-modal': true, 'aria-label': 'Menú de navegación' } : {})}
-        className={cls('fixed inset-y-0 left-0 z-40 flex w-72 max-w-[85vw] flex-col bg-white/90 shadow-[0_18px_55px_rgba(25,91,87,.13)] backdrop-blur-2xl transition-transform duration-200',
+        className={cls('fixed inset-y-0 left-0 z-40 flex w-72 max-w-[85vw] flex-col bg-white/90 pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pt-[env(safe-area-inset-top)] shadow-[0_18px_55px_rgba(25,91,87,.13)] backdrop-blur-2xl transition-transform duration-200',
           'lg:visible lg:inset-y-6 lg:left-6 lg:z-30 lg:w-64 lg:translate-x-0 lg:rounded-[28px] lg:border lg:border-white/80 lg:bg-white/50',
           menu ? 'translate-x-0' : 'invisible -translate-x-full')}>
         <div className="flex min-h-16 items-center justify-between px-4 pt-2 lg:px-5 lg:pt-5">
@@ -178,7 +178,7 @@ export default function AprobadorLayout() {
       <header className="sticky top-0 z-20 flex min-h-[70px] items-center gap-2 px-3 py-2.5 sm:gap-3 backdrop-blur-md sm:px-6 lg:mt-3 lg:pl-0 lg:pr-8 lg:backdrop-blur-none">
         <button ref={botonMenu} type="button" onClick={() => setMenu(true)} aria-label="Abrir menú" aria-expanded={drawerAbierto} aria-controls="navegacion-aprobador"
           className="-ml-1 grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/80 bg-white/60 backdrop-blur-md lg:hidden"><Menu className="h-5 w-5" aria-hidden /></button>
-        <div className="shrink-0 lg:hidden"><MarcaPortal minima /></div>
+        <div className="min-w-0 shrink lg:hidden"><MarcaPortal minima /></div>
         <form role="search" onSubmit={buscar}
           className="hidden h-12 min-w-0 max-w-[560px] flex-1 items-center gap-3 rounded-[18px] border border-white/80 bg-white/55 px-4 backdrop-blur-xl focus-within:ring-2 focus-within:ring-[#0e7490] md:flex">
           <Search className="h-5 w-5 shrink-0 text-[#52636a]" aria-hidden />
@@ -191,7 +191,7 @@ export default function AprobadorLayout() {
             <MessagesSquare className="h-5 w-5" aria-hidden />
             {cuentas.mensajes > 0 && <span className="absolute right-1.5 top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-[#e43e43] px-1 text-[10px] font-bold text-white" aria-hidden>{cuentas.mensajes}</span>}
           </Link>
-          <InterruptorTema className="h-10 w-10 shrink-0 sm:h-12 sm:w-12" />
+          <InterruptorTema className="h-10 w-10 shrink-0 max-[399px]:hidden sm:h-12 sm:w-12" />
           <Link to={`${BASE_APROBADOR}/notificaciones`} className="relative grid h-10 w-10 place-items-center sm:h-12 sm:w-12 rounded-full border border-white/80 bg-white/60 backdrop-blur-md transition hover:bg-white/80"
             aria-label={`Notificaciones${cuentas.avisos ? `: ${cuentas.avisos} sin leer` : ''}`}>
             <Bell className="h-5 w-5" aria-hidden />

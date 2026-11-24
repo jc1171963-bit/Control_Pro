@@ -6,10 +6,12 @@ from ..errors import AppError, NoEncontrado
 from ..extensions import db
 from ..models import Devolucion, Incidencia, Pago, Pedido, Reembolso, Usuario
 from ..schemas import (AutorizarDevolucionSchema, CantidadesSchema, IncidenciaCambioSchema, IncidenciaSchema,
-                       InspeccionSchema, MotivoSchema, NotaSchema, PagoEfectivoSchema, ReferenciaSchema, cargar)
+                       InspeccionSchema, MotivoSchema, NotaSchema, PagoEfectivoSchema, ReferenciaSchema, ReposicionSchema,
+                       cargar)
 from ..security.auth import (canales_permitidos, es_global, filtro_sucursal, requiere_usuario, sucursales_permitidas,
                              verificar_alcance)
 from ..services import devolucion_service as dev
+from ..services import logistica_service as log
 from ..services import pago_service as pagos
 from ..services import pedido_service as ped
 from ..services.comun import paginar
@@ -223,3 +225,48 @@ def actualizar_incidencia(iid):
     if d.get("responsable_id") and not db.session.get(Usuario, d["responsable_id"]):
         raise NoEncontrado("Responsable no encontrado.")
     return jsonify(serial.incidencia(dev.actualizar_incidencia(inc, d.get("estado"), d.get("comentario"), d.get("responsable_id"), d["adjuntos"])))
+
+
+def _incidencia_bloqueada(iid) -> Incidencia:
+    inc = db.session.scalars(select(Incidencia).where(Incidencia.id == iid).with_for_update(of=Incidencia)).first()
+    if not inc:
+        raise NoEncontrado("Incidencia no encontrada.")
+    if inc.sucursal_id:
+        verificar_alcance(inc.sucursal_id)
+    elif inc.pedido_id:
+        _pedido(inc.pedido_id)
+    return inc
+
+
+@bp.get("/incidencias/<int:iid>")
+@requiere_usuario("incidencia.gestionar")
+def ver_incidencia(iid):
+    inc = db.session.get(Incidencia, iid)
+    if not inc:
+        raise NoEncontrado("Incidencia no encontrada.")
+    if inc.sucursal_id:
+        verificar_alcance(inc.sucursal_id)
+    elif inc.pedido_id:
+        _pedido(inc.pedido_id)
+    return jsonify(serial.incidencia(inc))
+
+
+@bp.post("/incidencias/<int:iid>/reposicion")
+@requiere_usuario("incidencia.gestionar")
+def preparar_reposicion(iid):
+    """Prepara el paquete de reposición (piezas nuevas). Después se despacha con su paquetería y guía como cualquier
+    paquete (POST /admin/paquetes/<id>/despachar)."""
+    d = cargar(ReposicionSchema, cuerpo())
+    inc = _incidencia_bloqueada(iid)
+    log.preparar_reposicion(inc, d["partidas"])
+    return jsonify(serial.incidencia(inc)), 201
+
+
+@bp.post("/paquetes/<int:pid>/cancelar-reposicion")
+@requiere_usuario("incidencia.gestionar")
+def cancelar_reposicion(pid):
+    paq = log.bloquear_paquete(pid)
+    if paq.incidencia_id:
+        _incidencia_bloqueada(paq.incidencia_id)
+    log.cancelar_reposicion(paq)
+    return jsonify(serial.incidencia(paq.incidencia))

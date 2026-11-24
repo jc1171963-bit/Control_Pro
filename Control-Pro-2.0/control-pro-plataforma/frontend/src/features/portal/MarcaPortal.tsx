@@ -11,8 +11,9 @@ export default function MarcaPortal({ claro = false, compacta = false, minima = 
   const { nombre, iniciales, logo } = IDENTIDAD_PORTAL;
   if (logo) {
     return (
-      <Link to="/cuenta" className={cls('flex shrink-0 items-center rounded-md', className)} aria-label={`${nombre}, inicio del portal`}>
-        <img src={logo} alt="" width={185} height={39} className="h-8 w-auto sm:h-9" />
+      <Link to="/cuenta" className={cls('flex min-w-0 items-center rounded-md', className)} aria-label={`${nombre}, inicio del portal`}>
+        {/* En celulares angostos (320–400 px) el logotipo se reduce para que la barra superior quepa sin desbordarse. */}
+        <img src={logo} alt="" width={185} height={39} className="h-6 w-auto max-w-full object-contain object-left min-[360px]:h-7 min-[400px]:h-8 sm:h-9" />
       </Link>
     );
   }

@@ -432,12 +432,24 @@ class PartidaRecepcionSchema(Base):
     recibida = fields.Int(required=True, validate=Range(min=0))
     problema = fields.Str(load_default=None, allow_none=True, validate=OneOf(["faltante", "danado", "diferencia"]))
     nota = fields.Str(load_default=None, allow_none=True, validate=L(max=300))
+    # Fotos del problema de este artículo (prenda dañada, etiqueta equivocada…).
+    evidencias = fields.List(fields.Str(validate=ARCHIVO_PRIVADO), load_default=list, validate=L(max=4))
 
 
 class RecepcionSchema(Base):
     completa = fields.Bool(required=True)
     diferencias = fields.Str(load_default=None, allow_none=True, validate=L(max=1000))
     partidas = fields.List(fields.Nested(PartidaRecepcionSchema), load_default=None, allow_none=True)
+    evidencias = fields.List(fields.Str(validate=ARCHIVO_PRIVADO), load_default=list, validate=L(max=6))
+
+
+class PartidaReposicionSchema(Base):
+    pedido_detalle_id = fields.Int(required=True)
+    cantidad = fields.Int(required=True, validate=Range(min=0, max=500))
+
+
+class ReposicionSchema(Base):
+    partidas = fields.List(fields.Nested(PartidaReposicionSchema), required=True, validate=L(min=1, max=200))
 
 
 class EntregaIndividualSchema(Base):

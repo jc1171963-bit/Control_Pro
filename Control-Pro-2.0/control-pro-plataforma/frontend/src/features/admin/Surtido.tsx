@@ -145,7 +145,7 @@ export function SurtidoDetalle() {
   const grupos = gruposPorEmpacar(a);
   /** Paquete que aún no sale donde ya va esa persona (sus piezas nuevas deben ir ahí). */
   const paqueteDe = (empleadoId: number | null) => empleadoId == null ? undefined
-    : a.paquetes.find((pq) => pq.estado === 'preparado' && pq.contenido.some((c) => c.empleado_id === empleadoId));
+    : a.paquetes.find((pq) => pq.estado === 'preparado' && !pq.reposicion && pq.contenido.some((c) => c.empleado_id === empleadoId));
   const bloqueado = (g: GrupoEmpaque, dest: 'nuevo' | number) => { const otro = paqueteDe(g.empleado_id); return !!otro && otro.id !== dest; };
   const abrirPaquete = (dest: 'nuevo' | number = 'nuevo') => {
     setDestino(dest);
@@ -160,7 +160,7 @@ export function SurtidoDetalle() {
   const incluida = (g: GrupoEmpaque) => g.detalles.every((d) => (empaque[d.id] ?? 0) === d.surtida - d.empacada);
   const alternar = (g: GrupoEmpaque, si: boolean) => setEmpaque((e) => ({ ...e, ...Object.fromEntries(g.detalles.map((d) => [d.id, si ? d.surtida - d.empacada : 0])) }));
   const piezasElegidas = Object.values(empaque).reduce((s, c) => s + c, 0);
-  const preparados = a.paquetes.filter((pq) => pq.estado === 'preparado');
+  const preparados = a.paquetes.filter((pq) => pq.estado === 'preparado' && !pq.reposicion);
   const porEmpacar = a.detalles.some((d) => d.surtida > d.empacada);
   const pasos = [
     { n: 'Iniciar surtido', hecho: a.estado !== 'pendiente' },
@@ -198,9 +198,10 @@ export function SurtidoDetalle() {
             <div className="space-y-3">
               {a.paquetes.map((pq) => (
                 <div key={pq.id} className="rounded-xl p-4 ring-1 ring-tinta-100">
-                  <div className="flex items-center justify-between"><p className="flex items-center gap-2 font-semibold"><PackageCheck className="h-4 w-4 text-menta-600" />{pq.folio}</p><Estado valor={pq.estado} /></div>
+                  <div className="flex items-center justify-between"><p className="flex min-w-0 flex-wrap items-center gap-2 font-semibold"><PackageCheck className="h-4 w-4 text-menta-600" />{pq.folio}
+                    {pq.reposicion && <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-bold text-sky-800">Reposición · {pq.reposicion.folio}</span>}</p><Estado valor={pq.estado} /></div>
                   <div className="mb-2"><ContenidoPorPersona pq={pq} columnas={1} /></div>
-                  {pq.estado === 'preparado' && porEmpacar && (
+                  {pq.estado === 'preparado' && porEmpacar && !pq.reposicion && (
                     <Boton tam="sm" variante="secundario" icono={<PackagePlus className="h-3.5 w-3.5" />} className="mb-2" onClick={() => abrirPaquete(pq.id)}>Agregar piezas a este paquete</Boton>
                   )}
                   {pq.envio && <div className="mb-2 rounded-lg bg-tinta-50 p-2 text-xs"><p className="font-semibold">{pq.envio.paqueteria} · {pq.envio.guia}</p>

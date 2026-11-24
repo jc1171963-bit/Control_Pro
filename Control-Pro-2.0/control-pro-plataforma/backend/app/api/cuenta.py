@@ -620,7 +620,7 @@ def resumen():
 def recepcion(paquete_id):
     d = cargar(RecepcionSchema, cuerpo())
     paq = log_srv.bloquear_paquete(paquete_id)
-    log_srv.registrar_recepcion(paq, g.cliente.id, d["completa"], d.get("diferencias"), d.get("partidas"))
+    log_srv.registrar_recepcion(paq, g.cliente.id, d["completa"], d.get("diferencias"), d.get("partidas"), d["evidencias"])
     return jsonify(serial.pedido(paq.asignacion.pedido)), 201
 
 

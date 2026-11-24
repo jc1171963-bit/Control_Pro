@@ -63,7 +63,9 @@ export function Estado({ valor, className }: { valor: string; className?: string
 
 export function Tarjeta({ titulo, accion, children, className, sub }: { titulo?: ReactNode; sub?: ReactNode; accion?: ReactNode; children: ReactNode; className?: string }) {
   return (
-    <section className={cls('vidrio rounded-2xl bg-white p-5 shadow-suave ring-1 ring-tinta-100', className)}>
+    // min-w-0: dentro de una cuadrícula o fila flexible, una tabla ancha se desplaza dentro de la tarjeta en vez de
+    // estirar la columna (y con ella a las tarjetas vecinas) más allá de la pantalla en celular.
+    <section className={cls('vidrio min-w-0 rounded-2xl bg-white p-5 shadow-suave ring-1 ring-tinta-100', className)}>
       {(titulo || accion) && (
         <header className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div>{titulo && <h2 className="font-display text-base font-bold text-tinta-900">{titulo}</h2>}{sub && <p className="text-xs text-tinta-400">{sub}</p>}</div>
@@ -210,7 +212,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastCtx.Provider value={avisar}>
       {children}
-      <div className="pointer-events-none fixed bottom-4 right-4 z-[60] flex w-[min(92vw,380px)] flex-col gap-2" aria-live="polite">
+      <div className="pointer-events-none fixed bottom-[max(1rem,calc(env(safe-area-inset-bottom)+.5rem))] right-[max(1rem,env(safe-area-inset-right))] z-[60] flex w-[min(92vw,380px)] flex-col gap-2" aria-live="polite">
         {lista.map((t) => (
           <div key={t.id} className={cls('pointer-events-auto flex items-start gap-2 rounded-xl px-4 py-3 text-sm text-white shadow-xl', t.tipo === 'ok' ? 'bg-tinta-900' : 'bg-coral-600')}>
             {t.tipo === 'ok' ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-menta-300" /> : <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />}

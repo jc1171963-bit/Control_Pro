@@ -1,14 +1,15 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { FileText } from 'lucide-react';
+import { FileText, PackagePlus, Truck } from 'lucide-react';
 import { abrirPrivado, get, patch, post } from '../../api/cliente';
-import type { Devolucion, Incidencia, Pagina } from '../../api/tipos';
+import type { Devolucion, Incidencia, Pagina, Paquete, Pedido } from '../../api/tipos';
 import { useAuth } from '../../app/auth';
 import { Aviso, Boton, Campo, Cargando, Entrada, ErrorCaja, Estado, Modal, Paginacion, Selector, Tabla, Tarjeta, Td, Texto, useAviso } from '../../components/ui';
 import { cls, dinero, etiqueta, fechaHora, MOTIVOS_DEVOLUCION, tipoIncidencia } from '../../lib/formato';
 import { HistorialIncidencia } from '../cuenta/DetalleSolicitud';
 import { AdjuntarEvidencias, GaleriaEvidencias } from '../../components/Archivos';
+import { ListaReposiciones } from '../../components/Reposiciones';
 import { Encabezado, useSucursalesAdmin } from './AdminLayout';
 
 const FILTROS_DEV = [['solicitada', 'Por autorizar'], ['autorizada,en_camino', 'Por recibir'], ['recibida', 'Por inspeccionar'], ['inspeccionada,reembolsada', 'Por cerrar'], ['', 'Todas']];
@@ -142,6 +143,7 @@ export function Incidencias() {
             <p className="rounded-lg bg-tinta-50 p-3"><b>Descripción original:</b> {sel.descripcion}</p>
             {!!sel.evidencias?.length && <div><p className="mb-1.5 text-xs font-semibold uppercase text-tinta-400">Evidencia</p><GaleriaEvidencias urls={sel.evidencias} titulo={`Evidencia de ${sel.folio}`} /></div>}
             {(sel.empleado || sel.articulo) && <p className="text-xs"><b>Relacionada con:</b> {[sel.empleado && `${sel.empleado.nombre} (${sel.empleado.puesto})`, sel.articulo && `${sel.articulo.nombre} talla ${sel.articulo.talla}`].filter(Boolean).join(' · ')}</p>}
+            {sel.pedido_id && <Reposicion inc={sel} onCambio={(i) => { setSel(i); qc.invalidateQueries({ queryKey: ['admin-incidencias'] }); }} />}
             <div><p className="text-xs font-semibold uppercase text-tinta-400">Historial</p><HistorialIncidencia i={sel} /></div>
             {sel.cierre_por_sucursal && <Aviso>La sucursal confirma la solución para cerrarla; si no queda conforme, puede reabrirla. Tus comentarios los ve la sucursal.</Aviso>}
             <Campo etiqueta="Agregar comentario o resolución" ayuda="Se agrega al historial; no reemplaza lo anterior."><Texto value={comentario} onChange={(e) => setComentario(e.target.value)} /></Campo>
@@ -154,5 +156,97 @@ export function Incidencias() {
         )}
       </Modal>
     </>
+  );
+}
+
+// ---------------------------------------------------------------- reposición (envío adicional con su propia guía)
+
+/**
+ * Resolver la incidencia con un envío de reposición: se eligen las piezas (sugeridas a partir de la recepción), se
+ * prepara el paquete en el almacén y sale con su propia paquetería y guía. Al llegar, la sucursal registra su recepción
+ * y entrega a cada persona; si llega completo, la incidencia queda resuelta para que la sucursal confirme.
+ */
+function Reposicion({ inc, onCambio }: { inc: Incidencia; onCambio: (i: Incidencia) => void }) {
+  const avisar = useAviso();
+  const [armando, setArmando] = useState(false);
+  const [cant, setCant] = useState<Record<number, number>>({});
+  const [guia, setGuia] = useState<Record<number, { paqueteria: string; guia: string }>>({});
+  const activa = ['abierta', 'en_atencion'].includes(inc.estado);
+  const enCurso = (inc.reposiciones || []).some((r) => !['entregado', 'cancelado'].includes(r.estado));
+  const pedido = useQuery({ queryKey: ['admin-pedido', String(inc.pedido_id)], queryFn: () => get<Pedido>(`/admin/pedidos/${inc.pedido_id}`), enabled: armando });
+  const recargar = async () => onCambio(await get<Incidencia>(`/admin/incidencias/${inc.id}`));
+  const abrir = () => {
+    setCant(Object.fromEntries((inc.reposicion_sugerida || []).map((x) => [x.pedido_detalle_id, x.cantidad])));
+    setArmando(true);
+  };
+  const preparar = useMutation({
+    mutationFn: () => post<Incidencia>(`/admin/incidencias/${inc.id}/reposicion`, {
+      partidas: Object.entries(cant).filter(([, c]) => c > 0).map(([id, c]) => ({ pedido_detalle_id: Number(id), cantidad: c })) }),
+    onSuccess: (i) => { setArmando(false); onCambio(i); avisar('Reposición preparada. Captura la paquetería y la guía para enviarla.'); },
+  });
+  const despachar = useMutation({
+    mutationFn: (pq: Paquete) => post(`/admin/paquetes/${pq.id}/despachar`, guia[pq.id]),
+    onSuccess: async () => { await recargar(); avisar('Reposición enviada: la sucursal ya ve la guía.'); },
+  });
+  const entregado = useMutation({
+    mutationFn: (pq: Paquete) => post(`/admin/paquetes/${pq.id}/eventos`, { estado: 'entregado', descripcion: 'Reposición entregada en la sucursal' }),
+    onSuccess: async () => { await recargar(); avisar('Marcada como entregada. La sucursal registrará su recepción.'); },
+  });
+  const cancelar = useMutation({
+    mutationFn: (pq: Paquete) => post<Incidencia>(`/admin/paquetes/${pq.id}/cancelar-reposicion`),
+    onSuccess: (i) => { onCambio(i); avisar('Reposición cancelada; se liberó lo apartado.'); },
+  });
+  const porPersona = new Map<string, Pedido['detalles']>();
+  for (const d of pedido.data?.detalles || []) {
+    const k = d.empleado?.nombre ?? 'Sin asignar';
+    porPersona.set(k, [...(porPersona.get(k) || []), d]);
+  }
+  const piezas = Object.values(cant).reduce((a, b) => a + b, 0);
+  const fijarGuia = (id: number, campo: 'paqueteria' | 'guia', valor: string) =>
+    setGuia({ ...guia, [id]: { paqueteria: guia[id]?.paqueteria || '', guia: guia[id]?.guia || '', [campo]: valor } });
+  return (
+    <div className="rounded-xl bg-sky-50/60 p-3 ring-1 ring-sky-200">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs font-bold uppercase tracking-wide text-sky-900">Reposición</p>
+        {activa && !armando && <Boton tam="sm" icono={<PackagePlus className="h-3.5 w-3.5" />} onClick={abrir}>
+          {enCurso ? 'Preparar otra reposición' : 'Preparar reposición'}</Boton>}
+      </div>
+      {!inc.reposiciones?.length && !armando && <p className="mt-1 text-xs text-sky-900/80">
+        Envía piezas nuevas en un paquete aparte, con su propia guía.{(inc.reposicion_sugerida || []).length ? ' Ya están sugeridas las piezas que llegaron mal.' : ''}</p>}
+      <ListaReposiciones paquetes={inc.reposiciones} acciones={(pq) => pq.estado === 'preparado' ? (
+        <div className="flex w-full flex-wrap items-end gap-2">
+          <Entrada className="min-w-0 flex-1 basis-32" placeholder="Paquetería" aria-label={`Paquetería de ${pq.folio}`} value={guia[pq.id]?.paqueteria || ''}
+            onChange={(e) => fijarGuia(pq.id, 'paqueteria', e.target.value)} />
+          <Entrada className="min-w-0 flex-1 basis-32" placeholder="Número de guía" aria-label={`Guía de ${pq.folio}`} value={guia[pq.id]?.guia || ''}
+            onChange={(e) => fijarGuia(pq.id, 'guia', e.target.value)} />
+          <Boton tam="sm" icono={<Truck className="h-3.5 w-3.5" />} disabled={!guia[pq.id]?.paqueteria?.trim() || !guia[pq.id]?.guia?.trim()}
+            cargando={despachar.isPending} onClick={() => despachar.mutate(pq)}>Enviar con esta guía</Boton>
+          <Boton tam="sm" variante="fantasma" cargando={cancelar.isPending} onClick={() => cancelar.mutate(pq)}>Cancelar</Boton>
+        </div>
+      ) : ['despachado', 'en_transito'].includes(pq.estado)
+        ? <Boton tam="sm" variante="secundario" cargando={entregado.isPending} onClick={() => entregado.mutate(pq)}>Marcar como entregada</Boton>
+        : null} />
+      <ErrorCaja error={despachar.error || entregado.error || cancelar.error} />
+      {armando && (
+        <div className="mt-3 space-y-3">
+          {pedido.isLoading ? <Cargando /> : [...porPersona.entries()].map(([nombre, dets]) => (
+            <div key={nombre} className="rounded-lg bg-white p-2.5 ring-1 ring-sky-100">
+              <p className="text-xs font-bold">{nombre}</p>
+              <ul className="mt-1 space-y-1">{dets.map((d) => (
+                <li key={d.id} className="flex items-center justify-between gap-2 text-xs">
+                  <span className="min-w-0">{d.nombre} · {d.talla}</span>
+                  <Selector className="w-24 shrink-0" value={cant[d.id] || 0} aria-label={`Piezas de ${d.nombre} para ${nombre}`}
+                    onChange={(e) => setCant({ ...cant, [d.id]: Number(e.target.value) })}>
+                    {Array.from({ length: d.cantidad + 1 }, (_, k) => <option key={k} value={k}>{k}</option>)}</Selector>
+                </li>))}</ul>
+            </div>
+          ))}
+          <Aviso>Las piezas salen del inventario disponible del almacén que surtió cada artículo. El surtido original no cambia.</Aviso>
+          <ErrorCaja error={preparar.error} />
+          <div className="flex flex-wrap justify-end gap-2"><Boton variante="secundario" onClick={() => setArmando(false)}>Cancelar</Boton>
+            <Boton disabled={!piezas} cargando={preparar.isPending} onClick={() => preparar.mutate()}>Preparar {piezas} pieza(s)</Boton></div>
+        </div>
+      )}
+    </div>
   );
 }
