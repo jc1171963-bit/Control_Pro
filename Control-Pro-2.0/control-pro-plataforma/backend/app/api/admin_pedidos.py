@@ -310,6 +310,17 @@ def paquete(aid):
     return jsonify(serial.asignacion(a, con_pedido=True)), 201
 
 
+@bp.post("/surtido/<int:aid>/paquetes/<int:pid>/agregar")
+@requiere_usuario("surtido.operar")
+def agregar_a_paquete(aid, pid):
+    """Completa el paquete individual de una persona en un paquete que aún no sale."""
+    d = cargar(PaqueteSchema, cuerpo())
+    partidas = [{"asignacion_detalle_id": int(p["asignacion_detalle_id"]), "cantidad": int(p["cantidad"])} for p in d["partidas"]]
+    a = _asig(aid)
+    log.agregar_a_paquete(a, log.bloquear_paquete(pid), partidas)
+    return jsonify(serial.asignacion(a, con_pedido=True))
+
+
 def _paq(pid):
     p = log.bloquear_paquete(pid)
     verificar_alcance(p.asignacion.sucursal_id)

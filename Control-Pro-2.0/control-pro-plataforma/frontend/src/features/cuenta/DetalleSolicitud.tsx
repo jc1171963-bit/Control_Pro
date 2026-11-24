@@ -14,6 +14,7 @@ import { useCelebrar } from '../../components/Celebracion';
 import { AdjuntarEvidencias, GaleriaEvidencias } from '../../components/Archivos';
 import FirmaEnLinea from '../../components/FirmaEnLinea';
 import Expediente from '../../components/Expediente';
+import { CabezaIndividual, ContenidoPorPersona, individualesDe } from '../../components/PaqueteIndividual';
 import { Aparecer, Etapa, LineaProceso, Palomita } from '../../components/movimiento';
 import ComprobanteEntrega from './ComprobanteEntrega';
 import LineaTiempoSolicitud from '../../components/LineaTiempoSolicitud';
@@ -116,12 +117,17 @@ function RecepcionPaquete({ pq, p, onCerrar }: { pq: Paquete; p: Pedido; onCerra
   const conDiferencias = filas.some((c) => recibida[c.pedido_detalle_id] < c.cantidad || problema[c.pedido_detalle_id]);
   return (
     <div className="space-y-4">
-      <Aviso>Registra lo que llegó físicamente en el paquete. Recibir el paquete <b>no</b> equivale a entregar los artículos a cada empleado.</Aviso>
-      <ul className="space-y-2">
-        {filas.map((c) => (
-          <li key={c.pedido_detalle_id} className={cls('rounded-xl p-3 ring-1 text-sm', recibida[c.pedido_detalle_id] < c.cantidad || problema[c.pedido_detalle_id] ? 'bg-amber-50/60 ring-amber-200' : 'ring-arena-200')}>
+      <Aviso>Abre el paquete grande y revisa cada paquete individual con el nombre de la persona. Recibir el paquete <b>no</b> equivale a entregar los artículos a cada empleado.</Aviso>
+      <div className="space-y-4">
+      {individualesDe(pq).map((g) => (
+      <section key={g.empleado ? `e${g.empleado.id}` : 'sin'} className="rounded-2xl bg-arena-50/60 p-3 ring-1 ring-arena-200"
+        aria-label={g.empleado ? `Paquete individual de ${g.empleado.nombre}` : 'Piezas sin asignar'}>
+      <CabezaIndividual g={g} />
+      <ul className="mt-3 space-y-2">
+        {g.piezas.map((c) => (
+          <li key={c.pedido_detalle_id} className={cls('rounded-xl p-3 ring-1 text-sm', recibida[c.pedido_detalle_id] < c.cantidad || problema[c.pedido_detalle_id] ? 'bg-amber-50 ring-amber-200' : 'bg-white ring-arena-200')}>
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span><b>{c.nombre}</b> · {c.talla}<span className="block text-xs text-tinta-400">{c.empleado || 'Sin empleado'}</span></span>
+              <span><b>{c.nombre}</b> · {c.talla}{c.color ? <span className="text-tinta-500"> · {c.color}</span> : null}</span>
               <label className="flex items-center gap-2 text-xs">Recibidas
                 <Selector className="w-20" value={recibida[c.pedido_detalle_id]} onChange={(e) => setRecibida({ ...recibida, [c.pedido_detalle_id]: Number(e.target.value) })}>
                   {Array.from({ length: c.cantidad + 1 }, (_, i) => <option key={i} value={i}>{i}</option>)}</Selector> de {c.cantidad}</label>
@@ -135,6 +141,9 @@ function RecepcionPaquete({ pq, p, onCerrar }: { pq: Paquete; p: Pedido; onCerra
           </li>
         ))}
       </ul>
+      </section>
+      ))}
+      </div>
       <Campo etiqueta="Observaciones generales (opcional)"><Texto value={obs} onChange={(e) => setObs(e.target.value)} /></Campo>
       {conDiferencias && <Aviso tipo="alerta">Se registrará como recepción parcial y se abrirá una incidencia para darle seguimiento.</Aviso>}
       <ErrorCaja error={m.error} />
@@ -448,13 +457,13 @@ export default function DetalleSolicitud({ p }: { p: Pedido }) {
                       <ul className="mt-2 space-y-1">{pq.envio.eventos.map((ev, k) => <li key={k}>{fechaHora(ev.fecha)} · <b>{etiqueta(ev.estado)}</b> — {ev.descripcion}</li>)}</ul>
                     </div>
                   )}
-                  <p className="mt-3 text-xs text-tinta-500">{pq.contenido.map((c) => `${c.cantidad}× ${c.nombre} (${c.talla})${c.empleado ? ` → ${c.empleado}` : ''}`).join(' · ')}</p>
+                  <ContenidoPorPersona pq={pq} />
                   {pq.recepcion && (
                     <div className={cls('mt-3 rounded-lg p-3 text-xs', pq.recepcion.estado === 'parcial' ? 'bg-amber-50 text-amber-900' : 'bg-menta-50 text-menta-800')}>
                       <p className="font-semibold">Recepción {etiqueta(pq.recepcion.estado).toLowerCase()} · {fechaHora(pq.recepcion.fecha)}</p>
                       {pq.recepcion.detalles.filter((x) => x.problema).map((x) => {
                         const c = pq.contenido.find((y) => y.pedido_detalle_id === x.pedido_detalle_id);
-                        return <p key={x.pedido_detalle_id}><AlertTriangle className="mr-1 inline h-3 w-3" />{c?.nombre}: {PROBLEMAS_RECEPCION[x.problema!]} · recibidas {x.recibida} de {x.esperada}{x.nota ? ` — ${x.nota}` : ''}</p>;
+                        return <p key={x.pedido_detalle_id}><AlertTriangle className="mr-1 inline h-3 w-3" />{c?.nombre}{c?.empleado ? ` (${c.empleado})` : ''}: {PROBLEMAS_RECEPCION[x.problema!]} · recibidas {x.recibida} de {x.esperada}{x.nota ? ` — ${x.nota}` : ''}</p>;
                       })}
                       {pq.recepcion.diferencias && !pq.recepcion.detalles.length && <p>{pq.recepcion.diferencias}</p>}
                     </div>

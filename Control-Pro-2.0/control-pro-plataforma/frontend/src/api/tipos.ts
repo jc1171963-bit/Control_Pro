@@ -51,9 +51,18 @@ export type Reembolso = {
   motivo: string; estado: string; referencia: string | null; realizado_en: string | null; creado: string;
   pedido?: { id: number; folio: string; cliente: string };
 };
+export type PiezaPaquete = {
+  pedido_detalle_id: number; sku: string; nombre: string; talla: string; color?: string | null; cantidad: number;
+  empleado: string | null; empleado_id?: number | null; puesto?: string | null;
+};
+export type PaqueteIndividual = {
+  empleado: { id: number; nombre: string; puesto: string | null } | null; piezas: PiezaPaquete[]; total_piezas: number;
+};
 export type Paquete = {
   id: number; folio: string; estado: string; peso_kg: string | null; creado: string; sucursal: string;
-  contenido: { pedido_detalle_id: number; sku: string; nombre: string; talla: string; cantidad: number; empleado: string | null }[];
+  contenido: PiezaPaquete[];
+  /** Paquetes individuales dentro del paquete grande: uno por empleado, ordenados por nombre ("Sin asignar" al final). */
+  individuales?: PaqueteIndividual[];
   envio: null | { paqueteria: string; guia: string; estado: string; proveedor: string; rastreo_externo: boolean;
     eventos: { estado: string; descripcion: string; origen: string; fecha: string }[] };
   recepcion?: { estado: string; diferencias: string | null; fecha: string;
@@ -81,7 +90,8 @@ export type EntregaIndividual = {
 export type Asignacion = {
   id: number; pedido_id: number; estado: string; sucursal: { id: number; nombre: string }; creado: string;
   detalles: { id: number; pedido_detalle_id: number; sku: string; nombre: string; talla: string; color: string;
-    empleado: string | null; cantidad: number; surtida: number; empacada: number; despachada: number; faltante: number }[];
+    empleado: string | null; empleado_id?: number | null; puesto?: string | null;
+    cantidad: number; surtida: number; empacada: number; despachada: number; faltante: number }[];
   paquetes: Paquete[];
   pedido?: { id: number; folio: string; estado: string; canal: string; modalidad: string; cliente: string;
     direccion_envio: Record<string, string> | null; sucursal_recoger_id: number | null; creado: string };

@@ -129,11 +129,41 @@ def _actualizar_asignacion(a: AsignacionSurtido):
         _estado_asig(a, "empacada")
 
 
-def crear_paquete(a: AsignacionSurtido, partidas: list[dict], peso_kg: Decimal | None = None) -> Paquete:
-    if a.estado not in {"en_surtido", "empacada"}:
-        raise TransicionInvalida("Inicia el surtido antes de empacar.")
+def _validar_por_persona(a: AsignacionSurtido, paq: Paquete, ids_en_paquete: set[int]):
+    """Una persona, un paquete: el paquete grande lleva dentro un paquete individual por empleado, y las piezas de un
+    mismo empleado nunca se reparten entre dos paquetes grandes.
+
+    Reglas (por asignación, es decir, por almacén que surte):
+    1. Si el paquete lleva piezas de un empleado, debe llevar TODAS sus piezas ya surtidas y aún sin empacar.
+    2. Si el empleado ya tiene piezas en otro paquete que todavía no sale (`preparado`), lo nuevo se agrega a ese
+       paquete en lugar de abrir otro.
+    Lo que se surte después (pendiente de producción o surtido posterior) puede viajar en un envío posterior, pero
+    también completo y en un solo paquete. Las piezas sin empleado (tienda en línea) pueden ir en cualquier paquete.
+    Se llama con las cantidades `empacada` ya actualizadas y antes del commit: si falla, la petición se revierte.
+    """
     detalles = {d.id: d for d in a.detalles}
-    paq = Paquete(asignacion_id=a.id, estado="preparado", peso_kg=peso_kg)
+    empleados = {detalles[i].pedido_detalle.empleado_id for i in ids_en_paquete if detalles[i].pedido_detalle.empleado_id}
+    for emp_id in sorted(empleados):
+        suyas = [d for d in a.detalles if d.pedido_detalle.empleado_id == emp_id]
+        nombre = suyas[0].pedido_detalle.empleado.nombre if suyas[0].pedido_detalle.empleado else "el empleado"
+        sueltas = [d for d in suyas if d.surtida > d.empacada]
+        if sueltas:
+            faltan = ", ".join(f"{d.surtida - d.empacada}× {d.pedido_detalle.nombre} ({d.pedido_detalle.talla})" for d in sueltas)
+            raise Conflicto(f"No se puede dividir a {nombre}: todas sus piezas van juntas en su paquete individual. "
+                            f"Agrega también: {faltan}.", codigo="persona_dividida",
+                            detalles={"empleado_id": emp_id, "asignacion_detalle_ids": [d.id for d in sueltas]})
+        ids_suyas = {d.id for d in suyas}
+        otro = next((p for p in a.paquetes if p is not paq and p.estado == "preparado"
+                     and any(x.asignacion_detalle_id in ids_suyas for x in p.detalles)), None)
+        if otro:
+            raise Conflicto(f"{nombre} ya tiene piezas en el paquete {otro.folio}, que aún no sale. "
+                            f"Agrégalas a ese paquete para que todo lo suyo vaya junto.", codigo="persona_en_otro_paquete",
+                            detalles={"empleado_id": emp_id, "paquete_id": otro.id})
+
+
+def _agregar_partidas(a: AsignacionSurtido, paq: Paquete, partidas: list[dict]) -> int:
+    detalles = {d.id: d for d in a.detalles}
+    existentes = {x.asignacion_detalle_id: x for x in paq.detalles}
     total = 0
     for p in partidas:
         d = detalles.get(p["asignacion_detalle_id"])
@@ -145,10 +175,23 @@ def crear_paquete(a: AsignacionSurtido, partidas: list[dict], peso_kg: Decimal |
         if d.empacada + cant > d.surtida:
             raise Conflicto(f"{d.pedido_detalle.sku}: solo hay {d.surtida - d.empacada} unidad(es) surtidas sin empacar.")
         d.empacada += cant
-        paq.detalles.append(PaqueteDetalle(asignacion_detalle_id=d.id, cantidad=cant))
+        if d.id in existentes:
+            existentes[d.id].cantidad += cant
+        else:
+            existentes[d.id] = PaqueteDetalle(asignacion_detalle_id=d.id, cantidad=cant)
+            paq.detalles.append(existentes[d.id])
         total += cant
     if total == 0:
         raise AppError("El paquete debe contener al menos un artículo.")
+    _validar_por_persona(a, paq, set(existentes))
+    return total
+
+
+def crear_paquete(a: AsignacionSurtido, partidas: list[dict], peso_kg: Decimal | None = None) -> Paquete:
+    if a.estado not in {"en_surtido", "empacada"}:
+        raise TransicionInvalida("Inicia el surtido antes de empacar.")
+    paq = Paquete(asignacion_id=a.id, estado="preparado", peso_kg=peso_kg)
+    total = _agregar_partidas(a, paq, partidas)
     db.session.add(paq)
     asignar_folio(paq, "PAQ")
     _actualizar_asignacion(a)
@@ -156,6 +199,21 @@ def crear_paquete(a: AsignacionSurtido, partidas: list[dict], peso_kg: Decimal |
                       f"Se preparó el paquete {paq.folio} de tu {'solicitud' if a.pedido.canal == 'corporativo' else 'pedido'} "
                       f"{a.pedido.folio} ({total} artículo(s)).", f"/cuenta/pedidos/{a.pedido_id}")
     auditar("paquete.crear", "paquete", paq.id, despues={"unidades": total}, sucursal_id=a.sucursal_id)
+    db.session.commit()
+    return paq
+
+
+def agregar_a_paquete(a: AsignacionSurtido, paq: Paquete, partidas: list[dict]) -> Paquete:
+    """Agrega piezas a un paquete que aún no sale (para completar el paquete individual de una persona)."""
+    if paq.asignacion_id != a.id:
+        raise NoEncontrado("El paquete no pertenece a esta asignación.")
+    if paq.estado != "preparado":
+        raise TransicionInvalida("Solo se pueden agregar piezas a un paquete que aún no sale.")
+    if a.estado not in {"en_surtido", "empacada"}:
+        raise TransicionInvalida("La asignación no está en surtido.")
+    total = _agregar_partidas(a, paq, partidas)
+    _actualizar_asignacion(a)
+    auditar("paquete.agregar", "paquete", paq.id, despues={"unidades": total}, sucursal_id=a.sucursal_id)
     db.session.commit()
     return paq
 

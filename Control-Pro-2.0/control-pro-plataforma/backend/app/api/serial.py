@@ -147,14 +147,31 @@ def reembolso(r):
             "realizado_en": f(r.realizado_en), "creado": f(r.creado)}
 
 
+def individuales(contenido: list[dict]) -> list[dict]:
+    """Paquetes individuales dentro del paquete grande: uno por empleado, con sus piezas, ordenados por nombre.
+    Las piezas sin empleado (p. ej. tienda en línea) van al final en el grupo "Sin asignar" (`empleado` = None)."""
+    grupos: dict = {}
+    for c in contenido:
+        clave = c["empleado_id"]
+        g = grupos.setdefault(clave, {"empleado": {"id": clave, "nombre": c["empleado"], "puesto": c["puesto"]} if clave else None,
+                                      "piezas": [], "total_piezas": 0})
+        g["piezas"].append(c)
+        g["total_piezas"] += c["cantidad"]
+    for g in grupos.values():
+        g["piezas"].sort(key=lambda c: (c["nombre"].casefold(), c["talla"] or ""))
+    return sorted(grupos.values(), key=lambda g: (g["empleado"] is None, (g["empleado"] or {}).get("nombre", "").casefold()))
+
+
 def paquete(pq, interno=True):
+    contenido = []
+    for x in pq.detalles:
+        pd = x.asignacion_detalle.pedido_detalle
+        contenido.append({"pedido_detalle_id": pd.id, "sku": pd.sku, "nombre": pd.nombre, "talla": pd.talla,
+                          "color": pd.color, "cantidad": x.cantidad,
+                          "empleado": pd.empleado.nombre if pd.empleado else None,
+                          "empleado_id": pd.empleado_id, "puesto": pd.empleado.puesto if pd.empleado else None})
     d = {"id": pq.id, "folio": pq.folio, "estado": pq.estado, "peso_kg": m(pq.peso_kg), "creado": f(pq.creado),
-         "sucursal": pq.asignacion.sucursal.nombre,
-         "contenido": [{"pedido_detalle_id": x.asignacion_detalle.pedido_detalle_id,
-                        "sku": x.asignacion_detalle.pedido_detalle.sku, "nombre": x.asignacion_detalle.pedido_detalle.nombre,
-                        "talla": x.asignacion_detalle.pedido_detalle.talla, "cantidad": x.cantidad,
-                        "empleado": x.asignacion_detalle.pedido_detalle.empleado.nombre
-                        if x.asignacion_detalle.pedido_detalle.empleado else None} for x in pq.detalles],
+         "sucursal": pq.asignacion.sucursal.nombre, "contenido": contenido, "individuales": individuales(contenido),
          "envio": None}
     if pq.envio:
         e = pq.envio
@@ -171,6 +188,8 @@ def asignacion(a, con_pedido=False):
          "detalles": [{"id": x.id, "pedido_detalle_id": x.pedido_detalle_id, "sku": x.pedido_detalle.sku,
                        "nombre": x.pedido_detalle.nombre, "talla": x.pedido_detalle.talla, "color": x.pedido_detalle.color,
                        "empleado": x.pedido_detalle.empleado.nombre if x.pedido_detalle.empleado else None,
+                       "empleado_id": x.pedido_detalle.empleado_id,
+                       "puesto": x.pedido_detalle.empleado.puesto if x.pedido_detalle.empleado else None,
                        "cantidad": x.cantidad, "surtida": x.surtida, "empacada": x.empacada,
                        "despachada": x.despachada, "faltante": x.faltante} for x in a.detalles],
          "paquetes": [paquete(p) for p in a.paquetes]}
