@@ -4,6 +4,7 @@
  * Todo se deriva de datos reales de la solicitud (historial de estados, paquetes, recepciones y entregas con firma).
  * Horizontal desde 768 px; vertical en celular (más espacio para el detalle). Nunca solo color: icono + texto.
  */
+import { useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { BadgeCheck, CheckCircle2, ClipboardCheck, Lock, PackageCheck, PackageOpen, PenLine, RotateCcw, Send, ShieldCheck, Truck, XCircle } from 'lucide-react';
 import type { Pedido } from '../api/tipos';
@@ -137,6 +138,13 @@ export default function LineaTiempoSolicitud({ p, ahora }: { p: Pedido; ahora?: 
   const total = inicio && ultimo?.fecha ? (cerrada ? new Date(ultimo.fecha).getTime() : (ahora ?? Date.now())) - inicio : null;
   const actual = hitos.find((h) => h.estado === 'actual' || h.estado === 'alerta');
   const progreso = Math.round((hechos / hitos.length) * 100);
+  // Celular: los pasos ya completados se agrupan en una línea desplegable; a la vista queda el último completado,
+  // el paso en curso y lo que sigue (antes la lista vertical ocupaba casi dos pantallas).
+  const [todo, setTodo] = useState(false);
+  const iActual = hitos.findIndex((h) => h.estado === 'actual' || h.estado === 'alerta');
+  const corte = iActual > 0 ? iActual - 1 : iActual < 0 ? Math.max(0, hitos.length - 1) : 0;
+  const plegados = !todo && corte > 1 ? hitos.slice(0, corte) : [];
+  const enLista = plegados.length ? hitos.slice(corte) : hitos;
 
   return (
     <section aria-label="Trazabilidad de la solicitud">
@@ -175,7 +183,16 @@ export default function LineaTiempoSolicitud({ p, ahora }: { p: Pedido; ahora?: 
       {/* Vertical (celular) */}
       <ol className="relative space-y-4 md:hidden">
         <span className="absolute bottom-3 left-[19px] top-3 w-0.5 rounded-full bg-tinta-100" aria-hidden />
-        {hitos.map((h) => {
+        {plegados.length > 0 && (
+          <li className="relative flex items-center gap-3">
+            <span className="relative z-10 grid h-10 w-10 shrink-0 place-items-center rounded-full bg-menta-500 text-white"><CheckCircle2 className="h-[18px] w-[18px]" aria-hidden /></span>
+            <button type="button" onClick={() => setTodo(true)} aria-expanded={false}
+              className="min-h-10 text-left text-sm font-semibold text-tinta-800">
+              {plegados.length} pasos completados <span className="block text-xs font-semibold text-menta-700">Ver recorrido completo</span>
+            </button>
+          </li>
+        )}
+        {enLista.map((h) => {
           const Icono = h.estado === 'hecha' && h.clave !== 'cerrada' ? CheckCircle2 : h.icono;
           return (
             <li key={h.clave} className="relative flex gap-3" aria-current={h.estado === 'actual' ? 'step' : undefined}>
@@ -186,6 +203,11 @@ export default function LineaTiempoSolicitud({ p, ahora }: { p: Pedido; ahora?: 
             </li>
           );
         })}
+        {todo && corte > 1 && (
+          <li className="relative pl-[52px]">
+            <button type="button" onClick={() => setTodo(false)} aria-expanded className="min-h-9 text-xs font-semibold text-menta-700">Ocultar pasos completados</button>
+          </li>
+        )}
       </ol>
       <p className="sr-only">Avance {progreso} %.</p>
     </section>

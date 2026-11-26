@@ -173,12 +173,14 @@ describe('nueva solicitud', () => {
     fireEvent.click(boton(/Revisar solicitud \(1\)/));
     const menos = await screen.findByRole('button', { name: 'Menos' });
     for (let i = 0; i < 4; i++) fireEvent.click(menos); // no baja de 1
-    for (let i = 0; i < 60; i++) fireEvent.click(screen.getByRole('button', { name: 'Más' })); // no pasa de 50
+    // El botón se busca una vez: buscarlo por rol en cada uno de los 60 clics hacía la prueba lenta (>5 s).
+    const mas = screen.getByRole('button', { name: 'Más' });
+    for (let i = 0; i < 60; i++) fireEvent.click(mas); // no pasa de 50
     fireEvent.click(boton('Enviar a revisión'));
     await confirmarEnvio();
     await waitFor(() => expect(post).toHaveBeenCalled());
     expect((vi.mocked(post).mock.calls[0][1] as { partidas: { cantidad: number }[] }).partidas[0].cantidad).toBe(50);
-  });
+  }, 15_000);
 
   it('quitar un artículo lo saca de la solicitud', async () => {
     montar();

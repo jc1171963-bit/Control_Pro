@@ -154,7 +154,7 @@ export default function PortalLayout() {
                 <>
                   <Icono className="h-5 w-5 shrink-0" aria-hidden /><span className={cls(rail && 'lg:sr-only')}>{nombre}</span>
                   {insignia(to) > 0 ? (
-                    <span className={cls('ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-[#f04444] px-1 text-[10px] font-bold text-white', rail && 'lg:absolute lg:right-1.5 lg:top-1 lg:ml-0')} aria-label={`${insignia(to)} sin leer`}>{insignia(to)}</span>
+                    <span className={cls('ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-[#d42f2f] px-1 text-[10px] font-bold text-white', rail && 'lg:absolute lg:right-1.5 lg:top-1 lg:ml-0')} aria-label={`${insignia(to)} sin leer`}>{insignia(to)}</span>
                   ) : isActive && <ChevronRight className={cls('ml-auto h-4 w-4', rail && 'lg:hidden')} aria-hidden />}
                 </>
               )}
