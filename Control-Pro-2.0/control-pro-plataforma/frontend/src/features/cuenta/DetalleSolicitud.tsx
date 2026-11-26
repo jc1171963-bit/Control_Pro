@@ -5,7 +5,7 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, ArrowDown, ArrowRightCircle, CheckCircle2, ChevronLeft, ClipboardCheck, Clock, FilePlus2, Info, MessageSquare, Package, PenLine, RotateCcw, Send, ShieldAlert, Star, Truck } from 'lucide-react';
+import { AlertTriangle, ArrowDown, ArrowRightCircle, CheckCircle2, ChevronLeft, ClipboardCheck, Clock, FilePlus2, FileText, History, Info, MessageSquare, MessagesSquare, Package, PenLine, RotateCcw, Send, ShieldAlert, Star, Truck, Users } from 'lucide-react';
 import ConfirmarEnvio from '../portal/ConfirmarEnvio';
 import { post } from '../../api/cliente';
 import type { EntregaIndividual, Incidencia, Paquete, Pedido } from '../../api/tipos';
@@ -17,6 +17,7 @@ import Expediente from '../../components/Expediente';
 import { CabezaIndividual, ContenidoPorPersona, individualesDe } from '../../components/PaqueteIndividual';
 import { ListaReposiciones } from '../../components/Reposiciones';
 import TarjetaIncidencia from '../../components/TarjetaIncidencia';
+import { PanelPestana, Pestanas, usePestana } from '../../components/Pestanas';
 import { Aparecer, Etapa, LineaProceso, Palomita } from '../../components/movimiento';
 import ComprobanteEntrega from './ComprobanteEntrega';
 import LineaTiempoSolicitud from '../../components/LineaTiempoSolicitud';
@@ -79,7 +80,7 @@ const TONOS_SIGUIENTE = {
 } as const;
 
 /** Qué sigue en la solicitud; las incidencias se separan por su turno (backend: turno_actor), sin calcular nada. */
-function QueSigue({ s, incidencias }: { s: Siguiente; incidencias: Incidencia[] }) {
+function QueSigue({ s, incidencias, onIr }: { s: Siguiente; incidencias: Incidencia[]; onIr: (ir: 'paquetes' | 'empleados' | 'incidencias') => void }) {
   const [fondo, icono, Icono] = TONOS_SIGUIENTE[s.tono];
   const teEsperan = incidencias.filter((i) => i.turno_actor === 'sucursal');
   const conLurima = incidencias.filter((i) => i.turno_actor === 'lurima').length;
@@ -100,7 +101,7 @@ function QueSigue({ s, incidencias }: { s: Siguiente; incidencias: Incidencia[] 
       </div>
       {s.ir && (
         <Boton variante="secundario" className="shrink-0" icono={<ArrowDown className="h-4 w-4" aria-hidden />}
-          onClick={() => document.getElementById(`seccion-${s.ir}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
+          onClick={() => onIr(s.ir!)}>
           {s.ir === 'paquetes' ? 'Ir a Paquetes' : 'Ir a Empleados'}
         </Boton>
       )}
@@ -449,6 +450,8 @@ export default function DetalleSolicitud({ p }: { p: Pedido }) {
   const [incidencia, setIncidencia] = useState(false);
   const [cancelar, setCancelar] = useState(false);
   const [motivo, setMotivo] = useState('');
+  const [filtro, setFiltro] = useState<'todos' | 'entregar' | 'conformidad' | 'completos'>('todos');
+  const [pestana, cambiarPestana] = usePestana(['empleados', 'paquetes', 'incidencias', 'documentos', 'mensajes', 'historial'], proximoPaso(p).ir ?? 'empleados');
   const refrescar = () => { qc.invalidateQueries({ queryKey: ['pedido', String(p.id)] }); qc.invalidateQueries({ queryKey: ['resumen-sucursal'] }); qc.invalidateQueries({ queryKey: ['mis-borradores'] }); };
   const [confirmar, setConfirmar] = useState(false);
   const enviar = useMutation({ mutationFn: () => post(`/cuenta/pedidos-corporativos/${p.id}/enviar`), onSuccess: () => { refrescar(); setConfirmar(false); avisar(`Solicitud ${p.folio} enviada a revisión.`);
@@ -460,6 +463,26 @@ export default function DetalleSolicitud({ p }: { p: Pedido }) {
   const cancelable = p.estado === 'borrador';  // una solicitud enviada solo la cancela el distribuidor
   const cambiosGerente = p.historial.filter((h) => cambioDelGerente(h.motivo) !== null);
   const observacion = p.aprobaciones?.filter((a) => a.decision !== 'aprobado').slice(-1)[0];
+  const siguiente = proximoPaso(p);
+  const abiertas = (p.incidencias || []).filter((i) => ['abierta', 'en_atencion'].includes(i.estado)).length;
+  const porRecibir = p.paquetes.filter((pq) => pq.estado === 'entregado' && !pq.recepcion).length;
+  const fichas = empleados.map((emp) => {
+    const suyos = p.detalles.filter((d) => d.empleado?.id === emp.id);
+    const susEntregas = entregas.filter((e) => e.empleado.id === emp.id);
+    const pedidas = suyos.reduce((a, d) => a + d.cantidad - d.cantidad_cancelada, 0);
+    const firmadas = susEntregas.reduce((a, e) => a + e.detalles.reduce((t, d) => t + d.entregada, 0), 0);
+    const entregar = susEntregas.some((e) => e.estado === 'pendiente' && p.paquetes.find((pq) => pq.id === e.paquete_id)?.recepcion);
+    const conformar = susEntregas.some((e) => e.estado !== 'pendiente' && !e.conformidad_en);
+    return { emp, suyos, susEntregas, pedidas, firmadas, entregar, conformar, completo: pedidas > 0 && firmadas >= pedidas && !conformar };
+  });
+  const porEntregar = fichas.filter((f) => f.entregar).length;
+  const porConformar = fichas.filter((f) => f.conformar).length;
+  const completos = fichas.filter((f) => f.completo).length;
+  // Primero quien tiene algo pendiente de hacer
+  const visibles = fichas.filter((f) => filtro === 'todos' || (filtro === 'entregar' && f.entregar) || (filtro === 'conformidad' && f.conformar) || (filtro === 'completos' && f.completo))
+    .sort((a, b) => Number(b.entregar || b.conformar) - Number(a.entregar || a.conformar));
+  const totalPedidas = fichas.reduce((a, f) => a + f.pedidas, 0);
+  const totalFirmadas = fichas.reduce((a, f) => a + f.firmadas, 0);
 
   return (
     <div className="space-y-5">
@@ -491,61 +514,101 @@ export default function DetalleSolicitud({ p }: { p: Pedido }) {
         ))}
         {/* En móvil la línea se desplaza en horizontal: la región es enfocable para poder recorrerla con el teclado. */}
         {p.estado !== 'borrador' && <LineaTiempoSolicitud p={p} />}
+        {(entregas.length > 0 || p.paquetes.length > 0) && (
+          <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {([['Entregados', `${totalFirmadas}/${totalPedidas}`, totalPedidas > 0 && totalFirmadas >= totalPedidas],
+              ['Paquetes recibidos', `${p.paquetes.filter((pq) => pq.recepcion).length}/${p.paquetes.length}`, porRecibir === 0 && p.paquetes.length > 0],
+              ['Por entregar', String(porEntregar), porEntregar === 0],
+              ['Incidencias abiertas', String(abiertas), abiertas === 0]] as const).map(([t, v, ok]) => (
+              <div key={t} className="rounded-xl bg-tinta-50/70 px-3 py-2 ring-1 ring-tinta-100">
+                <dt className="text-[11px] font-semibold uppercase tracking-wide text-tinta-500">{t}</dt>
+                <dd className={cls('font-display text-lg font-bold', ok ? 'text-menta-700' : 'text-tinta-900')}>{v}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
         {p.notas && <p className="mt-4 rounded-lg bg-tinta-50 p-3 text-xs"><b>Notas:</b> {p.notas}</p>}
       </Tarjeta>
 
-      <QueSigue s={proximoPaso(p)} incidencias={p.incidencias || []} />
+      <QueSigue s={siguiente} incidencias={p.incidencias || []} onIr={(ir) => cambiarPestana(ir)} />
 
-      <section id="seccion-empleados" className="scroll-mt-24">
-      <Tarjeta titulo="Artículos por empleado" sub="Lo solicitado, lo entregado y lo pendiente de cada persona">
-        <div className="grid gap-3 md:grid-cols-2">
-          {empleados.map((emp, i) => {
-            const suyos = p.detalles.filter((d) => d.empleado?.id === emp.id);
-            const susEntregas = entregas.filter((e) => e.empleado.id === emp.id);
-            const pedidas = suyos.reduce((a, d) => a + d.cantidad - d.cantidad_cancelada, 0);
-            const recibidas = suyos.reduce((a, d) => a + d.cantidad_entregada, 0);
-            const firmadas = susEntregas.reduce((a, e) => a + e.detalles.reduce((s, d) => s + d.entregada, 0), 0);
-            return (
+      <Pestanas etiqueta={`Secciones de la solicitud ${p.folio}`} activa={pestana} onCambio={cambiarPestana} className="sticky top-[74px] z-10 lg:top-[84px]"
+        items={[
+          { clave: 'empleados', titulo: 'Empleados', icono: Users, cuenta: empleados.length, alerta: porEntregar + porConformar > 0 },
+          { clave: 'paquetes', titulo: 'Paquetes', icono: Package, cuenta: p.paquetes.length, alerta: porRecibir > 0, oculta: !p.paquetes.length },
+          { clave: 'incidencias', titulo: 'Incidencias', icono: ShieldAlert, cuenta: abiertas || (p.incidencias?.length ?? 0), alerta: abiertas > 0, oculta: !p.incidencias?.length },
+          { clave: 'documentos', titulo: 'Documentos', icono: FileText, oculta: p.estado === 'borrador' },
+          { clave: 'mensajes', titulo: 'Mensajes', icono: MessagesSquare, oculta: p.estado === 'borrador' },
+          { clave: 'historial', titulo: 'Historial', icono: History, cuenta: p.historial.length },
+        ]} />
+
+      <PanelPestana clave="empleados" activa={pestana}>
+        <Tarjeta titulo="Artículos por empleado" sub="Lo solicitado, lo entregado y lo pendiente de cada persona"
+          accion={empleados.length > 3 && (
+            <div className="flex flex-wrap gap-1" role="group" aria-label="Filtrar empleados">
+              {([['todos', 'Todos', empleados.length], ['entregar', 'Por entregar', porEntregar], ['conformidad', 'Por conformidad', porConformar], ['completos', 'Completos', completos]] as const).map(([k, t, n]) => (
+                <button key={k} type="button" onClick={() => setFiltro(k)} aria-pressed={filtro === k}
+                  className={cls('min-h-9 rounded-full px-3 text-xs font-semibold ring-1 transition', filtro === k ? 'bg-tinta-900 text-white ring-tinta-900' : 'text-tinta-600 ring-tinta-200 hover:bg-tinta-50')}>
+                  {t} <span className="opacity-70">{n}</span></button>
+              ))}
+            </div>
+          )}>
+          {!visibles.length ? <p className="text-sm text-tinta-500">Nadie en este filtro.</p> : (
+          <div className="grid gap-3 md:grid-cols-2 [&>*]:min-w-0">
+            {visibles.map(({ emp, suyos, susEntregas, pedidas, firmadas }, i) => (
               <Aparecer key={emp.id} orden={i}>
-                <div className="h-full rounded-xl p-4 ring-1 ring-arena-200">
-                  <div className="flex items-start justify-between gap-2">
-                    <div><p className="font-semibold">{emp.nombre}</p><p className="text-xs text-tinta-400">{emp.puesto}</p></div>
-                    <span className="text-right text-xs"><b className="font-display text-lg">{firmadas}</b><span className="text-tinta-400">/{pedidas} entregados</span></span>
-                  </div>
-                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-arena-200"><div className="h-full origin-left animate-crecer rounded-full bg-menta-500" style={{ width: `${pedidas ? (firmadas / pedidas) * 100 : 0}%` }} /></div>
+                <article className="flex h-full flex-col rounded-xl bg-white/60 p-4 ring-1 ring-arena-200" aria-label={`Artículos de ${emp.nombre}`}>
+                  <header className="flex items-start gap-3">
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-menta-50 text-xs font-bold text-menta-800 ring-1 ring-menta-100" aria-hidden>
+                      {emp.nombre.split(/\s+/).slice(0, 2).map((x) => x[0]).join('').toUpperCase()}</span>
+                    <div className="min-w-0 flex-1"><p className="truncate font-semibold">{emp.nombre}</p><p className="truncate text-xs text-tinta-500">{emp.puesto}</p></div>
+                    <span className="shrink-0 text-right text-xs"><b className="font-display text-lg text-tinta-900">{firmadas}</b><span className="text-tinta-500">/{pedidas}</span>
+                      <span className="block text-[11px] text-tinta-500">entregados</span></span>
+                  </header>
+                  <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-arena-200" role="progressbar" aria-valuemin={0} aria-valuemax={pedidas} aria-valuenow={firmadas} aria-label={`Entregados a ${emp.nombre}`}>
+                    <div className="h-full origin-left animate-crecer rounded-full bg-menta-500" style={{ width: `${pedidas ? (firmadas / pedidas) * 100 : 0}%` }} /></div>
                   <ul className="mt-3 space-y-1 text-xs">
                     {suyos.map((d) => (
-                      <li key={d.id} className="flex justify-between gap-2"><span>{d.cantidad}× {d.nombre} · {d.talla}{d.excepcion && <span className="ml-1 text-amber-700">(excepción)</span>}</span>
-                        <span className="shrink-0 text-tinta-400">{d.cantidad_cancelada ? `${d.cantidad_cancelada} cancelada(s)` : recibidas && d.cantidad_entregada >= d.cantidad ? 'En sucursal' : ''}</span></li>
+                      <li key={d.id} className="flex justify-between gap-2">
+                        <span className="min-w-0 text-tinta-700"><b className="font-semibold text-tinta-900">{d.cantidad}×</b> {d.nombre} · {d.talla}{d.excepcion && <span className="ml-1 text-amber-700">(excepción)</span>}</span>
+                        <span className="shrink-0 text-tinta-500">{d.cantidad_cancelada ? `${d.cantidad_cancelada} cancelada(s)` : d.cantidad_entregada >= d.cantidad ? 'En sucursal' : ''}</span></li>
                     ))}
                   </ul>
-                  {susEntregas.map((e) => (
-                    <div key={e.id} className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-arena-200 pt-3 text-xs">
-                      <span>Paquete {p.paquetes.find((pq) => pq.id === e.paquete_id)?.folio}: <Estado valor={e.estado} />
-                        {e.registrado_por && <span className="block text-tinta-400">Entregó {e.registrado_por} · {fechaHora(e.entregado_en)}</span>}
-                        {e.valoracion && <span className="block text-amber-500">{'★'.repeat(e.valoracion)}<span className="text-tinta-200">{'★'.repeat(5 - e.valoracion)}</span></span>}</span>
-                      {e.estado === 'pendiente' ? (
-                        p.paquetes.find((pq) => pq.id === e.paquete_id)?.recepcion
-                          ? <Boton tam="sm" icono={<PenLine className="h-3.5 w-3.5" />} onClick={() => setEntrega(e)}>Registrar entrega</Boton>
-                          : <span className="text-tinta-400">Recibe primero el paquete</span>
-                      ) : (
-                        <span className="flex flex-wrap gap-1.5">
-                          <FirmaEnLinea entregaId={e.id} origen="cuenta" onAbrir={() => setComprobante(e.id)} />
-                          {!e.conformidad_en && <Boton tam="sm" variante="menta" icono={<ClipboardCheck className="h-3.5 w-3.5" />} onClick={() => setConformidad(e)}>Conformidad</Boton>}
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                  {!!susEntregas.length && (
+                    <ul className="mt-3 space-y-2 border-t border-arena-200 pt-3">
+                      {susEntregas.map((e) => {
+                        const paq = p.paquetes.find((pq) => pq.id === e.paquete_id);
+                        return (
+                          <li key={e.id} className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                            <span className="min-w-0">
+                              <span className="flex flex-wrap items-center gap-1.5"><span className="font-medium text-tinta-700">{paq?.reposicion ? 'Reposición' : 'Paquete'} {paq?.folio.replace(/^PAQ-\d{4}-0*/, 'PAQ-')}</span><Estado valor={e.estado} /></span>
+                              {e.registrado_por && <span className="mt-0.5 block text-tinta-500">Entregó {e.registrado_por} · {fechaHora(e.entregado_en)}</span>}
+                              {e.valoracion && <span className="block text-amber-500" aria-label={`${e.valoracion} de 5 estrellas`}>{'★'.repeat(e.valoracion)}<span className="text-tinta-200">{'★'.repeat(5 - e.valoracion)}</span></span>}
+                            </span>
+                            {e.estado === 'pendiente' ? (
+                              paq?.recepcion
+                                ? <Boton tam="sm" icono={<PenLine className="h-3.5 w-3.5" />} onClick={() => setEntrega(e)}>Registrar entrega</Boton>
+                                : <span className="text-tinta-500">Recibe primero el paquete</span>
+                            ) : (
+                              <span className="flex flex-wrap items-center gap-1.5">
+                                <FirmaEnLinea entregaId={e.id} origen="cuenta" onAbrir={() => setComprobante(e.id)} />
+                                {!e.conformidad_en && <Boton tam="sm" variante="menta" icono={<ClipboardCheck className="h-3.5 w-3.5" />} onClick={() => setConformidad(e)}>Conformidad</Boton>}
+                              </span>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </article>
               </Aparecer>
-            );
-          })}
-        </div>
-      </Tarjeta>
-      </section>
+            ))}
+          </div>
+          )}
+        </Tarjeta>
+      </PanelPestana>
 
-      {p.paquetes.length > 0 && (
-        <section id="seccion-paquetes" className="scroll-mt-24">
+      <PanelPestana clave="paquetes" activa={pestana}>
         <Tarjeta titulo="Paquetes" sub="Cada paquete tiene su propia guía y su propio estado">
           <div className="space-y-4">
             {p.paquetes.map((pq, i) => (
@@ -554,7 +617,7 @@ export default function DetalleSolicitud({ p }: { p: Pedido }) {
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="flex min-w-0 flex-wrap items-center gap-2 font-semibold"><Package className="h-4 w-4 text-menta-600" />{pq.folio}
                       {pq.reposicion && <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-bold text-sky-800">Reposición de la incidencia {pq.reposicion.folio}</span>}
-                      <span className="text-xs font-normal text-tinta-400">desde {pq.sucursal} · {fechaHora(pq.creado)}</span></p>
+                      <span className="text-xs font-normal text-tinta-500">desde {pq.sucursal} · {fechaHora(pq.creado)}</span></p>
                     {pq.estado === 'entregado' && !pq.recepcion && <Boton tam="sm" icono={<ClipboardCheck className="h-3.5 w-3.5" />} onClick={() => setRecibir(pq)}>Registrar recepción</Boton>}
                   </div>
                   <div className="mt-4 overflow-x-auto rounded-lg pb-1" tabIndex={0} role="region" aria-label={`Avance del paquete ${pq.folio}`}><div className="min-w-[420px]"><LineaProceso compacta etapas={etapasPaquete(pq)} /></div></div>
@@ -587,37 +650,40 @@ export default function DetalleSolicitud({ p }: { p: Pedido }) {
             ))}
           </div>
         </Tarjeta>
-        </section>
-      )}
+      </PanelPestana>
 
-      {p.estado !== 'borrador' && <Expediente pedidoId={p.id} folio={p.folio} origen="cuenta" onComprobante={setComprobante} />}
-
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px] [&>*]:min-w-0">
-        <Tarjeta titulo="Incidencias" sub="Cada actualización queda en su historial">
-          {!p.incidencias?.length ? <p className="text-sm text-tinta-400">Sin incidencias registradas.</p> : (
-            <div className="space-y-2">{p.incidencias.map((i) => <IncidenciaDeSolicitud key={i.id} i={i} />)}</div>
-          )}
+      <PanelPestana clave="incidencias" activa={pestana}>
+        <Tarjeta titulo="Incidencias" sub="Cada actualización queda en su historial"
+          accion={p.estado !== 'borrador' && <Boton tam="sm" variante="secundario" icono={<ShieldAlert className="h-3.5 w-3.5" />} onClick={() => setIncidencia(true)}>Reportar incidencia</Boton>}>
+          <div className="grid gap-3 lg:grid-cols-2 [&>*]:min-w-0">{(p.incidencias || []).map((i) => <IncidenciaDeSolicitud key={i.id} i={i} />)}</div>
         </Tarjeta>
-        <Tarjeta titulo="Historial de la solicitud">
-          <ol className="relative space-y-4 border-l-2 border-arena-200 pl-5">
-            {p.historial.map((h, i) => (
-              <Aparecer como="li" orden={i} key={i} className="relative">
-                <span className="absolute -left-[27px] top-1 h-3 w-3 rounded-full bg-menta-500 ring-4 ring-white" />
-                <p className="text-sm font-semibold">{etiqueta(h.nuevo)}</p>
-                <p className="text-xs text-tinta-400">{fechaHora(h.fecha)} · {h.actor}</p>
-                {h.motivo && <p className="text-xs text-tinta-500">{h.motivo}</p>}
-              </Aparecer>
-            ))}
-          </ol>
-        </Tarjeta>
-      </div>
+      </PanelPestana>
 
-      {p.estado !== 'borrador' && (
+      <PanelPestana clave="documentos" activa={pestana}>
+        <Expediente pedidoId={p.id} folio={p.folio} origen="cuenta" onComprobante={setComprobante} />
+      </PanelPestana>
+
+      <PanelPestana clave="mensajes" activa={pestana}>
         <div className="space-y-2">
           <ChatSolicitud pedidoId={p.id} tipo="sucursal" titulo="Conversación con el aprobador" />
           <ContactoWhatsApp folio={p.folio} />
         </div>
-      )}
+      </PanelPestana>
+
+      <PanelPestana clave="historial" activa={pestana}>
+        <Tarjeta titulo="Historial de la solicitud" sub="Cada cambio de estado, quién lo hizo y cuándo">
+          <ol className="relative space-y-4 border-l-2 border-arena-200 pl-5">
+            {[...p.historial].reverse().map((h, i) => (
+              <Aparecer como="li" orden={i} key={i} className="relative">
+                <span className="absolute -left-[27px] top-1 h-3 w-3 rounded-full bg-menta-500 ring-4 ring-white" />
+                <p className="text-sm font-semibold">{etiqueta(h.nuevo)}</p>
+                <p className="text-xs text-tinta-500">{fechaHora(h.fecha)} · {h.actor}</p>
+                {h.motivo && <p className="text-xs text-tinta-600">{h.motivo}</p>}
+              </Aparecer>
+            ))}
+          </ol>
+        </Tarjeta>
+      </PanelPestana>
 
       <Modal abierto={!!recibir} titulo={`Recepción del paquete ${recibir?.folio || ''}`} onCerrar={() => setRecibir(null)} ancho="max-w-2xl">
         {recibir && <RecepcionPaquete pq={recibir} p={p} onCerrar={() => setRecibir(null)} />}

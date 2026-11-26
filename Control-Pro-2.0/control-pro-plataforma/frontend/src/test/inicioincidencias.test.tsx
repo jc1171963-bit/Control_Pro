@@ -1,5 +1,5 @@
 /** 3B.5: resumen de incidencias del inicio del panel, TarjetaIncidencia y «Qué sigue» de la solicitud. */
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { beforeEach, vi } from 'vitest';
@@ -184,6 +184,7 @@ describe('«Qué sigue» e incidencias en la solicitud de la sucursal', () => {
 
   it('cada incidencia usa la tarjeta común con chip de la sucursal y enlace a su detalle', () => {
     montar(<DetalleSolicitud p={solicitud([inc(6, 'sucursal_recibir', 'sucursal'), inc(7, 'lurima_atender', 'lurima')])} />);
+    fireEvent.click(screen.getByRole('tab', { name: /Incidencias/ }));  // las incidencias viven en su pestaña
     expect(screen.getByRole('link', { name: 'Abrir incidencia INC-6' })).toHaveAttribute('href', '/cuenta/incidencias/6');
     expect(screen.getByRole('link', { name: 'Abrir incidencia INC-7' })).toHaveAttribute('href', '/cuenta/incidencias/7');
     expect(screen.getAllByText('Te toca recibir la reposición').length).toBeGreaterThan(0);

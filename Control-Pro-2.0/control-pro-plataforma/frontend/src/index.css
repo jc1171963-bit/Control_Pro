@@ -288,3 +288,45 @@
   .mensaje-resaltado > .burbuja { animation: resaltar 1.6s ease-out; }
   @keyframes resaltar { 0%, 35% { box-shadow: 0 0 0 4px rgb(83 189 235 / .55); } 100% { box-shadow: 0 1px .5px rgba(11, 20, 26, .13); } }
 }
+
+/* ===== MODO OSCURO · AJUSTE FINO =====
+   Correcciones medidas con el auditor de contraste (WCAG: 4.5:1 en texto normal, 3:1 en texto grande). Van al final
+   para ganar a las reglas generales de arriba. */
+@layer base {
+  /* Botones principales de cada marca: fondo del color institucional (no se invierte) y texto blanco legible.
+     Antes la regla general volvía oscuro el texto y quedaba oscuro sobre verde/azul oscuro (1.6:1). */
+  html.oscuro .tema-sd .boton-primario, html.oscuro .tema-sd :is(a, button, span).bg-tinta-900.text-white { background-color: rgb(0 122 79); color: #fff; }
+  html.oscuro .tema-sd .boton-primario:hover:not(:disabled), html.oscuro .tema-sd :is(a, button).bg-tinta-900.text-white:hover { background-color: rgb(0 137 89); }
+  html.oscuro .tema-lu .boton-primario, html.oscuro .tema-lu :is(a, button, span).bg-tinta-900.text-white { background-color: #2a62a8; color: #fff; }
+  html.oscuro .tema-lu .boton-primario:hover:not(:disabled), html.oscuro .tema-lu :is(a, button).bg-tinta-900.text-white:hover { background-color: #3a74bd; }
+  html.oscuro :is(.tema-sd, .tema-lu) .boton-primario :is(svg, span) { color: inherit; }
+
+  /* Textos claros pensados para ir sobre color (banners, tarjetas de marca): en oscuro las variables 50-200 se vuelven
+     tintes oscuros y el texto desaparecía; aquí se fijan claros. */
+  html.oscuro :is(.text-menta-50, .text-menta-100, .text-menta-200, .text-bienestar-50, .text-bienestar-100) { color: rgb(214 245 232); }
+  html.oscuro :is(.text-lurima-50, .text-lurima-100, .text-lurima-200) { color: rgb(220 232 247); }
+  /* Enlaces y textos en azul LURIMA oscuro (p. ej. «Ver tienda»): en el panel oscuro pasan a azul claro. */
+  html.oscuro .tema-lu :is(.text-lurima-600, .text-lurima-700, .text-lurima-800, .text-lurima-900, .hover\:text-lurima-700:hover, .hover\:text-lurima-900:hover) { color: rgb(170 198 236); }
+
+  /* Neutros tenues: el gris más claro subía a 3:1 sobre la tarjeta; se aclara un poco para guiones y textos de apoyo. */
+  html.oscuro { --tinta-300: 108 128 154; }
+
+  /* Firmas: el trazo es oscuro sobre papel; en oscuro se invierte (trazo claro) y la caja deja de ser un parche blanco. */
+  html.oscuro .firma-caja { background-color: rgb(var(--superficie-2)); }
+  html.oscuro .firma-trazo { filter: invert(1) hue-rotate(180deg) brightness(1.15); }
+
+  /* Contadores rojos de avisos: un rojo un poco más profundo para que el número blanco cumpla 4.5:1. */
+  html.oscuro :is(.bg-\[\#e43e43\]) { background-color: #c92a2f; }
+
+  /* Etiquetas en verde de marca sobre fondo oscuro (p. ej. «Catálogo»). */
+  html.oscuro .tema-sd :is(.text-bienestar-500, .text-bienestar-600) { color: rgb(112 222 172); }
+
+  /* Pestañas de las vistas de detalle */
+  html.oscuro .pestanas { box-shadow: none; }
+  html.oscuro .pestana:not(.pestana-activa):hover { background-color: rgb(var(--superficie-2)); }
+}
+
+/* Contadores y botones rojos con texto blanco (claro y oscuro): el coral de marca daba 3.4:1 con blanco; el tono un
+   poco más profundo llega a 4.6:1 sin cambiar el carácter del color. */
+.bg-coral-500.text-white { background-color: #C8441F; }
+.bg-coral-500.text-white.hover\:bg-coral-600:hover:not(:disabled) { background-color: #A3361A; }

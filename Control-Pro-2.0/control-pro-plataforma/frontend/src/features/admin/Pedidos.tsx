@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Ban, Check, CheckCheck, ChevronRight, FileDown, PencilLine, Search, Undo2, X } from 'lucide-react';
+import { Ban, Check, CheckCheck, ChevronRight, FileDown, FileText, History, MessagesSquare, PencilLine, Search, ShieldAlert, Shirt, Truck, Undo2, Users, Wallet, X } from 'lucide-react';
 import { claveIdempotencia, descargar, get, post } from '../../api/cliente';
 import type { Pagina, Pedido, PedidoResumen } from '../../api/tipos';
 import { useAuth } from '../../app/auth';
@@ -22,6 +22,7 @@ import PanelNegociacion from './Negociacion';
 import { Encabezado, FiltroSucursal } from './AdminLayout';
 import SelloCNR from '../../components/SelloCNR';
 import TarjetaIncidencia from '../../components/TarjetaIncidencia';
+import { PanelPestana, Pestanas, usePestana } from '../../components/Pestanas';
 
 const ESTADOS_FILTRO = [['', 'Todos'], ['en_revision', 'Por aprobar'], ['pendiente_pago,pago_en_revision', 'Por pagar'], ['confirmado,en_preparacion', 'Por surtir'],
   ['parcialmente_enviado,enviado', 'En camino'], ['parcialmente_entregado,entregado', 'Entregados'], ['cerrado', 'Cerrados'], ['cancelado,expirado,rechazado', 'Cancelados']];
@@ -126,30 +127,142 @@ function CotizacionWhatsApp({ folio }: { folio: string }) {
   );
 }
 
-/** Rastreo de cada artículo: solicitud → surtido → paquete y guía → recepción → entrega con firma → conformidad. */
-function TrazabilidadArticulos({ p, onFirma }: { p: Pedido; onFirma: (entregaId: number) => void }) {
-  const filas = p.detalles.map((d) => {
-    const asig = (p.asignaciones || []).flatMap((a) => a.detalles.filter((x) => x.pedido_detalle_id === d.id).map((x) => ({ ...x, sucursal: a.sucursal.nombre })));
-    const paquetes = p.paquetes.filter((pq) => pq.contenido.some((c) => c.pedido_detalle_id === d.id));
-    const recepciones = paquetes.flatMap((pq) => (pq.recepcion?.detalles || []).filter((x) => x.pedido_detalle_id === d.id));
-    const entregas = (p.entregas_individuales || []).flatMap((e) => e.detalles.filter((x) => x.pedido_detalle_id === d.id).map((x) => ({ ...x, e })));
-    return { d, asig, paquetes, recepciones, entregas };
+type Paso = { texto: string; tono: 'hecho' | 'parcial' | 'pendiente' | 'problema'; detalle?: string };
+const TONO_PASO: Record<Paso['tono'], string> = {
+  hecho: 'bg-menta-50 text-menta-800 ring-menta-200', parcial: 'bg-amber-50 text-amber-900 ring-amber-200',
+  pendiente: 'bg-tinta-50 text-tinta-500 ring-tinta-100', problema: 'bg-coral-50 text-coral-800 ring-coral-200',
+};
+
+/** Avance de un artículo: surtido → enviado (guía) → recibido en sucursal → entregado al empleado. */
+function pasosArticulo(p: Pedido, d: Pedido['detalles'][number]): Paso[] {
+  const meta = d.cantidad - d.cantidad_cancelada;
+  const asig = (p.asignaciones || []).flatMap((a) => a.detalles.filter((x) => x.pedido_detalle_id === d.id));
+  const surtida = asig.reduce((s, x) => s + x.surtida, 0);
+  const faltante = asig.reduce((s, x) => s + x.faltante, 0);
+  const paquetes = p.paquetes.filter((pq) => pq.contenido.some((c) => c.pedido_detalle_id === d.id));
+  const enviadas = paquetes.filter((pq) => pq.envio).reduce((s, pq) => s + pq.contenido.filter((c) => c.pedido_detalle_id === d.id).reduce((t, c) => t + c.cantidad, 0), 0);
+  const recs = paquetes.flatMap((pq) => (pq.recepcion?.detalles || []).filter((x) => x.pedido_detalle_id === d.id));
+  const recibidas = recs.reduce((s, x) => s + x.recibida, 0) + paquetes.filter((pq) => pq.recepcion && !pq.recepcion.detalles.length)
+    .reduce((s, pq) => s + pq.contenido.filter((c) => c.pedido_detalle_id === d.id).reduce((t, c) => t + c.cantidad, 0), 0);
+  const problema = recs.find((x) => x.problema);
+  const entregadas = (p.entregas_individuales || []).filter((e) => e.estado !== 'pendiente')
+    .flatMap((e) => e.detalles.filter((x) => x.pedido_detalle_id === d.id)).reduce((s, x) => s + x.entregada, 0);
+  const tono = (n: number): Paso['tono'] => (n >= meta && meta > 0 ? 'hecho' : n > 0 ? 'parcial' : 'pendiente');
+  const guias = paquetes.filter((pq) => pq.envio).map((pq) => `${pq.envio!.paqueteria} ${pq.envio!.guia}`).join(', ');
+  return [
+    { texto: `Surtido ${surtida}/${meta}`, tono: faltante ? 'problema' : tono(surtida), detalle: faltante ? `${faltante} faltante(s)` : undefined },
+    { texto: `Enviado ${enviadas}/${meta}`, tono: tono(enviadas), detalle: guias || undefined },
+    { texto: `Recibido ${recibidas}/${meta}`, tono: problema ? 'problema' : tono(recibidas), detalle: problema ? PROBLEMAS_RECEPCION[problema.problema!] : undefined },
+    { texto: `Entregado ${entregadas}/${meta}`, tono: tono(entregadas) },
+  ];
+}
+
+/** Seguimiento por empleado: lo que le toca a cada persona, en qué paso va cada artículo y su firma de entrega. */
+function EntregasPorEmpleado({ p, onFirma }: { p: Pedido; onFirma: (entregaId: number) => void }) {
+  const [filtro, setFiltro] = useState<'todos' | 'pendientes' | 'completos'>('todos');
+  const personas = [...new Map(p.detalles.filter((d) => d.empleado).map((d) => [d.empleado!.id, d.empleado!])).values()].map((emp) => {
+    const suyos = p.detalles.filter((d) => d.empleado?.id === emp.id);
+    const entregas = (p.entregas_individuales || []).filter((e) => e.empleado.id === emp.id);
+    const meta = suyos.reduce((s, d) => s + d.cantidad - d.cantidad_cancelada, 0);
+    const firmadas = entregas.reduce((s, e) => s + e.detalles.reduce((t, x) => t + x.entregada, 0), 0);
+    return { emp, suyos, entregas, meta, firmadas, completo: meta > 0 && firmadas >= meta };
   });
+  const visibles = personas.filter((x) => filtro === 'todos' || (filtro === 'completos' ? x.completo : !x.completo));
   return (
-    <Tabla columnas={['Empleado / artículo', 'Surtido', 'Paquete y guía', 'Recepción', 'Entrega', 'Conformidad']}>
-      {filas.map(({ d, asig, paquetes, recepciones, entregas }) => (
-        <tr key={d.id} className="align-top">
-          <Td><p className="font-semibold">{d.empleado?.nombre || '—'}</p><p className="text-xs text-tinta-500">{d.cantidad}× {d.nombre} · {d.talla}</p>
-            {d.excepcion && <p className="mt-1 text-[11px] text-amber-700">Excepción por puesto</p>}</Td>
-          <Td className="text-xs">{asig.length ? asig.map((a) => <p key={a.id}>{a.sucursal}: {a.surtida}/{a.cantidad}{a.faltante ? <span className="text-coral-600"> · {a.faltante} faltante</span> : ''}</p>) : <span className="text-tinta-300">Pendiente</span>}</Td>
-          <Td className="text-xs">{paquetes.length ? paquetes.map((pq) => <p key={pq.id}>{pq.folio} <Estado valor={pq.estado} className="ml-1" />{pq.envio && <span className="block text-tinta-400">{pq.envio.paqueteria} · {pq.envio.guia}</span>}</p>) : <span className="text-tinta-300">—</span>}</Td>
-          <Td className="text-xs">{paquetes.some((pq) => pq.recepcion) ? (recepciones.length ? recepciones.map((r, i) => <p key={i} className={r.problema ? 'text-coral-600' : 'text-menta-700'}>{r.recibida}/{r.esperada}{r.problema ? ` · ${PROBLEMAS_RECEPCION[r.problema]}` : ' recibidas'}</p>)
-            : <p className="text-menta-700">Recibido</p>) : <span className="text-tinta-300">—</span>}</Td>
-          <Td className="text-xs">{entregas.length ? entregas.map(({ e, entregada, esperada }) => <p key={e.id}>{e.estado === 'pendiente' ? <span className="text-tinta-400">Pendiente</span> : <>{entregada}/{esperada} · {fechaHora(e.entregado_en)}<span className="block text-tinta-400">Entregó {e.registrado_por || '—'}</span>
-            {e.tiene_firma && <FirmaEnLinea entregaId={e.id} origen="admin" onAbrir={() => onFirma(e.id)} className="mt-1" />}</>}</p>) : <span className="text-tinta-300">—</span>}</Td>
-          <Td className="text-xs">{entregas.map(({ e }) => <p key={e.id}>{e.conformidad_en ? <><span className="text-amber-500">{'★'.repeat(e.valoracion || 0)}</span> <Estado valor={e.estado} className="ml-1" /></> : e.estado !== 'pendiente' ? <span className="text-tinta-400">Pendiente</span> : ''}</p>)}</Td>
-        </tr>
-      ))}
+    <Tarjeta titulo="Entregas por empleado" sub="Cada artículo de la solicitud a la firma del empleado"
+      accion={personas.length > 3 && (
+        <div className="flex flex-wrap gap-1" role="group" aria-label="Filtrar empleados">
+          {([['todos', 'Todos', personas.length], ['pendientes', 'Con pendientes', personas.filter((x) => !x.completo).length], ['completos', 'Completos', personas.filter((x) => x.completo).length]] as const).map(([k, t, n]) => (
+            <button key={k} type="button" onClick={() => setFiltro(k)} aria-pressed={filtro === k}
+              className={cls('min-h-9 rounded-full px-3 text-xs font-semibold ring-1 transition', filtro === k ? 'bg-tinta-900 text-white ring-tinta-900' : 'text-tinta-600 ring-tinta-200 hover:bg-tinta-50')}>
+              {t} <span className="opacity-70">{n}</span></button>
+          ))}
+        </div>
+      )}>
+      {p.incidencias?.some((i) => ['abierta', 'en_atencion'].includes(i.estado)) && <div className="mb-3"><Aviso tipo="alerta">Hay incidencias abiertas en esta solicitud: revísalas en la pestaña Incidencias.</Aviso></div>}
+      {!visibles.length ? <p className="text-sm text-tinta-500">Nadie en este filtro.</p> : (
+      <div className="grid gap-3 lg:grid-cols-2 [&>*]:min-w-0">
+        {visibles.map(({ emp, suyos, entregas, meta, firmadas }) => (
+          <article key={emp.id} className="rounded-xl bg-white/60 p-4 ring-1 ring-tinta-100" aria-label={`Seguimiento de ${emp.nombre}`}>
+            <header className="flex items-start gap-3">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-menta-50 text-xs font-bold text-menta-800 ring-1 ring-menta-100" aria-hidden>
+                {emp.nombre.split(/\s+/).slice(0, 2).map((x) => x[0]).join('').toUpperCase()}</span>
+              <div className="min-w-0 flex-1"><p className="truncate font-semibold">{emp.nombre}</p><p className="truncate text-xs text-tinta-500">{emp.puesto}</p></div>
+              <span className="shrink-0 text-right text-xs"><b className="font-display text-lg text-tinta-900">{firmadas}</b><span className="text-tinta-500">/{meta}</span><span className="block text-[11px] text-tinta-500">entregados</span></span>
+            </header>
+            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-tinta-100"><div className="h-full rounded-full bg-menta-500" style={{ width: `${meta ? (firmadas / meta) * 100 : 0}%` }} /></div>
+            <ul className="mt-3 space-y-2.5">
+              {suyos.map((d) => (
+                <li key={d.id} className="text-xs">
+                  <p className="text-tinta-800"><b>{d.cantidad}×</b> {d.nombre} · {d.talla}{d.excepcion && <span className="ml-1 text-amber-700">(excepción)</span>}
+                    {!!d.cantidad_cancelada && <span className="ml-1 text-coral-700">· {d.cantidad_cancelada} cancelada(s)</span>}</p>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {pasosArticulo(p, d).map((x) => (
+                      <span key={x.texto} title={x.detalle} className={cls('rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1', TONO_PASO[x.tono])}>
+                        {x.texto}{x.detalle && x.tono === 'problema' ? ` · ${x.detalle}` : ''}</span>
+                    ))}
+                  </div>
+                </li>
+              ))}
+            </ul>
+            {!!entregas.length && (
+              <ul className="mt-3 space-y-2 border-t border-tinta-100 pt-3">
+                {entregas.map((e) => {
+                  const paq = p.paquetes.find((pq) => pq.id === e.paquete_id);
+                  return (
+                    <li key={e.id} className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <span className="min-w-0">
+                        <span className="flex flex-wrap items-center gap-1.5"><span className="font-medium text-tinta-700">{paq?.reposicion ? 'Reposición' : 'Paquete'} {paq?.folio}</span><Estado valor={e.estado} /></span>
+                        {e.estado !== 'pendiente' && <span className="mt-0.5 block text-tinta-500">Entregó {e.registrado_por || '—'} · {fechaHora(e.entregado_en)}</span>}
+                        {e.conformidad_en && <span className="block text-amber-500" aria-label={`${e.valoracion} de 5 estrellas`}>{'★'.repeat(e.valoracion || 0)}<span className="text-tinta-200">{'★'.repeat(5 - (e.valoracion || 0))}</span></span>}
+                      </span>
+                      {e.tiene_firma && <FirmaEnLinea entregaId={e.id} origen="admin" onAbrir={() => onFirma(e.id)} />}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </article>
+        ))}
+      </div>
+      )}
+    </Tarjeta>
+  );
+}
+
+/** Artículos agrupados por persona (una fila de encabezado por empleado), con precios y avance. */
+function TablaArticulos({ p }: { p: Pedido }) {
+  const grupos = new Map<string, Pedido['detalles']>();
+  for (const d of p.detalles) {
+    const k = d.empleado ? `${d.empleado.nombre}|${d.empleado.puesto}` : '';
+    grupos.set(k, [...(grupos.get(k) || []), d]);
+  }
+  const corporativo = p.canal === 'corporativo';
+  return (
+    <Tabla columnas={['Artículo', 'Cant.', 'Precio', 'Importe', 'Entregada / cancelada / devuelta']}>
+      {[...grupos.entries()].map(([k, dets]) => {
+        const [nombre, puesto] = k.split('|');
+        return (
+          <Fragment key={k || 'sin'}>
+            {corporativo && (
+              <tr className="bg-tinta-50/70">
+                <Td className="py-2"><span className="font-semibold text-tinta-900">{nombre || 'Sin empleado'}</span>{puesto && <span className="ml-2 text-xs text-tinta-500">{puesto}</span>}</Td>
+                <Td className="py-2 text-xs text-tinta-500">{dets.reduce((s, d) => s + d.cantidad, 0)} pz</Td><Td className="py-2" /><Td className="py-2 text-xs font-semibold text-tinta-700">{dinero(dets.reduce((s, d) => s + Number(d.importe), 0))}</Td><Td className="py-2" />
+              </tr>
+            )}
+            {dets.map((d) => (
+              <tr key={d.id}>
+                <Td className={corporativo ? 'pl-8' : ''}><p className="font-semibold">{d.nombre}</p><p className="text-xs text-tinta-500">{d.sku} · {d.color} · {d.talla}</p>
+                  {d.excepcion && <p className="mt-1 rounded bg-amber-50 px-2 py-0.5 text-xs text-amber-800">Excepción: {d.excepcion}</p>}</Td>
+                <Td>{d.cantidad}</Td>
+                <Td className="text-xs">{dinero(d.precio_unitario)}{Number(d.descuento_unitario) > 0 && <><br /><span className="text-coral-600">−{dinero(d.descuento_unitario)}</span></>}</Td>
+                <Td className="font-semibold">{dinero(d.importe)}</Td>
+                <Td className="text-xs">{d.cantidad_entregada} / {d.cantidad_cancelada} / {d.cantidad_devuelta}{!!d.cantidad_por_producir && <span className="block font-semibold text-amber-700">{d.cantidad_por_producir} por producir</span>}</Td>
+              </tr>
+            ))}
+          </Fragment>
+        );
+      })}
     </Tabla>
   );
 }
@@ -171,6 +284,13 @@ export function PedidoAdmin() {
   const [evidencias, setEvidencias] = useState<string[]>([]);
   const [comprobante, setComprobante] = useState<number | null>(null);
   const [editando, setEditando] = useState(false);
+  const datos = q.data;
+  const porDefecto = !datos ? 'articulos'
+    : datos.estado === 'aprobado' ? 'pagos'
+    : ['confirmado', 'en_preparacion', 'parcialmente_enviado', 'enviado'].includes(datos.estado) ? 'logistica'
+    : ['parcialmente_entregado', 'entregado', 'cerrado'].includes(datos.estado) && (datos.entregas_individuales || []).length ? 'seguimiento'
+    : 'articulos';
+  const [pestana, cambiarPestana] = usePestana(['articulos', 'seguimiento', 'logistica', 'pagos', 'incidencias', 'documentos', 'mensajes', 'historial'], porDefecto);
   const refrescar = () => { qc.invalidateQueries({ queryKey: ['admin-pedido', id] }); qc.invalidateQueries({ queryKey: ['admin-pedidos'] }); };
   const accion = useMutation({
     mutationFn: async () => {
@@ -200,6 +320,11 @@ export function PedidoAdmin() {
   if (!q.data) return <ErrorCaja error={q.error} />;
   const p = q.data;
   const excepciones = p.detalles.some((d) => d.excepcion);
+  const abiertas = (p.incidencias || []).filter((i) => ['abierta', 'en_atencion'].includes(i.estado)).length;
+  const empleados = new Set(p.detalles.map((d) => d.empleado?.id).filter(Boolean)).size;
+  const conSeguimiento = p.canal === 'corporativo' && !!(p.entregas_individuales || []).length;
+  const conPagos = (p.canal === 'corporativo' && (!!p.negociacion || aprobador)) || puede('pago.ver');
+  const conMensajes = p.canal === 'corporativo' && (aprobador || puede('orden.recibir'));
   const titulos: Record<string, string> = { aprobar: 'Aprobar pedido', autorizar: 'Autorizar pedido para surtir', devuelto: 'Devolver para corrección', rechazado: 'Rechazar pedido', cancelar: 'Cancelar pedido', cerrar: 'Cerrar pedido', efectivo: 'Registrar cobro en efectivo', incidencia: 'Registrar incidencia' };
   const requiereTexto = ['devuelto', 'rechazado', 'cancelar', 'incidencia'].includes(modal || '');
 
@@ -223,61 +348,123 @@ export function PedidoAdmin() {
         {puede('incidencia.gestionar') && <Boton variante="fantasma" onClick={() => setModal('incidencia')}>Incidencia</Boton>}
       </Encabezado>
 
-      {p.canal === 'corporativo' && p.estado !== 'borrador' && <Tarjeta titulo="Trazabilidad de la solicitud" className="mb-5"><LineaTiempoSolicitud p={p} /></Tarjeta>}
-      {p.canal === 'corporativo' && p.negociacion && <div className="mb-5"><PanelNegociacion p={p} /></div>}
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px] [&>*]:min-w-0">
-        <div className="space-y-5">
-          <Tarjeta titulo={<span className="flex items-center gap-2">Estado <Estado valor={p.estado} /></span>} sub={`${METODOS[p.metodo_pago]} · ${p.modalidad === 'recoger' ? `Recoge en ${p.sucursal_recoger?.nombre}` : 'Envío a domicilio'}`}>
-            {!!p.por_producir && <div className="mb-3"><Aviso tipo="alerta">{p.por_producir} pieza(s) quedaron pendientes de producción: no había existencias suficientes al autorizar. El pedido no se completa hasta entregarlas.</Aviso></div>}
-            {excepciones && p.estado === 'en_revision' && <div className="mb-3"><Aviso tipo="alerta">Este pedido incluye productos fuera de la regla por puesto; revisa las justificaciones antes de aprobar.</Aviso></div>}
-            <Tabla columnas={['Artículo', p.canal === 'corporativo' ? 'Empleado' : '', 'Cant.', 'Precio', 'Importe', 'Entregada / cancelada / devuelta']}>
-              {p.detalles.map((d) => (
-                <tr key={d.id}>
-                  <Td><p className="font-semibold">{d.nombre}</p><p className="text-xs text-tinta-400">{d.sku} · {d.color} · {d.talla}</p>
-                    {d.excepcion && <p className="mt-1 rounded bg-amber-50 px-2 py-0.5 text-xs text-amber-800">Excepción: {d.excepcion}</p>}</Td>
-                  <Td className="text-xs">{d.empleado ? <>{d.empleado.nombre}<br /><span className="text-tinta-400">{d.empleado.puesto}</span></> : ''}</Td>
-                  <Td>{d.cantidad}</Td><Td className="text-xs">{dinero(d.precio_unitario)}{Number(d.descuento_unitario) > 0 && <><br /><span className="text-coral-600">−{dinero(d.descuento_unitario)}</span></>}</Td>
-                  <Td className="font-semibold">{dinero(d.importe)}</Td><Td className="text-xs">{d.cantidad_entregada} / {d.cantidad_cancelada} / {d.cantidad_devuelta}{!!d.cantidad_por_producir && <span className="block font-semibold text-amber-700">{d.cantidad_por_producir} por producir</span>}</Td>
-                </tr>
+      <Tarjeta className="mb-5">
+        {p.canal === 'corporativo' && p.estado !== 'borrador' ? <LineaTiempoSolicitud p={p} /> : (
+          <p className="flex flex-wrap items-center gap-2 text-sm"><Estado valor={p.estado} />{METODOS[p.metodo_pago]} · {p.modalidad === 'recoger' ? `Recoge en ${p.sucursal_recoger?.nombre}` : 'Envío a domicilio'}</p>
+        )}
+        <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,340px)] [&>*]:min-w-0">
+          <div className="min-w-0">
+            <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {([['Total', dinero(p.total), false], [p.canal === 'corporativo' ? 'Empleados' : 'Artículos', p.canal === 'corporativo' ? String(empleados) : String(p.articulos), false],
+                [p.canal === 'corporativo' ? 'Entregados a empleados' : 'Entregados', `${p.canal === 'corporativo' ? (p.entregas_individuales || []).reduce((s, e) => s + e.detalles.reduce((t, x) => t + x.entregada, 0), 0) : p.detalles.reduce((s, d) => s + d.cantidad_entregada, 0)}/${p.detalles.reduce((s, d) => s + d.cantidad - d.cantidad_cancelada, 0)}`, false],
+                ['Incidencias abiertas', String(abiertas), abiertas > 0]] as const).map(([t, v, mal]) => (
+                <div key={t} className="rounded-xl bg-tinta-50/70 px-3 py-2 ring-1 ring-tinta-100">
+                  <dt className="text-[11px] font-semibold uppercase tracking-wide text-tinta-500">{t}</dt>
+                  <dd className={cls('font-display text-lg font-bold', mal ? 'text-coral-700' : 'text-tinta-900')}>{v}</dd>
+                </div>
               ))}
-            </Tabla>
-            <dl className="ml-auto mt-4 max-w-xs space-y-1 text-sm">
-              <div className="flex justify-between"><dt>Subtotal</dt><dd>{dinero(p.subtotal)}</dd></div>
-              <div className="flex justify-between"><dt>Descuento</dt><dd>−{dinero(p.descuento)}</dd></div>
-              <div className="flex justify-between"><dt>Envío</dt><dd>{dinero(p.costo_envio)}</dd></div>
-              <div className="flex justify-between border-t pt-1 font-display text-lg font-extrabold"><dt>Total</dt><dd>{dinero(p.total)}</dd></div>
-              <div className="flex justify-between text-xs text-tinta-400"><dt>Saldo por cobrar</dt><dd>{dinero(p.saldo)}</dd></div>
             </dl>
-          </Tarjeta>
+          </div>
+          <aside className="min-w-0 rounded-xl bg-tinta-50/60 p-4 text-sm ring-1 ring-tinta-100" aria-label="Cliente">
+            <p className="text-[11px] font-bold uppercase tracking-wide text-tinta-500">{p.canal === 'corporativo' ? 'Sucursal' : 'Cliente'}</p>
+            <p className="mt-0.5 font-semibold text-tinta-900">{p.cliente.razon_social || p.cliente.nombre}</p>
+            <p className="break-words text-xs text-tinta-500">{p.cliente.correo}{p.cliente.telefono && <> · {p.cliente.telefono}</>}</p>
+            {p.direccion_envio && <p className="mt-2 text-xs text-tinta-700"><b>Entrega:</b> {p.direccion_envio.calle} {p.direccion_envio.numero}, {p.direccion_envio.colonia}, {p.direccion_envio.ciudad}, {p.direccion_envio.estado} · CP {p.direccion_envio.cp}
+              <span className="block text-tinta-500">Recibe {p.direccion_envio.destinatario} · {p.direccion_envio.telefono}</span></p>}
+            {p.notas && <p className="mt-2 rounded-lg bg-white/70 p-2 text-xs">{p.notas}</p>}
+            {aprobador ? (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <Link to={`${base}/sucursales-cliente/${p.cliente.id}`} className="text-xs font-semibold text-menta-700">Ver sucursal y su padrón →</Link>
+                <BotonWhatsApp numero={p.cliente.telefono} texto={`Hola, te escribo sobre la solicitud ${p.folio}.`} className="ml-auto" />
+              </div>
+            ) : puede('cliente.ver') && <Link to={`/admin/clientes?q=${encodeURIComponent(p.cliente.correo)}`} className="mt-2 inline-block text-xs font-semibold text-menta-700">Ver cliente →</Link>}
+          </aside>
+        </div>
+      </Tarjeta>
 
-          {p.canal === 'corporativo' && (
-            <Tarjeta titulo="Trazabilidad por artículo" sub="Cada artículo, de la solicitud a la firma del empleado">
-              {p.incidencias?.some((i) => ['abierta', 'en_atencion'].includes(i.estado)) && <div className="mb-3"><Aviso tipo="alerta"><span className="flex items-center gap-1"><AlertTriangle className="h-4 w-4" />Hay incidencias abiertas en esta solicitud.</span></Aviso></div>}
-              <TrazabilidadArticulos p={p} onFirma={setComprobante} />
-            </Tarjeta>
-          )}
+      {(!!p.por_producir || (excepciones && p.estado === 'en_revision')) && (
+        <div className="mb-5 space-y-2">
+          {!!p.por_producir && <Aviso tipo="alerta">{p.por_producir} pieza(s) quedaron pendientes de producción: no había existencias suficientes al autorizar. El pedido no se completa hasta entregarlas.</Aviso>}
+          {excepciones && p.estado === 'en_revision' && <Aviso tipo="alerta">Este pedido incluye productos fuera de la regla por puesto; revisa las justificaciones antes de aprobar.</Aviso>}
+        </div>
+      )}
 
-          <Tarjeta titulo="Surtido por sucursal">
-            {!p.asignaciones?.length ? <p className="text-sm text-tinta-400">Aún sin asignar: el inventario se aparta al confirmar (pago en la tienda o autorización de la solicitud).</p> : (
+      <Pestanas etiqueta={`Secciones de ${p.folio}`} activa={pestana} onCambio={cambiarPestana} className="mb-5"
+        items={[
+          { clave: 'articulos', titulo: 'Artículos', icono: Shirt, cuenta: p.detalles.length },
+          { clave: 'seguimiento', titulo: 'Entregas', icono: Users, cuenta: (p.entregas_individuales || []).filter((e) => e.estado === 'pendiente').length, oculta: !conSeguimiento },
+          { clave: 'logistica', titulo: 'Surtido y paquetes', icono: Truck, cuenta: p.paquetes.length, oculta: !p.asignaciones?.length && !p.paquetes.length },
+          { clave: 'pagos', titulo: p.canal === 'corporativo' ? 'Negociación y pago' : 'Pagos', icono: Wallet, alerta: p.estado === 'aprobado', oculta: !conPagos },
+          { clave: 'incidencias', titulo: 'Incidencias', icono: ShieldAlert, cuenta: abiertas || (p.incidencias?.length ?? 0) + p.devoluciones.length, alerta: abiertas > 0, oculta: !p.incidencias?.length && !p.devoluciones.length },
+          { clave: 'documentos', titulo: 'Documentos', icono: FileText, oculta: p.canal !== 'corporativo' },
+          { clave: 'mensajes', titulo: 'Mensajes', icono: MessagesSquare, oculta: !conMensajes },
+          { clave: 'historial', titulo: 'Historial', icono: History, cuenta: p.historial.length },
+        ]} />
+
+      <PanelPestana clave="articulos" activa={pestana}>
+        <Tarjeta titulo={<span className="flex items-center gap-2">Artículos <Estado valor={p.estado} /></span>} sub={`${METODOS[p.metodo_pago]} · ${p.modalidad === 'recoger' ? `Recoge en ${p.sucursal_recoger?.nombre}` : 'Envío a domicilio'}`}>
+          <TablaArticulos p={p} />
+          <dl className="ml-auto mt-4 max-w-xs space-y-1 text-sm">
+            <div className="flex justify-between"><dt>Subtotal</dt><dd>{dinero(p.subtotal)}</dd></div>
+            <div className="flex justify-between"><dt>Descuento</dt><dd>−{dinero(p.descuento)}</dd></div>
+            <div className="flex justify-between"><dt>Envío</dt><dd>{dinero(p.costo_envio)}</dd></div>
+            <div className="flex justify-between border-t border-tinta-100 pt-1 font-display text-lg font-extrabold"><dt>Total</dt><dd>{dinero(p.total)}</dd></div>
+            <div className="flex justify-between text-xs text-tinta-500"><dt>Saldo por cobrar</dt><dd>{dinero(p.saldo)}</dd></div>
+          </dl>
+        </Tarjeta>
+      </PanelPestana>
+
+      <PanelPestana clave="seguimiento" activa={pestana}>
+        <EntregasPorEmpleado p={p} onFirma={setComprobante} />
+      </PanelPestana>
+
+      <PanelPestana clave="logistica" activa={pestana}>
+        <div className="space-y-5">
+          <Tarjeta titulo="Surtido por almacén">
+            {!p.asignaciones?.length ? <p className="text-sm text-tinta-500">Aún sin asignar: el inventario se aparta al confirmar (pago en la tienda o autorización de la solicitud).</p> : (
               <div className="grid gap-3 md:grid-cols-2">
                 {p.asignaciones.map((a) => (
                   <div key={a.id} className="rounded-xl p-4 ring-1 ring-tinta-100">
-                    <div className="flex items-center justify-between"><p className="font-semibold">{a.sucursal.nombre}</p><Estado valor={a.estado} /></div>
-                    <p className="mt-1 text-xs text-tinta-500">{a.detalles.map((d) => `${d.cantidad}× ${d.sku}`).join(' · ')}</p>
-                    <p className="mt-1 text-xs text-tinta-400">Surtidas {a.detalles.reduce((s, d) => s + d.surtida, 0)} · Despachadas {a.detalles.reduce((s, d) => s + d.despachada, 0)} · Faltantes {a.detalles.reduce((s, d) => s + d.faltante, 0)}</p>
+                    <div className="flex items-center justify-between gap-2"><p className="font-semibold">{a.sucursal.nombre}</p><Estado valor={a.estado} /></div>
+                    <dl className="mt-2 grid grid-cols-3 gap-2 text-center text-xs">
+                      {([['Surtidas', a.detalles.reduce((s, d) => s + d.surtida, 0)], ['Despachadas', a.detalles.reduce((s, d) => s + d.despachada, 0)], ['Faltantes', a.detalles.reduce((s, d) => s + d.faltante, 0)]] as const).map(([t, n]) => (
+                        <div key={t} className="rounded-lg bg-tinta-50/70 py-1.5"><dt className="text-tinta-500">{t}</dt><dd className={cls('font-display text-base font-bold', t === 'Faltantes' && n ? 'text-coral-700' : 'text-tinta-900')}>{n}</dd></div>
+                      ))}
+                    </dl>
                     {puede('surtido.operar') && <Link to={`/admin/surtido/${a.id}`} className="mt-2 inline-block text-xs font-semibold text-menta-700">Abrir surtido →</Link>}
                   </div>
                 ))}
               </div>
             )}
           </Tarjeta>
+          {!!p.paquetes.length && (
+            <Tarjeta titulo="Paquetes" sub="Cada paquete con su guía, su estado y su recepción">
+              <Tabla columnas={['Paquete', 'Desde', 'Contenido', 'Guía', 'Estado']}>
+                {p.paquetes.map((pq) => (
+                  <tr key={pq.id}>
+                    <Td className="font-semibold">{pq.folio}{pq.reposicion && <span className="mt-1 block w-fit rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-bold text-sky-800">Reposición · {pq.reposicion.folio}</span>}</Td>
+                    <Td className="text-xs">{pq.sucursal}</Td>
+                    <Td className="text-xs">{(pq.individuales || []).length ? `${(pq.individuales || []).length} persona(s) · ${pq.contenido.reduce((s, c) => s + c.cantidad, 0)} pieza(s)` : pq.contenido.map((c) => `${c.cantidad}× ${c.sku}`).join(', ')}</Td>
+                    <Td className="text-xs">{pq.envio ? `${pq.envio.paqueteria} · ${pq.envio.guia}` : '—'}{pq.recepcion && <p className={pq.recepcion.estado === 'parcial' ? 'text-coral-700' : 'text-menta-700'}>Recepción {etiqueta(pq.recepcion.estado).toLowerCase()}</p>}</Td>
+                    <Td><Estado valor={pq.estado} /></Td>
+                  </tr>
+                ))}
+              </Tabla>
+            </Tarjeta>
+          )}
+        </div>
+      </PanelPestana>
 
+      <PanelPestana clave="pagos" activa={pestana}>
+        <div className="space-y-5">
+          {p.canal === 'corporativo' && p.negociacion && <PanelNegociacion p={p} />}
+          {p.canal === 'corporativo' && aprobador && <CotizacionWhatsApp folio={p.folio} />}
           {puede('pago.ver') && <Tarjeta titulo="Pagos y reembolsos">
-            {!p.pagos.length ? <p className="text-sm text-tinta-400">Sin pagos registrados.</p> : (
+            {!p.pagos.length ? <p className="text-sm text-tinta-500">Sin pagos registrados.</p> : (
               <Tabla columnas={['Folio', 'Método', 'Referencia', 'Monto', 'Estado', '']}>
                 {p.pagos.map((x) => (
                   <tr key={x.id}><Td>{x.folio}</Td><Td>{METODOS[x.metodo]}</Td><Td className="text-xs">{x.referencia || '—'}{x.motivo_rechazo && <p className="text-coral-600">{x.motivo_rechazo}</p>}</Td>
-                    <Td>{dinero(x.monto)}{Number(x.monto_reembolsado) > 0 && <p className="text-xs text-tinta-400">Reembolsado {dinero(x.monto_reembolsado)}</p>}</Td><Td><Estado valor={x.estado} /></Td>
+                    <Td>{dinero(x.monto)}{Number(x.monto_reembolsado) > 0 && <p className="text-xs text-tinta-500">Reembolsado {dinero(x.monto_reembolsado)}</p>}</Td><Td><Estado valor={x.estado} /></Td>
                     <Td>{x.estado === 'en_proceso' && puede('pago.validar') && <div className="flex gap-1">
                       <Boton tam="sm" variante="menta" onClick={() => validar.mutate({ pid: x.id })}>Validar</Boton>
                       <Link to="/admin/pagos" className="inline-flex h-8 items-center rounded-lg px-3 text-xs font-semibold ring-1 ring-tinta-200">Rechazar…</Link></div>}</Td></tr>
@@ -285,51 +472,14 @@ export function PedidoAdmin() {
               </Tabla>
             )}
           </Tarjeta>}
-
-          {!!p.paquetes.length && (
-            <Tarjeta titulo="Paquetes">
-              <Tabla columnas={['Paquete', 'Sucursal', 'Contenido', 'Guía', 'Estado']}>
-                {p.paquetes.map((pq) => <tr key={pq.id}><Td className="font-semibold">{pq.folio}</Td><Td>{pq.sucursal}</Td><Td className="text-xs">{pq.contenido.map((c) => `${c.cantidad}× ${c.sku}`).join(', ')}</Td>
-                  <Td className="text-xs">{pq.envio ? `${pq.envio.paqueteria} · ${pq.envio.guia}` : '—'}{pq.recepcion && <p className="text-menta-700">Recepción {pq.recepcion.estado}</p>}</Td><Td><Estado valor={pq.estado} /></Td></tr>)}
-              </Tabla>
-            </Tarjeta>
-          )}
-          {!!p.entregas_individuales?.length && (
-            <Tarjeta titulo="Entregas individuales (corporativo)">
-              <Tabla columnas={['Empleado', 'Artículos', 'Entregó', 'Conformidad', 'Fecha', 'Estado', 'Firma']}>
-                {p.entregas_individuales.map((e) => <tr key={e.id}><Td>{e.empleado.nombre}<p className="text-xs text-tinta-400">{e.empleado.puesto}</p></Td>
-                  <Td className="text-xs">{e.detalles.map((d) => `${d.entregada}/${d.esperada} ${d.sku}`).join(', ')}</Td><Td className="text-xs">{e.registrado_por || '—'}</Td>
-                  <Td className="text-xs">{e.conformidad_en ? <>{'★'.repeat(e.valoracion || 0)}<span className="block text-tinta-400">{e.conformidad_comentario}</span></> : '—'}</Td>
-                  <Td className="text-xs">{fechaHora(e.entregado_en)}</Td><Td><Estado valor={e.estado} /></Td>
-                  <Td>{e.tiene_firma ? <FirmaEnLinea entregaId={e.id} origen="admin" onAbrir={() => setComprobante(e.id)} /> : <span className="text-xs text-tinta-300">—</span>}</Td></tr>)}
-              </Tabla>
-            </Tarjeta>
-          )}
-          {p.canal === 'corporativo' && <Expediente pedidoId={p.id} folio={p.folio} origen="admin" onComprobante={setComprobante} />}
         </div>
+      </PanelPestana>
 
+      <PanelPestana clave="incidencias" activa={pestana}>
         <div className="space-y-5">
-          <Tarjeta titulo="Cliente">
-            <p className="font-semibold">{p.cliente.razon_social || p.cliente.nombre}</p>
-            <p className="text-sm text-tinta-500">{p.cliente.correo}<br />{p.cliente.telefono}</p>
-            {p.direccion_envio && <p className="mt-3 text-sm"><b>Entrega:</b> {p.direccion_envio.calle} {p.direccion_envio.numero}, {p.direccion_envio.colonia}, {p.direccion_envio.ciudad}, {p.direccion_envio.estado} · CP {p.direccion_envio.cp}<br /><span className="text-tinta-400">Recibe {p.direccion_envio.destinatario} · {p.direccion_envio.telefono}</span></p>}
-            {p.notas && <p className="mt-3 rounded-lg bg-tinta-50 p-2 text-xs">{p.notas}</p>}
-            {aprobador ? (
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <Link to={`${base}/sucursales-cliente/${p.cliente.id}`} className="text-xs font-semibold text-menta-700">Ver sucursal y su padrón →</Link>
-                <BotonWhatsApp numero={p.cliente.telefono} texto={`Hola, te escribo sobre la solicitud ${p.folio}.`} className="ml-auto" />
-              </div>
-            ) : puede('cliente.ver') && <Link to={`/admin/clientes?q=${encodeURIComponent(p.cliente.correo)}`} className="mt-2 inline-block text-xs font-semibold text-menta-700">Ver cliente →</Link>}
-          </Tarjeta>
-          {p.canal === 'corporativo' && aprobador && <CotizacionWhatsApp folio={p.folio} />}
-          {p.canal === 'corporativo' && aprobador && <ChatSolicitud key={`s-${p.id}`} pedidoId={p.id} tipo="sucursal" titulo="Conversación con la sucursal" />}
-          {p.canal === 'corporativo' && aprobador && !['borrador', 'en_revision', 'devuelto'].includes(p.estado) &&
-            <ChatSolicitud key={`d-${p.id}`} pedidoId={p.id} tipo="distribuidora" titulo="Conversación con la distribuidora" />}
-          {p.canal === 'corporativo' && !aprobador && puede('orden.recibir') &&
-            <ChatSolicitud key={`a-${p.id}`} pedidoId={p.id} tipo="distribuidora" titulo="Conversación con el aprobador" />}
           {!!p.incidencias?.length && (
-            <Tarjeta titulo="Incidencias">
-              <div className="mb-2 space-y-2">
+            <Tarjeta titulo="Incidencias" accion={puede('incidencia.gestionar') && <Link to="/admin/incidencias" className="text-xs font-semibold text-menta-700">Gestionar →</Link>}>
+              <div className="grid gap-3 lg:grid-cols-2 [&>*]:min-w-0">
                 {p.incidencias.map((i) => {
                   const persona = [i.empleado?.nombre, i.articulo && `${i.articulo.nombre} (${i.articulo.talla})`].filter(Boolean).join(' · ');
                   return (
@@ -340,19 +490,35 @@ export function PedidoAdmin() {
                   );
                 })}
               </div>
-              {puede('incidencia.gestionar') && <Link to="/admin/incidencias" className="text-xs font-semibold text-menta-700">Ver todas las incidencias →</Link>}
             </Tarjeta>
           )}
           {!!p.devoluciones.length && (
             <Tarjeta titulo="Devoluciones">{p.devoluciones.map((d) => <div key={d.id} className="mb-2 flex justify-between text-sm">{puede('devolucion.gestionar') ? <Link to="/admin/devoluciones" className="font-semibold hover:underline">{d.folio}</Link> : <span className="font-semibold">{d.folio}</span>}<Estado valor={d.estado} /></div>)}</Tarjeta>
           )}
-          <Tarjeta titulo="Historial">
-            <ol className="space-y-3 text-sm">
-              {p.historial.map((h, i) => <li key={i} className="border-l-2 border-menta-300 pl-3"><p className="font-semibold">{etiqueta(h.nuevo)}</p><p className="text-xs text-tinta-400">{fechaHora(h.fecha)} · {h.actor}</p>{h.motivo && <p className="text-xs text-tinta-500">{h.motivo}</p>}</li>)}
-            </ol>
-          </Tarjeta>
         </div>
-      </div>
+      </PanelPestana>
+
+      <PanelPestana clave="documentos" activa={pestana}>
+        {p.canal === 'corporativo' && <Expediente pedidoId={p.id} folio={p.folio} origen="admin" onComprobante={setComprobante} />}
+      </PanelPestana>
+
+      <PanelPestana clave="mensajes" activa={pestana}>
+        <div className="grid gap-5 lg:grid-cols-2 [&>*]:min-w-0">
+          {p.canal === 'corporativo' && aprobador && <ChatSolicitud key={`s-${p.id}`} pedidoId={p.id} tipo="sucursal" titulo="Conversación con la sucursal" />}
+          {p.canal === 'corporativo' && aprobador && !['borrador', 'en_revision', 'devuelto'].includes(p.estado) &&
+            <ChatSolicitud key={`d-${p.id}`} pedidoId={p.id} tipo="distribuidora" titulo="Conversación con la distribuidora" />}
+          {p.canal === 'corporativo' && !aprobador && puede('orden.recibir') &&
+            <ChatSolicitud key={`a-${p.id}`} pedidoId={p.id} tipo="distribuidora" titulo="Conversación con el aprobador" />}
+        </div>
+      </PanelPestana>
+
+      <PanelPestana clave="historial" activa={pestana}>
+        <Tarjeta titulo="Historial" sub="Cada cambio de estado, quién lo hizo y cuándo (lo más reciente primero)">
+          <ol className="space-y-3 text-sm">
+            {[...p.historial].reverse().map((h, i) => <li key={i} className="border-l-2 border-menta-300 pl-3"><p className="font-semibold">{etiqueta(h.nuevo)}</p><p className="text-xs text-tinta-500">{fechaHora(h.fecha)} · {h.actor}</p>{h.motivo && <p className="text-xs text-tinta-600">{h.motivo}</p>}</li>)}
+          </ol>
+        </Tarjeta>
+      </PanelPestana>
 
       <ComprobanteEntrega entregaId={comprobante} origen="admin" folio={p.folio} onCerrar={() => setComprobante(null)} />
       {p.canal === 'corporativo' && <EditarSolicitud p={p} abierto={editando} onCerrar={() => setEditando(false)} />}
