@@ -9,13 +9,13 @@ def _catalogo(como):
     return lambda sku_base, talla: next(v["id"] for v in prod[sku_base]["variantes"] if v["talla"] == talla)
 
 
-def _solicitud(como):
-    """Rosario: 2 batas (dos tallas = dos partidas); Carlos: 1 camisa."""
+def _solicitud(como, bata_m=1):
+    """Rosario: 2 batas (dos tallas = dos partidas; `bata_m` piezas de la M); Carlos: 1 camisa."""
     emp, aprob = como("empresa"), como("aprobador")
     var = _catalogo(como)
     empleados = {e["nombre"]: e["id"] for e in emp.get("/api/cuenta/empleados").get_json()}
     dir_emp = emp.get("/api/cuenta/direcciones").get_json()[0]["id"]
-    partidas = [{"empleado_id": empleados["Rosario Ramírez"], "variante_id": var("BAT-003", "M"), "cantidad": 1},
+    partidas = [{"empleado_id": empleados["Rosario Ramírez"], "variante_id": var("BAT-003", "M"), "cantidad": bata_m},
                 {"empleado_id": empleados["Rosario Ramírez"], "variante_id": var("BAT-003", "G"), "cantidad": 1},
                 {"empleado_id": empleados["Carlos Mendoza"], "variante_id": var("CAM-003", "G"), "cantidad": 1}]
     r = emp.post("/api/cuenta/pedidos-corporativos", {"modalidad": "envio", "direccion_id": dir_emp, "partidas": partidas,

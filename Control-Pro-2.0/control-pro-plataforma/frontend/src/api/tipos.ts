@@ -140,6 +140,8 @@ export type Incidencia = {
   reposiciones?: Paquete[];
   /** Solo personal: lo que conviene reponer según la recepción o el artículo señalado. */
   reposicion_sugerida?: { pedido_detalle_id: number; cantidad: number }[];
+  /** Solo personal: máximo que aún se puede reponer por artículo (lo calcula y valida el backend); solo los > 0. */
+  reposicion_maxima?: { pedido_detalle_id: number; cantidad: number }[];
 };
 export type ResumenSucursal = {
   solicitudes: { borradores: number; en_revision: number; por_corregir: number; en_proceso: number; entregadas: number; rechazadas: number };

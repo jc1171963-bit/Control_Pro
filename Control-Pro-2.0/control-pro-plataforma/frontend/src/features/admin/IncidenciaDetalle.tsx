@@ -116,6 +116,9 @@ function Reposicion({ inc, envia, onCambio }: { inc: Incidencia; envia: boolean;
   // D-6: no se ofrece otra mientras haya una vigente: en curso o entregada sin recepción (eso último solo lo dice el
   // turno del backend). Tras cancelarla o tras una recepción incompleta, sí.
   const vigente = enCurso || inc.turno === 'sucursal_recibir';
+  // H-1: el backend dice cuánto queda por reponer de cada artículo (ya descuenta lo repuesto y lo que va en camino)
+  const maxima: Record<number, number> = Object.fromEntries((inc.reposicion_maxima || []).map((x) => [x.pedido_detalle_id, x.cantidad]));
+  const reponible = Object.keys(maxima).length > 0;
   const pedido = useQuery({ queryKey: ['admin-pedido', String(inc.pedido_id)], queryFn: () => get<Pedido>(`/admin/pedidos/${inc.pedido_id}`), enabled: armando });
   const recargar = async () => onCambio(await get<Incidencia>(`/admin/incidencias/${inc.id}`));
   const abrir = () => {
@@ -141,6 +144,7 @@ function Reposicion({ inc, envia, onCambio }: { inc: Incidencia; envia: boolean;
   });
   const porPersona = new Map<string, Pedido['detalles']>();
   for (const d of pedido.data?.detalles || []) {
+    if (!maxima[d.id]) continue;  // no afectado, ya repuesto o cancelado
     const k = d.empleado?.nombre ?? 'Sin asignar';
     porPersona.set(k, [...(porPersona.get(k) || []), d]);
   }
@@ -151,11 +155,15 @@ function Reposicion({ inc, envia, onCambio }: { inc: Incidencia; envia: boolean;
     <div className="rounded-xl bg-sky-50/60 p-3 ring-1 ring-sky-200">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs font-bold uppercase tracking-wide text-sky-900">Reposición</p>
-        {activa && !armando && !vigente && <Boton tam="sm" icono={<PackagePlus className="h-3.5 w-3.5" />} onClick={abrir}>
+        {activa && !armando && !vigente && reponible && <Boton tam="sm" icono={<PackagePlus className="h-3.5 w-3.5" />} onClick={abrir}>
           {inc.reposiciones?.length ? 'Preparar otra reposición' : 'Preparar reposición'}</Boton>}
       </div>
-      {activa && vigente && <p className="mt-1 text-xs text-sky-900/80">Hay una reposición vigente. Podrás preparar otra si se cancela o si no se recibe completa.</p>}
-      {!inc.reposiciones?.length && !armando && <p className="mt-1 text-xs text-sky-900/80">
+      {activa && vigente && <p className="mt-1 text-xs text-sky-900/80">Hay una reposición vigente. Podrás preparar otra si se cancela; si no se recibe completa, lo que falte se repone desde la incidencia nueva que se abre al recibirla.</p>}
+      {activa && !vigente && !reponible && <p className="mt-1 text-xs text-sky-900/80">
+        {inc.reposiciones?.some((r) => r.estado !== 'cancelado')
+          ? 'Ya no quedan piezas por reponer desde esta incidencia. Si una reposición no llegó completa, lo que falte se repone desde la incidencia nueva que se abrió al recibirla.'
+          : 'Esta incidencia no tiene piezas que reponer: no señala artículos afectados o ya se cancelaron y reembolsaron.'}</p>}
+      {!inc.reposiciones?.length && !armando && reponible && <p className="mt-1 text-xs text-sky-900/80">
         Envía piezas nuevas en un paquete aparte, con su propia guía.{(inc.reposicion_sugerida || []).length ? ' Ya están sugeridas las piezas que llegaron mal.' : ''}</p>}
       <ListaReposiciones paquetes={inc.reposiciones} acciones={(pq) => pq.estado === 'preparado' ? (envia ? (
         <div className="flex w-full flex-wrap items-end gap-2">
@@ -183,14 +191,16 @@ function Reposicion({ inc, envia, onCambio }: { inc: Incidencia; envia: boolean;
               <p className="text-xs font-bold">{nombre}</p>
               <ul className="mt-1 space-y-1">{dets.map((d) => (
                 <li key={d.id} className="flex items-center justify-between gap-2 text-xs">
-                  <span className="min-w-0">{d.nombre} · {d.talla}</span>
-                  <Selector className="w-24 shrink-0" value={cant[d.id] || 0} aria-label={`Piezas de ${d.nombre} para ${nombre}`}
+                  <span className="min-w-0">{d.nombre} · {d.talla} <span className="text-tinta-600">(hasta {maxima[d.id]})</span></span>
+                  {/* Selector lleva w-full: el ancho fijo va en el contenedor para que no tape el nombre */}
+                  <div className="w-24 shrink-0"><Selector value={cant[d.id] || 0} aria-label={`Piezas de ${d.nombre} (${d.talla}) para ${nombre}`}
                     onChange={(e) => setCant({ ...cant, [d.id]: Number(e.target.value) })}>
-                    {Array.from({ length: d.cantidad + 1 }, (_, k) => <option key={k} value={k}>{k}</option>)}</Selector>
+                    {Array.from({ length: maxima[d.id] + 1 }, (_, k) => <option key={k} value={k}>{k}</option>)}</Selector></div>
                 </li>))}</ul>
             </div>
           ))}
-          <Aviso>Las piezas salen del inventario disponible del almacén que surtió cada artículo. El surtido original no cambia.</Aviso>
+          <Aviso>Las piezas salen del inventario disponible del almacén que surtió cada artículo. El surtido original no cambia.
+            El máximo de cada artículo ya descuenta lo repuesto y lo que va en camino; si la sucursal ya tenía esas piezas, cuentan como reemplazo.</Aviso>
           <ErrorCaja error={preparar.error} />
           <div className="flex flex-wrap justify-end gap-2"><Boton variante="secundario" onClick={() => setArmando(false)}>Cancelar</Boton>
             <Boton disabled={!piezas} cargando={preparar.isPending} onClick={() => preparar.mutate()}>Preparar {piezas} pieza(s)</Boton></div>

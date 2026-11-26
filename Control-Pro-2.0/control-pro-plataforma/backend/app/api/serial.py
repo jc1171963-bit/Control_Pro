@@ -322,8 +322,9 @@ def incidencia(i, interno=True):
                               if origen and origen.incidencia_id and origen.incidencia_id != i.id else None)
     if interno:
         extra["transiciones"] = transiciones_personal(i)
-        from ..services.logistica_service import reposicion_sugerida
-        extra["reposicion_sugerida"] = reposicion_sugerida(i) if i.pedido_id else []
+        from ..services.logistica_service import reposicion_maxima, reposicion_sugerida
+        extra["reposicion_maxima"] = reposicion_maxima(i) if i.pedido_id else []
+        extra["reposicion_sugerida"] = reposicion_sugerida(i, extra["reposicion_maxima"]) if i.pedido_id else []
     if i.pedido_id:
         extra["reposiciones"] = [paquete(pq) for pq in db.session.scalars(
             select(Paquete).where(Paquete.incidencia_id == i.id).order_by(Paquete.id)).unique()]

@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { beforeEach, vi } from 'vitest';
-import { get, post } from '../api/cliente';
+import { ApiError, get, post } from '../api/cliente';
 import type { Incidencia } from '../api/tipos';
 import { useAuth } from '../app/auth';
 import { SiguientePaso } from '../components/DetalleIncidencia';
@@ -29,7 +29,8 @@ const inc = (extra: Partial<Incidencia> = {}) => ({
   devolucion_id: null, transferencia_id: null, sucursal_id: null, descripcion: 'Bata rota.', resolucion: null, responsable_id: null,
   creado: '2026-11-20T10:00:00Z', actualizado: '2026-11-20T10:00:00Z', evidencias: [], empleado: null, articulo: null, cliente: 'Clínica',
   turno: 'lurima_atender', turno_actor: 'lurima', turno_desde: null, ultima_actividad: null, reposicion_de: null, cierre_por_sucursal: true,
-  transiciones: ['resuelta'], reposiciones: [], reposicion_sugerida: [], seguimiento: [], ...extra,
+  transiciones: ['resuelta'], reposiciones: [], reposicion_sugerida: [], reposicion_maxima: [{ pedido_detalle_id: 1, cantidad: 1 }],
+  seguimiento: [], ...extra,
 }) as Incidencia;
 
 function sesion(permisos: string[]) {
@@ -165,7 +166,7 @@ describe('acciones de reposición por perfil (surtido.operar) y D-6', () => {
     ['una en curso', [paq({ estado: 'despachado' })], 'lurima_reposicion', null],
     ['entregada sin recepción', [paq({ estado: 'entregado' })], 'sucursal_recibir', null],
     ['la anterior cancelada', [paq({ estado: 'cancelado' })], 'lurima_atender', 'Preparar otra reposición'],
-    ['la anterior recibida incompleta', [paq({ estado: 'entregado' })], 'lurima_atender', 'Preparar otra reposición'],
+    ['la anterior recibida incompleta, con piezas aún por reponer', [paq({ estado: 'entregado' })], 'lurima_atender', 'Preparar otra reposición'],
   ])('D-6, %s', async (_, reposiciones, turno, boton) => {
     panel(inc({ turno: turno as never, reposiciones: reposiciones as never }), ALMACEN);
     await screen.findByRole('heading', { name: /Incidencia INC-9/ });
@@ -175,6 +176,35 @@ describe('acciones de reposición por perfil (surtido.operar) y D-6', () => {
       expect(preparar).toBeNull();
       expect(screen.getByText(/Hay una reposición vigente/)).toBeInTheDocument();
     }
+  });
+
+  it.each([
+    ['sin reposiciones (no hay artículos afectados o están cancelados)', [], /no tiene piezas que reponer/],
+    ['la anterior recibida incompleta (R2: lo que falte va por la incidencia nueva)', [paq({ estado: 'entregado' })], /se repone desde la incidencia nueva/],
+  ])('H-1: sin máximo del backend no se ofrece reponer, %s', async (_, reposiciones, texto) => {
+    panel(inc({ reposiciones: reposiciones as never, reposicion_maxima: [] }), ALMACEN);
+    await screen.findByRole('heading', { name: /Incidencia INC-9/ });
+    expect(screen.queryByRole('button', { name: /Preparar (otra )?reposición/ })).toBeNull();
+    expect(screen.getByText(texto)).toBeInTheDocument();
+  });
+
+  it('H-1: el selector solo ofrece artículos con máximo, llega hasta él y muestra el rechazo del backend', async () => {
+    const i = inc({ reposicion_maxima: [{ pedido_detalle_id: 11, cantidad: 2 }] });
+    const pedido = { id: 1, folio: 'PED-1', detalles: [
+      { id: 11, nombre: 'Bata', talla: 'M', cantidad: 5, empleado: { nombre: 'Ana López' } },
+      { id: 12, nombre: 'Camisa', talla: 'G', cantidad: 3, empleado: { nombre: 'Ana López' } }] };
+    sesion(ALMACEN);
+    vi.mocked(get).mockImplementation((url: string) => Promise.resolve(url.startsWith('/admin/pedidos/') ? pedido : i) as never);
+    vi.mocked(post).mockRejectedValue(new ApiError(400, 'reposicion_excedida', 'Bata (M): desde esta incidencia se pueden reponer como máximo 1 pieza(s).'));
+    montar('/admin/incidencias/:id', <IncidenciaDetalle />, '/admin/incidencias/9');
+    fireEvent.click(await screen.findByRole('button', { name: 'Preparar reposición' }));
+    const selector = await screen.findByLabelText('Piezas de Bata (M) para Ana López');
+    expect(within(selector).getAllByRole('option').map((o) => o.textContent)).toEqual(['0', '1', '2']);
+    expect(screen.getByText('(hasta 2)')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Piezas de Camisa (G) para Ana López')).toBeNull();  // sin máximo: no se ofrece
+    fireEvent.change(selector, { target: { value: '2' } });
+    fireEvent.click(screen.getByRole('button', { name: /Preparar 2 pieza/ }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/como máximo 1 pieza/);
   });
 });
 

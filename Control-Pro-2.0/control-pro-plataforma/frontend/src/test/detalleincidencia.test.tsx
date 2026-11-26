@@ -22,6 +22,7 @@ const inc = (extra: Partial<Incidencia> = {}) => ({
   creado: '2026-11-20T10:00:00Z', actualizado: '2026-11-20T10:00:00Z', evidencias: [], empleado: null, articulo: null,
   cliente: 'Clínica San Rafael', turno: 'lurima_atender', turno_actor: 'lurima', turno_desde: null, ultima_actividad: null, reposicion_de: null,
   cierre_por_sucursal: true, transiciones: ['resuelta'], reposiciones: [], reposicion_sugerida: [],
+  reposicion_maxima: [{ pedido_detalle_id: 1, cantidad: 1 }],
   seguimiento: [
     { fecha: '2026-11-20T10:00:00Z', anterior: null, nuevo: 'abierta', comentario: 'Llegó mojado.', actor: 'Sucursal', responsable: null, lado: 'sucursal', clase: 'mensaje' },
     { fecha: '2026-11-20T11:00:00Z', anterior: 'abierta', nuevo: 'en_atencion', comentario: null, actor: 'Sistema', responsable: null, lado: 'sistema', clase: 'evento' },
