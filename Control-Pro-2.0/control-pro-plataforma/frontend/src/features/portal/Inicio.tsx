@@ -6,7 +6,7 @@ import { Link, Navigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowRight, Bell, CheckCircle2, ChevronRight, ClipboardList, FilePlus2, PackageCheck, Save, Shirt, ShieldAlert, Undo2, Users } from 'lucide-react';
 import { get } from '../../api/cliente';
-import type { Notificacion, Pagina, PedidoResumen, ResumenSucursal } from '../../api/tipos';
+import type { ConteoBandejas, Incidencia, Notificacion, Pagina, PedidoResumen, ResumenSucursal } from '../../api/tipos';
 import { useAuth } from '../../app/auth';
 import { useBorradores } from '../../app/borradores';
 import { Boton, ErrorCaja, Estado, Tarjeta, Vacio } from '../../components/ui';
@@ -15,6 +15,8 @@ import { cls, fecha, fechaHora } from '../../lib/formato';
 import ContactoZona from './ContactoZona';
 import { RUTA_CATALOGO_PORTAL } from './rutas';
 import SelloCNR from '../../components/SelloCNR';
+import TarjetaIncidencia from '../../components/TarjetaIncidencia';
+import { BANDEJAS_SUCURSAL, contarBandeja, filtroBandeja } from '../../components/BandejasIncidencia';
 
 const fechaLarga = () => new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' });
 const verde = 'bg-menta-50 text-menta-700';
@@ -97,7 +99,6 @@ function Pendientes({ r }: { r: ResumenSucursal }) {
     ['Paquetes por recibir', r.paquetes_por_recibir, <PackageCheck className="h-4 w-4" />, '/cuenta/pedidos'],
     ['Entregas pendientes', r.entregas_pendientes, <Users className="h-4 w-4" />, '/cuenta/pedidos'],
     ['Conformidades pendientes', r.conformidades_pendientes, <CheckCircle2 className="h-4 w-4" />, '/cuenta/pedidos'],
-    ['Incidencias abiertas', r.incidencias_abiertas, <ShieldAlert className="h-4 w-4" />, '/cuenta/incidencias'],
     ['Empleados activos', r.empleados_activos, <Users className="h-4 w-4" />, '/cuenta/empleados'],
   ];
   return (
@@ -107,7 +108,7 @@ function Pendientes({ r }: { r: ResumenSucursal }) {
       {/* B-1: cuando /cuenta/pedidos acepte listas de estados, estos enlaces podrán llevar el filtro correspondiente. */}
       <ul className="mt-3 divide-y divide-tinta-100">
         {filas.map(([t, n, icono, a], i) => {
-          const alerta = i < 4 && n > 0;
+          const alerta = i < 3 && n > 0;
           return (
             <li key={t}>
               <Link to={a} className="flex min-h-12 items-center gap-3 rounded-lg px-1 hover:bg-sd-50">
@@ -119,6 +120,47 @@ function Pendientes({ r }: { r: ResumenSucursal }) {
           );
         })}
       </ul>
+    </section>
+  );
+}
+
+const TE_TOCA = BANDEJAS_SUCURSAL[0];
+
+/**
+ * Incidencias cuyo turno es de la sucursal: la misma consulta y el mismo contador que la bandeja «Te toca»
+ * (backend: turno_service), así que el número coincide con la pestaña. Las que esperan a Lurima no aparecen.
+ */
+function IncidenciasTeEsperan() {
+  const q = useQuery({ queryKey: ['mis-incidencias', 'inicio'],
+    queryFn: () => get<Pagina<Incidencia> & { conteo: ConteoBandejas }>(`/cuenta/incidencias?por_pagina=3&${filtroBandeja(TE_TOCA)}`) });
+  const n = contarBandeja(TE_TOCA, q.data?.conteo) ?? 0;
+  const items = q.data?.items ?? [];
+  const bandeja = `/cuenta/incidencias?bandeja=${TE_TOCA.clave}`;
+  return (
+    <section aria-labelledby="t-incidencias" className="vidrio rounded-2xl bg-white p-5 sm:p-6">
+      <header className="flex flex-wrap items-center justify-between gap-2">
+        <h2 id="t-incidencias" className="flex items-center gap-2 font-display text-base font-bold text-tinta-900">
+          <ShieldAlert className="h-4 w-4" aria-hidden />Incidencias que te esperan
+          {q.data && <span className={cls('min-w-[1.75rem] rounded-full px-2 text-center text-sm font-extrabold tabular-nums', n ? 'bg-amber-200 text-amber-950' : 'bg-tinta-100 text-tinta-700')}>{n}</span>}
+        </h2>
+        <Link to={n ? bandeja : '/cuenta/incidencias?bandeja=todas'} className="flex min-h-11 items-center gap-1 text-sm font-semibold text-menta-700 hover:underline">
+          {n ? 'Ir a «Te toca»' : 'Ver todas tus incidencias'} <ArrowRight className="h-4 w-4" aria-hidden />
+        </Link>
+      </header>
+      {q.isLoading ? <EsqueletoLista filas={2} /> : q.error ? (
+        <div className="mt-3 space-y-3"><ErrorCaja error={q.error} /><Boton variante="secundario" onClick={() => q.refetch()}>Reintentar</Boton></div>
+      ) : !items.length ? (
+        <p className="mt-2 flex items-center gap-2 text-sm text-tinta-600"><CheckCircle2 className="h-4 w-4 shrink-0 text-menta-600" aria-hidden />
+          No tienes incidencias pendientes. Aquí aparecerán las que esperen tu respuesta, una recepción o tu confirmación.</p>
+      ) : (
+        <>
+          <ul className="mt-2 divide-y divide-tinta-100">
+            {items.map((i) => <li key={i.id}><TarjetaIncidencia i={i} portal="sucursal" a={`/cuenta/incidencias/${i.id}`} paso
+              contexto={<span>Solicitud {i.pedido_folio}</span>} /></li>)}
+          </ul>
+          {n > items.length && <Link to={bandeja} className="mt-2 inline-flex min-h-9 items-center text-sm font-semibold text-menta-700 hover:underline">Ver las {n} incidencias que te esperan</Link>}
+        </>
+      )}
     </section>
   );
 }
@@ -168,12 +210,16 @@ function InicioEmpresa() {
                 detalle={<>{s.por_corregir > 0 ? <Link to="/cuenta/pedidos?estado=devuelto" className="font-semibold text-menta-700 underline">{s.por_corregir} por corregir</Link> : '0 por corregir'} · {s.rechazadas} rechazadas</>} />
             </div>
           </section>
-
-          <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr] lg:items-start">
-            <Distribucion s={s} />
-            <Pendientes r={r} />
-          </div>
         </>
+      )}
+
+      <IncidenciasTeEsperan />
+
+      {r && s && (
+        <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr] lg:items-start">
+          <Distribucion s={s} />
+          <Pendientes r={r} />
+        </div>
       )}
 
       <section aria-labelledby="t-accesos">
