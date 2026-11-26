@@ -19,6 +19,7 @@ from ..services import devolucion_service as dev_srv
 from ..services import logistica_service as log_srv
 from ..services import pago_service as pago_srv
 from ..services import pedido_service as ped_srv
+from ..services import turno_service as turno_srv
 from ..services.comun import auditar, paginar
 from ..services.precios import precio_con_descuento, promociones_vigentes, totales
 from . import serial
@@ -373,9 +374,14 @@ def _mi_incidencia(iid, bloquear=False) -> Incidencia:
 @requiere_cliente()
 def mis_incidencias():
     q = select(Incidencia).where(Incidencia.pedido_id.in_(_mis_pedidos())).order_by(Incidencia.id.desc())
+    if prioridad := request.args.get("prioridad"):
+        q = q.where(Incidencia.prioridad == prioridad)
+    conteo = turno_srv.conteo_bandejas(q)  # contadores de las bandejas sobre la misma consulta que la lista
     if estado := request.args.get("estado"):
         q = q.where(Incidencia.estado.in_(estado.split(",")))
-    return jsonify(paginar(q, *pagina(), lambda i: serial.incidencia(i, interno=False)))
+    if pedidos := turno_srv.codigos(request.args.get("turno")):
+        q = turno_srv.filtrar(q, pedidos)
+    return jsonify({**paginar(q, *pagina(), lambda i: serial.incidencia(i, interno=False)), "conteo": conteo})
 
 
 @bp.get("/incidencias/<int:iid>")
@@ -609,6 +615,7 @@ def resumen():
         "conformidades_pendientes": sum(1 for e, c in filas_entrega if e == "entregada" and c is None),
         "incidencias_abiertas": db.session.scalar(select(func.count()).select_from(Incidencia).where(
             Incidencia.pedido_id.in_(mis), Incidencia.estado.in_(["abierta", "en_atencion"]))),
+        **turno_srv.resumen(select(Incidencia).where(Incidencia.pedido_id.in_(mis)), "sucursal"),
         "empleados_activos": db.session.scalar(select(func.count()).select_from(EmpleadoCorporativo).where(
             EmpleadoCorporativo.cliente_id == g.cliente.id, EmpleadoCorporativo.activo.is_(True))),
         "zona": zona_json(g.cliente.zona),
