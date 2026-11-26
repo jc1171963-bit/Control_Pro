@@ -4,57 +4,64 @@
  * solución (se cierra) o la reabre explicando el motivo (vuelve a «En atención»). El historial nunca se borra.
  */
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { ClipboardCheck } from 'lucide-react';
+import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, ShieldAlert } from 'lucide-react';
 import { get, post } from '../../api/cliente';
-import type { Incidencia, Pagina } from '../../api/tipos';
-import { Aviso, Boton, Cargando, Campo, ErrorCaja, Estado, Modal, Paginacion, Tarjeta, Texto, Vacio, useAviso } from '../../components/ui';
+import type { ConteoBandejas, Incidencia, Pagina, Pedido } from '../../api/tipos';
+import { Aviso, Boton, Cargando, Campo, ErrorCaja, Modal, Paginacion, Tarjeta, Texto, Vacio, useAviso } from '../../components/ui';
 import { AdjuntarEvidencias, GaleriaEvidencias } from '../../components/Archivos';
-import { cls, fechaHora, tipoIncidencia } from '../../lib/formato';
-import { HistorialIncidencia } from './DetalleSolicitud';
+import TarjetaIncidencia from '../../components/TarjetaIncidencia';
+import { BANDEJAS_SUCURSAL, filtroBandeja, PestanasBandeja } from '../../components/BandejasIncidencia';
+import { EncabezadoIncidencia, ErrorIncidencia, SiguientePaso, VolverIncidencias } from '../../components/DetalleIncidencia';
+import { etiqueta } from '../../lib/formato';
+import { HistorialIncidencia, RecepcionPaquete } from './DetalleSolicitud';
 import { ListaReposiciones } from '../../components/Reposiciones';
 
-const FILTROS: [string, string][] = [['abierta,en_atencion', 'En curso'], ['resuelta', 'Por confirmar'], ['cerrada', 'Cerradas'], ['', 'Todas']];
-
+/** Bandejas por turno (backend). La bandeja y la página viven en la URL: al volver del detalle se conserva el contexto. */
 export default function MisIncidencias() {
-  const [estado, setEstado] = useState('');
-  const [pagina, setPagina] = useState(1);
-  const q = useQuery({ queryKey: ['mis-incidencias', estado, pagina],
-    queryFn: () => get<Pagina<Incidencia>>(`/cuenta/incidencias?pagina=${pagina}${estado ? `&estado=${estado}` : ''}`) });
+  const [params, setParams] = useSearchParams();
+  const bandeja = BANDEJAS_SUCURSAL.find((b) => b.clave === params.get('bandeja')) ?? BANDEJAS_SUCURSAL[0];
+  const pagina = Math.max(1, Number(params.get('pagina')) || 1);
+  const cambiar = (cambios: Record<string, string>) => {
+    const p = new URLSearchParams(params);
+    Object.entries(cambios).forEach(([k, v]) => (v ? p.set(k, v) : p.delete(k)));
+    setParams(p, { replace: true });
+  };
+  const filtro = filtroBandeja(bandeja);
+  const q = useQuery({ queryKey: ['mis-incidencias', bandeja.clave, pagina],
+    queryFn: () => get<Pagina<Incidencia> & { conteo: ConteoBandejas }>(`/cuenta/incidencias?pagina=${pagina}${filtro ? `&${filtro}` : ''}`) });
   return (
-    <Tarjeta titulo="Mis incidencias" sub="Problemas reportados en tus solicitudes y su atención por la comercializadora">
-      <div className="mb-4 flex flex-wrap gap-1.5" role="group" aria-label="Filtrar por estado">
-        {FILTROS.map(([v, n]) => (
-          <button key={v} type="button" aria-pressed={estado === v} onClick={() => { setEstado(v); setPagina(1); }}
-            className={cls('min-h-8 rounded-full px-3 py-1 text-xs font-semibold ring-1', estado === v ? 'bg-tinta-900 text-white ring-tinta-900' : 'ring-tinta-200')}>{n}</button>
-        ))}
+    <Tarjeta titulo="Mis incidencias" sub="Problemas reportados en tus solicitudes y su atención por Lurima">
+      <div className="mb-4">
+        <PestanasBandeja etiqueta="Bandejas de incidencias" bandejas={BANDEJAS_SUCURSAL} activa={bandeja.clave} conteo={q.data?.conteo}
+          onCambio={(clave) => cambiar({ bandeja: clave, pagina: '' })} />
       </div>
-      <ErrorCaja error={q.error} />
-      {q.isLoading ? <Cargando /> : q.error ? null : !q.data?.items.length
-        ? <Vacio titulo="Sin incidencias" texto="Si algo falla con una solicitud, repórtalo desde su detalle." /> : (
-        <ul className="divide-y divide-tinta-100">
-          {q.data.items.map((i) => (
-            <li key={i.id}>
-              <Link to={`/cuenta/incidencias/${i.id}`} className="flex items-start justify-between gap-3 py-3 hover:bg-tinta-50/60">
-                <span className="min-w-0 text-sm">
-                  <b>{i.folio}</b> · {tipoIncidencia(i.tipo)}
-                  <span className="block truncate text-xs text-tinta-500">Solicitud {i.pedido_folio} · {i.descripcion}</span>
-                  <span className="block text-xs text-tinta-400">Actualizada {fechaHora(i.actualizado)}</span>
-                </span>
-                <Estado valor={i.estado} />
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-      {q.data && <Paginacion pagina={q.data.pagina} paginas={q.data.paginas} total={q.data.total} onCambio={setPagina} />}
+      <div role="tabpanel" aria-label={bandeja.titulo}>
+        <ErrorCaja error={q.error} />
+        {q.isLoading ? <Cargando /> : q.error ? null : !q.data?.items.length
+          ? <Vacio titulo={`Sin incidencias en «${bandeja.titulo}»`} texto={bandeja.vacio} /> : (
+          <ul className="divide-y divide-tinta-100">
+            {q.data.items.map((i) => (
+              <li key={i.id}>
+                <TarjetaIncidencia i={i} portal="sucursal" a={`/cuenta/incidencias/${i.id}`} state={{ bandeja: params.toString() }}
+                  contexto={<><span>Solicitud {i.pedido_folio}</span><span>Estado: {etiqueta(i.estado)}</span></>} />
+              </li>
+            ))}
+          </ul>
+        )}
+        {q.data && <Paginacion pagina={q.data.pagina} paginas={q.data.paginas} total={q.data.total} onCambio={(p) => cambiar({ pagina: String(p) })} />}
+      </div>
     </Tarjeta>
   );
 }
 
 export function IncidenciaSucursal() {
   const { id } = useParams();
+  // Regreso a la bandeja de origen (la lista pasa sus parámetros); sin ella (aviso, enlace directo), a la lista
+  const volverA = (useLocation().state as { bandeja?: string } | null)?.bandeja ?? '';
+  const origen = BANDEJAS_SUCURSAL.find((b) => b.clave === new URLSearchParams(volverA).get('bandeja'));
+  const volver = { a: `/cuenta/incidencias${volverA ? `?${volverA}` : ''}`, texto: origen ? `Volver a «${origen.titulo}»` : 'Volver a mis incidencias' };
   const qc = useQueryClient();
   const avisar = useAviso();
   const clave = ['mi-incidencia', id];
@@ -63,6 +70,12 @@ export function IncidenciaSucursal() {
   const [adjuntos, setAdjuntos] = useState<string[]>([]);
   const [reabrir, setReabrir] = useState(false);
   const [motivo, setMotivo] = useState('');
+  const [recibir, setRecibir] = useState(false);
+  // D-7: con una reposición entregada por recibir (turno del backend), se carga la solicitud —la misma consulta que su
+  // página— para recibirla aquí con el formulario de siempre; el backend valida la recepción como desde la solicitud.
+  const porRecibir = q.data?.turno === 'sucursal_recibir' && !!q.data.pedido_id;
+  const pedido = useQuery({ queryKey: ['pedido', String(q.data?.pedido_id)], queryFn: () => get<Pedido>(`/cuenta/pedidos/${q.data?.pedido_id}`), enabled: porRecibir });
+  const paquete = porRecibir ? pedido.data?.paquetes.find((pq) => pq.reposicion?.incidencia_id === q.data?.id && pq.estado === 'entregado' && !pq.recepcion) : undefined;
   const listo = (i: Incidencia, aviso: string) => {
     qc.setQueryData(clave, i);
     qc.invalidateQueries({ queryKey: ['mis-incidencias'] });
@@ -76,16 +89,22 @@ export function IncidenciaSucursal() {
   const reabrirM = useMutation({ mutationFn: () => post<Incidencia>(`/cuenta/incidencias/${id}/reabrir`, { motivo }),
     onSuccess: (i) => { setReabrir(false); setMotivo(''); listo(i, 'La incidencia volvió a «En atención».'); } });
 
-  if (q.isLoading) return <Cargando />;
-  if (!q.data) return <ErrorCaja error={q.error} />;
+  if (q.isLoading) return <div className="space-y-4"><VolverIncidencias {...volver} /><Cargando texto="Cargando incidencia…" /></div>;
+  if (!q.data) return (
+    <div className="space-y-4"><VolverIncidencias {...volver} />
+      <ErrorIncidencia error={q.error} volver={volver.a} textoVolver={volver.texto} onReintentar={() => q.refetch()} /></div>
+  );
   const i = q.data;
   const conversa = i.cierre_por_sucursal && i.estado !== 'cerrada';
   return (
     <div className="space-y-5">
-      <Link to="/cuenta/incidencias" className="inline-flex min-h-8 items-center gap-1 text-sm font-semibold text-menta-700 hover:underline"><ChevronLeft className="h-4 w-4" aria-hidden />Mis incidencias</Link>
-      <Tarjeta titulo={<span className="flex flex-wrap items-center gap-2"><ShieldAlert className="h-4 w-4" aria-hidden />Incidencia {i.folio} <Estado valor={i.estado} /></span>}
-        sub={<>{tipoIncidencia(i.tipo)} · reportada {fechaHora(i.creado)} · <Link to={`/cuenta/pedidos/${i.pedido_id}`} className="font-semibold text-menta-700 hover:underline">Solicitud {i.pedido_folio}</Link></>}>
-        <p className="rounded-lg bg-tinta-50 p-3 text-sm"><b>Descripción:</b> {i.descripcion}</p>
+      <VolverIncidencias {...volver} />
+      <EncabezadoIncidencia i={i} portal="sucursal" contexto={i.pedido_id ? <div><dt className="inline">Solicitud: </dt><dd className="inline">
+        <Link to={`/cuenta/pedidos/${i.pedido_id}`} className="font-semibold text-menta-700 hover:underline">{i.pedido_folio}</Link></dd></div> : null} />
+      <SiguientePaso i={i} portal="sucursal" accion={paquete && (
+        <Boton icono={<ClipboardCheck className="h-4 w-4" />} onClick={() => setRecibir(true)}>Registrar recepción de {paquete.folio}</Boton>)} />
+      <Tarjeta titulo="Detalle y conversación">
+        <p className="break-words rounded-lg bg-tinta-50 p-3 text-sm"><b>Descripción:</b> {i.descripcion}</p>
         {(i.empleado || i.articulo) && <p className="mt-2 text-xs text-tinta-600"><b>Relacionada con:</b> {[i.empleado && `${i.empleado.nombre} (${i.empleado.puesto})`, i.articulo && `${i.articulo.nombre} talla ${i.articulo.talla}`].filter(Boolean).join(' · ')}</p>}
         {!!i.evidencias?.length && <div className="mt-3"><GaleriaEvidencias urls={i.evidencias} titulo={`Evidencia de ${i.folio}`} /></div>}
         {!!i.reposiciones?.length && <div className="mt-4"><p className="text-xs font-bold uppercase tracking-wide text-tinta-500">Envío de reposición</p>
@@ -121,6 +140,11 @@ export function IncidenciaSucursal() {
         )}
       </Tarjeta>
 
+      {paquete && pedido.data && (
+        <Modal abierto={recibir} titulo={`Recepción del paquete ${paquete.folio}`} onCerrar={() => setRecibir(false)} ancho="max-w-2xl">
+          <RecepcionPaquete pq={paquete} p={pedido.data} onCerrar={() => setRecibir(false)} />
+        </Modal>
+      )}
       <Modal abierto={reabrir} titulo={`Reabrir incidencia ${i.folio}`} onCerrar={() => setReabrir(false)}>
         <div className="space-y-4">
           <Campo etiqueta="¿Qué falta por resolver?" ayuda="Mínimo 10 caracteres. La comercializadora lo verá en el historial.">

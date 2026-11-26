@@ -21,6 +21,7 @@ import EditarSolicitud from './EditarSolicitud';
 import PanelNegociacion from './Negociacion';
 import { Encabezado, FiltroSucursal } from './AdminLayout';
 import SelloCNR from '../../components/SelloCNR';
+import TarjetaIncidencia from '../../components/TarjetaIncidencia';
 
 const ESTADOS_FILTRO = [['', 'Todos'], ['en_revision', 'Por aprobar'], ['pendiente_pago,pago_en_revision', 'Por pagar'], ['confirmado,en_preparacion', 'Por surtir'],
   ['parcialmente_enviado,enviado', 'En camino'], ['parcialmente_entregado,entregado', 'Entregados'], ['cerrado', 'Cerrados'], ['cancelado,expirado,rechazado', 'Cancelados']];
@@ -328,11 +329,18 @@ export function PedidoAdmin() {
             <ChatSolicitud key={`a-${p.id}`} pedidoId={p.id} tipo="distribuidora" titulo="Conversación con el aprobador" />}
           {!!p.incidencias?.length && (
             <Tarjeta titulo="Incidencias">
-              {p.incidencias.map((i) => <div key={i.id} className="mb-2 rounded-lg p-3 text-sm ring-1 ring-tinta-100"><div className="flex justify-between"><b>{i.folio}</b><Estado valor={i.estado} /></div>
-                {(i.empleado || i.articulo) && <p className="text-xs font-semibold text-tinta-600">{[i.empleado?.nombre, i.articulo && `${i.articulo.nombre} (${i.articulo.talla})`].filter(Boolean).join(' · ')}</p>}
-                <p className="text-xs">{i.descripcion}</p>
-                {!!i.evidencias?.length && <div className="mt-2"><GaleriaEvidencias urls={i.evidencias} titulo={`Evidencia de ${i.folio}`} /></div>}</div>)}
-              {puede('incidencia.gestionar') && <Link to="/admin/incidencias" className="text-xs font-semibold text-menta-700">Gestionar →</Link>}
+              <div className="mb-2 space-y-2">
+                {p.incidencias.map((i) => {
+                  const persona = [i.empleado?.nombre, i.articulo && `${i.articulo.nombre} (${i.articulo.talla})`].filter(Boolean).join(' · ');
+                  return (
+                    <TarjetaIncidencia key={i.id} i={i} portal="lurima" a={puede('incidencia.gestionar') ? `/admin/incidencias/${i.id}` : undefined}
+                      contexto={<>{persona && <span>{persona}</span>}<span>Estado: {etiqueta(i.estado)}</span></>}>
+                      {!!i.evidencias?.length && <div className="mt-2"><GaleriaEvidencias urls={i.evidencias} titulo={`Evidencia de ${i.folio}`} /></div>}
+                    </TarjetaIncidencia>
+                  );
+                })}
+              </div>
+              {puede('incidencia.gestionar') && <Link to="/admin/incidencias" className="text-xs font-semibold text-menta-700">Ver todas las incidencias →</Link>}
             </Tarjeta>
           )}
           {!!p.devoluciones.length && (
