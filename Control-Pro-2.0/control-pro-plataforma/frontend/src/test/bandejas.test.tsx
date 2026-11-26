@@ -63,6 +63,13 @@ describe('definición de bandejas', () => {
     expect(screen.getByRole('tab', { name: /Te toca\s*3/ })).toHaveAttribute('aria-selected', 'false');
     expect(screen.getByRole('tab', { name: /Esperando a Lurima\s*2/ })).toHaveAttribute('aria-selected', 'true');
   });
+
+  it('H-3: el contador de la pestaña seleccionada hereda el color de la pestaña (en modo oscuro la pestaña se invierte)', () => {
+    render(<PestanasBandeja etiqueta="Bandejas" bandejas={BANDEJAS_SUCURSAL} activa="esperando" conteo={CONTEO} onCambio={() => {}} />);
+    const contador = within(screen.getByRole('tab', { name: /Esperando a Lurima/ })).getByText('2');
+    expect(contador).toHaveClass('text-inherit');
+    expect(contador).not.toHaveClass('text-white');
+  });
 });
 
 describe('prioridad', () => {

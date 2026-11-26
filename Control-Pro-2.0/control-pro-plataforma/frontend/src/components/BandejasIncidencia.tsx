@@ -81,7 +81,7 @@ export function PestanasBandeja({ bandejas, activa, conteo, onCambio, etiqueta }
             {n !== null && (
               <span
                 className={cls('min-w-[1.5rem] rounded-full px-1.5 text-center text-xs font-bold tabular-nums',
-                  sel ? 'bg-white/20 text-white' : pendiente ? 'bg-amber-200 text-amber-950' : 'bg-tinta-100 text-tinta-700')}>
+                  sel ? 'bg-white/20 text-inherit' : pendiente ? 'bg-amber-200 text-amber-950' : 'bg-tinta-100 text-tinta-700')}>
                 {n}
               </span>
             )}

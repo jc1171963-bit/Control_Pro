@@ -155,7 +155,8 @@
   html.oscuro .shadow-suave { box-shadow: 0 1px 2px rgb(0 0 0 / .3), 0 8px 24px -12px rgb(0 0 0 / .5); }
 
   /* --- bloques oscuros que en claro llevan texto blanco: se vuelven claros con texto oscuro --- */
-  html.oscuro :is(.bg-tinta-700, .bg-tinta-800, .bg-tinta-900, .bg-tinta-950):is(.text-white) { color: rgb(var(--fondo)); }
+  /* Salvo el botón primario de .tema-lu / .tema-sd: conserva su relleno institucional oscuro, así que su texto sigue blanco */
+  html.oscuro :is(.bg-tinta-700, .bg-tinta-800, .bg-tinta-900, .bg-tinta-950):is(.text-white):not(:is(.tema-lu, .tema-sd) .boton-primario) { color: rgb(var(--fondo)); }
   html.oscuro .bg-tinta-950\/50 { background-color: rgb(2 6 12 / .66); }
   html.oscuro .bg-tinta-900\/80 { background-color: rgb(2 6 12 / .75); }
 
