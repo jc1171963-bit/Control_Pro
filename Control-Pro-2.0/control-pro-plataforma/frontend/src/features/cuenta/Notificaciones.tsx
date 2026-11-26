@@ -9,6 +9,12 @@ import { cls, fechaHora } from '../../lib/formato';
 import { enlacePanel, useBasePanel } from '../../app/panel';
 import { AvisosDispositivo } from '../../components/AppDispositivo';
 
+/** «Título\nDetalle»: el título destaca y el detalle va debajo. Los avisos de una sola línea se ven como siempre. */
+function TextoAviso({ mensaje }: { mensaje: string }) {
+  const [titulo, ...resto] = mensaje.split('\n');
+  return <>{titulo}{resto.length > 0 && <span className="block font-normal text-tinta-600">{resto.join(' ')}</span>}</>;
+}
+
 export function ListaNotificaciones({ base, clave }: { base: string; clave: string }) {
   const qc = useQueryClient();
   const panel = useBasePanel();
@@ -27,7 +33,7 @@ export function ListaNotificaciones({ base, clave }: { base: string; clave: stri
             <li key={n.id} className={cls('flex items-start gap-3 py-3', !n.leida && 'font-semibold')}>
               <span className={cls('mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl', n.leida ? 'bg-tinta-50 text-tinta-300' : 'bg-menta-100 text-menta-700')}><Bell className="h-4 w-4" aria-hidden /></span>
               <div className="flex-1 text-sm">
-                {n.enlace ? <Link to={enlacePanel(n.enlace, panel)!} onClick={() => !n.leida && leer.mutate([n.id])} className="hover:underline">{n.mensaje}</Link> : n.mensaje}
+                {n.enlace ? <Link to={enlacePanel(n.enlace, panel)!} onClick={() => !n.leida && leer.mutate([n.id])} className="hover:underline"><TextoAviso mensaje={n.mensaje} /></Link> : <TextoAviso mensaje={n.mensaje} />}
                 <p className="text-xs font-normal text-tinta-500">{fechaHora(n.fecha)}</p>
               </div>
               {!n.leida && <button aria-label={`Marcar como leída: ${n.mensaje}`} className="min-h-8 px-1 text-xs font-semibold text-menta-700" onClick={() => leer.mutate([n.id])}>Leída</button>}

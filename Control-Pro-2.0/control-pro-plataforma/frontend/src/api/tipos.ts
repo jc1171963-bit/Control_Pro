@@ -98,18 +98,50 @@ export type Asignacion = {
   pedido?: { id: number; folio: string; estado: string; canal: string; modalidad: string; cliente: string;
     direccion_envio: Record<string, string> | null; sucursal_recoger_id: number | null; creado: string };
 };
+/** Códigos de turno de backend/app/services/turno_service.py (TURNOS). */
+export type TurnoIncidencia = 'lurima_atender' | 'lurima_responder' | 'lurima_reposicion' | 'sucursal_responder'
+  | 'sucursal_recibir' | 'sucursal_confirmar' | 'interna' | 'cerrada';
+export type LadoSeguimiento = 'sucursal' | 'lurima' | 'sistema';
+export type ClaseSeguimiento = 'mensaje' | 'evento';
+
+/** Contadores que acompañan a la lista de incidencias (misma consulta que la lista; backend: conteo_bandejas). */
+export type ConteoBandejas = {
+  por_turno: Partial<Record<TurnoIncidencia, number>>;  // solo incidencias no cerradas
+  cerradas: number; todas: number;
+  /** Solo en el panel: incidencias con un paquete de reposición preparado y sin salir (filtro logístico). */
+  por_enviar?: number;
+};
+
 export type Incidencia = {
   id: number; folio: string; tipo: string; prioridad: string; estado: string; pedido_id: number | null; paquete_id: number | null;
   devolucion_id: number | null; transferencia_id: number | null; sucursal_id: number | null; descripcion: string;
   resolucion: string | null; responsable_id: number | null; creado: string; actualizado: string; evidencias?: string[];
   empleado: { id: number; nombre: string; puesto: string } | null;
   articulo: { pedido_detalle_id: number; nombre: string; talla: string; sku: string } | null;
-  seguimiento: { fecha: string; anterior: string | null; nuevo: string; comentario: string | null; actor: string; responsable: string | null; adjuntos?: string[] }[];
+  seguimiento: {
+    fecha: string; anterior: string | null; nuevo: string; comentario: string | null; actor: string; responsable: string | null; adjuntos?: string[];
+    /** Quién escribió la entrada (backend: turno_service.lado). */
+    lado: LadoSeguimiento;
+    /** Mensaje de una persona o evento automático (backend: turno_service.es_humana). */
+    clase: ClaseSeguimiento;
+  }[];
   pedido_folio?: string | null; cierre_por_sucursal?: boolean; respondio_sucursal?: boolean; transiciones?: string[];
+  /** Sucursal cliente (razón social) de la solicitud; null si la incidencia no es de una solicitud. */
+  cliente: string | null;
+  /** Turno calculado por el backend (turno_service). El frontend solo lo muestra; nunca lo deduce. */
+  turno: TurnoIncidencia;
+  turno_actor: 'lurima' | 'sucursal' | null;
+  /** Desde cuándo está vigente el turno (ISO) y fecha de la última actividad; pueden faltar en datos anómalos. */
+  turno_desde: string | null;
+  ultima_actividad: string | null;
+  /** Incidencia de origen cuando esta nació en un paquete de reposición. */
+  reposicion_de: { id: number; folio: string } | null;
   /** Paquetes de reposición de esta incidencia (con su guía y su estado). */
   reposiciones?: Paquete[];
   /** Solo personal: lo que conviene reponer según la recepción o el artículo señalado. */
   reposicion_sugerida?: { pedido_detalle_id: number; cantidad: number }[];
+  /** Solo personal: máximo que aún se puede reponer por artículo (lo calcula y valida el backend); solo los > 0. */
+  reposicion_maxima?: { pedido_detalle_id: number; cantidad: number }[];
 };
 export type ResumenSucursal = {
   solicitudes: { borradores: number; en_revision: number; por_corregir: number; en_proceso: number; entregadas: number; rechazadas: number };

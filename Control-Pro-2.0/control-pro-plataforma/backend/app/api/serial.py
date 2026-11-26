@@ -305,18 +305,27 @@ def incidencia(i, interno=True):
             return s.usuario.nombre if interno and s.usuario else "Control Pro"
         return "Sucursal" if s.cliente_id else "Sistema"
 
-    from ..models import Pedido
+    from ..models import Paquete, Pedido
     from ..services.devolucion_service import de_sucursal, transiciones_personal
+    from ..services.turno_service import es_humana, lado, ordenar, turno_incidencia
     pedido = db.session.get(Pedido, i.pedido_id) if i.pedido_id else None
+    t = turno_incidencia(i)
     extra = {"pedido_folio": pedido.folio if pedido else None, "cierre_por_sucursal": de_sucursal(i),
-             # la última entrada la escribió la sucursal: hay una respuesta suya por atender
-             "respondio_sucursal": bool(i.seguimiento and i.seguimiento[-1].cliente_id and i.estado not in ("resuelta", "cerrada"))}
+             # sucursal cliente de la solicitud (Pedido.cliente se carga con el pedido: sin consulta extra)
+             "cliente": (pedido.cliente.razon_social or pedido.cliente.nombre) if pedido else None,
+             "turno": t.codigo, "turno_actor": t.actor, "turno_desde": f(t.desde), "ultima_actividad": f(t.ultima_actividad),
+             # hay una respuesta de la sucursal por atender (se deriva del turno; antes contaba también la creación)
+             "respondio_sucursal": t.codigo == "lurima_responder"}
+    # Incidencia nacida en un paquete de reposición: se relaciona con su incidencia de origen (cada una con su turno)
+    origen = db.session.get(Paquete, i.paquete_id) if i.paquete_id else None
+    extra["reposicion_de"] = ({"id": origen.incidencia_id, "folio": origen.incidencia.folio}
+                              if origen and origen.incidencia_id and origen.incidencia_id != i.id else None)
     if interno:
         extra["transiciones"] = transiciones_personal(i)
-        from ..services.logistica_service import reposicion_sugerida
-        extra["reposicion_sugerida"] = reposicion_sugerida(i) if i.pedido_id else []
+        from ..services.logistica_service import reposicion_maxima, reposicion_sugerida
+        extra["reposicion_maxima"] = reposicion_maxima(i) if i.pedido_id else []
+        extra["reposicion_sugerida"] = reposicion_sugerida(i, extra["reposicion_maxima"]) if i.pedido_id else []
     if i.pedido_id:
-        from ..models import Paquete
         extra["reposiciones"] = [paquete(pq) for pq in db.session.scalars(
             select(Paquete).where(Paquete.incidencia_id == i.id).order_by(Paquete.id)).unique()]
     return {**extra, "id": i.id, "folio": i.folio, "tipo": i.tipo, "prioridad": i.prioridad, "estado": i.estado,
@@ -328,9 +337,11 @@ def incidencia(i, interno=True):
             "articulo": {"pedido_detalle_id": i.pedido_detalle_id, "nombre": i.pedido_detalle.nombre,
                          "talla": i.pedido_detalle.talla, "sku": i.pedido_detalle.sku} if i.pedido_detalle else None,
             "seguimiento": [{"fecha": f(s.creado), "anterior": s.estado_anterior, "nuevo": s.estado_nuevo,
-                             "comentario": s.comentario, "actor": actor(s), "adjuntos": s.adjuntos or [],
+                             "comentario": s.comentario, "actor": actor(s), "lado": lado(s),
+                             # mensaje de una persona o evento automático: la misma regla que usa el turno
+                             "clase": "mensaje" if es_humana(s) else "evento", "adjuntos": s.adjuntos or [],
                              "responsable": (s.responsable.nombre if interno and s.responsable else None)}
-                            for s in i.seguimiento]}
+                            for s in ordenar(i.seguimiento)]}
 
 
 def notificacion(n):

@@ -14,6 +14,7 @@ from ..extensions import db
 from ..models import (AsignacionDetalle, AsignacionSurtido, Cliente, Devolucion, EntregaIndividual, Incidencia, Inventario,
                       MovimientoInventario, Pago, Paquete, Pedido, PedidoDetalle, Producto, Reembolso, Sucursal, Variante)
 from ..security.auth import sucursales_permitidas
+from . import turno_service as turno_srv
 
 CONFIRMADOS = ("confirmado", "en_preparacion", "parcialmente_enviado", "enviado", "parcialmente_entregado",
                "entregado", "cerrado")
@@ -99,6 +100,7 @@ def dashboard(desde=None, hasta=None, sucursal_id=None) -> dict:
             *([Devolucion.pedido_id.in_(alcance)] if alcance is not None else []))),
         "incidencias_abiertas": db.session.scalar(select(func.count()).select_from(Incidencia).where(
             Incidencia.estado.in_(["abierta", "en_atencion"]), *_filtro_incidencias(sucursal_id))),
+        **turno_srv.resumen(select(Incidencia).where(*_filtro_incidencias(sucursal_id)), "lurima"),
         "movimientos_recientes": movimientos_recientes(sucursal_id, 8),
     }
 

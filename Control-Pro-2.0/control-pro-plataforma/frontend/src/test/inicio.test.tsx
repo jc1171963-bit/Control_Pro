@@ -1,10 +1,13 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { createMemoryRouter, RouterProvider } from 'react-router-dom';
+import { createMemoryRouter, RouterProvider, useLocation, useParams } from 'react-router-dom';
 import { beforeEach, vi } from 'vitest';
 import { get } from '../api/cliente';
 import { useAuth } from '../app/auth';
 import Inicio from '../features/portal/Inicio';
+
+function BandejaDestino() { return <div>BANDEJA {useLocation().search}</div>; }
+function DetalleDestino() { return <div>DETALLE {useParams().id}</div>; }
 
 vi.mock('../api/cliente', () => ({ get: vi.fn() }));
 vi.mock('../app/auth', () => ({ useAuth: vi.fn() }));
@@ -21,11 +24,15 @@ const RESUMEN = {
 };
 const AVISOS = { ...pagina([{ id: 1, evento: 'pedido_en_revision', mensaje: 'Tu solicitud SOL-8 está en revisión.', enlace: '/cuenta/pedidos/8', leida: false, fecha: '2026-11-11T10:00:00Z' }]), no_leidas: 1 };
 
-type Datos = { resumen?: unknown; recientes?: unknown; borradores?: unknown; avisos?: unknown };
+// Incidencias de la bandeja «Te toca» (lista + conteo, como /cuenta/incidencias); por defecto, ninguna pendiente.
+const SIN_INCIDENCIAS = { ...pagina([]), conteo: { por_turno: {}, cerradas: 0, todas: 0 } };
+
+type Datos = { resumen?: unknown; recientes?: unknown; borradores?: unknown; avisos?: unknown; incidencias?: unknown };
 function datos(d: Datos = {}) {
-  const v = { resumen: RESUMEN, recientes: pagina([pedido(7, 'SOL-7', 'borrador'), pedido(8, 'SOL-8', 'en_revision')]), borradores: pagina([pedido(7, 'SOL-7', 'borrador')]), avisos: AVISOS, ...d };
+  const v = { resumen: RESUMEN, recientes: pagina([pedido(7, 'SOL-7', 'borrador'), pedido(8, 'SOL-8', 'en_revision')]), borradores: pagina([pedido(7, 'SOL-7', 'borrador')]), avisos: AVISOS, incidencias: SIN_INCIDENCIAS, ...d };
   vi.mocked(get).mockImplementation(async (ruta: string) => {
     if (ruta.includes('/cuenta/resumen')) { if (v.resumen instanceof Error) throw v.resumen; return v.resumen as never; }
+    if (ruta.includes('/cuenta/incidencias')) { if (v.incidencias instanceof Error) throw v.incidencias; return v.incidencias as never; }
     if (ruta.includes('/notificaciones')) return v.avisos as never;
     if (ruta.includes('estado=borrador')) return v.borradores as never;
     return v.recientes as never;
@@ -35,7 +42,8 @@ function datos(d: Datos = {}) {
 function montar(tipo: 'empresa' | 'persona' = 'empresa') {
   vi.mocked(useAuth).mockReturnValue({ cliente: { tipo, nombre: 'Ana Contacto', razon_social: tipo === 'empresa' ? 'Sucursal Norte' : null } } as unknown as ReturnType<typeof useAuth>);
   const router = createMemoryRouter([
-    { path: '/cuenta', children: [{ index: true, element: <Inicio /> }, { path: 'pedidos', element: <div>LISTA-DE-PEDIDOS</div> }] },
+    { path: '/cuenta', children: [{ index: true, element: <Inicio /> }, { path: 'pedidos', element: <div>LISTA-DE-PEDIDOS</div> },
+      { path: 'incidencias', element: <BandejaDestino /> }, { path: 'incidencias/:id', element: <DetalleDestino /> }] },
   ], { initialEntries: ['/cuenta'] });
   return render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><RouterProvider router={router} /></QueryClientProvider>);
 }
@@ -121,4 +129,80 @@ it('una cuenta de persona no tiene este inicio y va a sus pedidos', async () => 
   datos(); montar('persona');
   expect(await screen.findByText('LISTA-DE-PEDIDOS')).toBeInTheDocument();
   expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
+});
+
+// ---------------------------------------------------------------- 3B.5: incidencias que te esperan
+
+const inc = (id: number, turno: string, actor: 'sucursal' | 'lurima', prioridad = 'media') => ({
+  id, folio: `INC-${id}`, tipo: 'faltante', prioridad, estado: 'en_atencion', descripcion: `Detalle ${id}`, pedido_id: 8, pedido_folio: 'SOL-8',
+  turno, turno_actor: actor, turno_desde: '2026-11-20T10:00:00Z', ultima_actividad: '2026-11-20T10:00:00Z', seguimiento: [],
+});
+const conIncidencias = (items: ReturnType<typeof inc>[], por_turno: Record<string, number>, total = items.length) =>
+  ({ items, total, pagina: 1, por_pagina: 3, paginas: 1, conteo: { por_turno, cerradas: 0, todas: total } });
+const seccion = () => screen.findByRole('region', { name: /Incidencias que te esperan/ });
+const titulo = (z: HTMLElement) => within(z).getByRole('heading', { name: /Incidencias que te esperan/ });
+
+it('3B.5: pide solo la bandeja «Te toca» y muestra responder, recibir y confirmar con su prioridad', async () => {
+  datos({ incidencias: conIncidencias([inc(3, 'sucursal_responder', 'sucursal', 'alta'), inc(6, 'sucursal_recibir', 'sucursal', 'critica'), inc(7, 'sucursal_confirmar', 'sucursal', 'baja')],
+    { sucursal_responder: 1, sucursal_recibir: 1, sucursal_confirmar: 1, lurima_atender: 4, lurima_reposicion: 2 }) });
+  montar();
+  const z = await seccion();
+  const ruta = vi.mocked(get).mock.calls.map(([r]) => String(r)).find((r) => r.includes('/cuenta/incidencias'))!;
+  expect(ruta).toContain('turno=sucursal_responder,sucursal_recibir,sucursal_confirmar');
+  // El contador es el de la pestaña «Te toca»: no suma las que esperan a Lurima (4 + 2)
+  expect(titulo(z)).toHaveTextContent(/te esperan3$/);
+  expect(within(z).getByText('Te toca responder')).toBeInTheDocument();
+  expect(within(z).getByText('Te toca recibir la reposición')).toBeInTheDocument();
+  expect(within(z).getByText('Te toca confirmar la solución')).toBeInTheDocument();
+  // Qué hacer: la misma tabla que el bloque «Siguiente paso» del detalle
+  expect(within(z).getByText(/^La reposición ya se entregó; registra su recepción/)).toBeInTheDocument();
+  expect(within(z).getByText('Crítica')).toBeInTheDocument();
+  expect(within(z).getByText('Alta')).toBeInTheDocument();
+  expect(within(z).getAllByRole('link', { name: /INC-/ })).toHaveLength(3);
+});
+
+it('3B.5: cada tarjeta abre el detalle de su incidencia', async () => {
+  datos({ incidencias: conIncidencias([inc(6, 'sucursal_recibir', 'sucursal')], { sucursal_recibir: 1 }) });
+  montar();
+  fireEvent.click(within(await seccion()).getByRole('link', { name: /INC-6/ }));
+  expect(await screen.findByText('DETALLE 6')).toBeInTheDocument();
+});
+
+it('3B.5: el enlace de la sección lleva a la bandeja completa «Te toca»', async () => {
+  datos({ incidencias: conIncidencias([inc(6, 'sucursal_recibir', 'sucursal')], { sucursal_recibir: 1 }) });
+  montar();
+  fireEvent.click(within(await seccion()).getByRole('link', { name: /Ir a «Te toca»/ }));
+  expect(await screen.findByText('BANDEJA ?bandeja=te_toca')).toBeInTheDocument();
+});
+
+it('3B.5: con más pendientes que tarjetas, ofrece verlas todas con el total de la pestaña', async () => {
+  datos({ incidencias: conIncidencias([inc(1, 'sucursal_responder', 'sucursal'), inc(2, 'sucursal_responder', 'sucursal'), inc(3, 'sucursal_responder', 'sucursal')],
+    { sucursal_responder: 5 }, 5) });
+  montar();
+  const z = await seccion();
+  expect(titulo(z)).toHaveTextContent(/te esperan5$/);
+  expect(within(z).getByRole('link', { name: 'Ver las 5 incidencias que te esperan' })).toHaveAttribute('href', '/cuenta/incidencias?bandeja=te_toca');
+});
+
+it('3B.5: sin pendientes muestra un estado vacío útil aunque haya incidencias esperando a Lurima', async () => {
+  datos({ incidencias: { ...SIN_INCIDENCIAS, conteo: { por_turno: { lurima_atender: 2 }, cerradas: 1, todas: 3 } } });
+  montar();
+  const z = await seccion();
+  expect(within(z).getByText(/No tienes incidencias pendientes/)).toBeInTheDocument();
+  expect(titulo(z)).toHaveTextContent(/te esperan0$/);
+  expect(within(z).getByRole('link', { name: /Ver todas tus incidencias/ })).toHaveAttribute('href', '/cuenta/incidencias?bandeja=todas');
+});
+
+it('3B.5: si falla la consulta de incidencias, el resto del inicio sigue y se puede reintentar', async () => {
+  datos({ incidencias: new Error('Sin conexión') });
+  montar();
+  const z = await seccion();
+  expect(await within(z).findByRole('button', { name: 'Reintentar' })).toBeInTheDocument();
+  expect(await indicadores()).toBeInTheDocument();
+});
+
+it('3B.5: «Operación» ya no repite un contador de incidencias abiertas', async () => {
+  datos(); montar();
+  const op = await screen.findByRole('region', { name: 'Operación' });
+  expect(within(op).queryByText('Incidencias abiertas')).not.toBeInTheDocument();
 });

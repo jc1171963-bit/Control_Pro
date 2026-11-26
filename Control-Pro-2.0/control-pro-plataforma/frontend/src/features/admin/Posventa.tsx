@@ -1,15 +1,16 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { FileText, PackagePlus, Truck } from 'lucide-react';
-import { abrirPrivado, get, patch, post } from '../../api/cliente';
-import type { Devolucion, Incidencia, Pagina, Paquete, Pedido } from '../../api/tipos';
+import { FileText } from 'lucide-react';
+import { abrirPrivado, get, post } from '../../api/cliente';
+import type { ConteoBandejas, Devolucion, Incidencia, Pagina } from '../../api/tipos';
 import { useAuth } from '../../app/auth';
-import { Aviso, Boton, Campo, Cargando, Entrada, ErrorCaja, Estado, Modal, Paginacion, Selector, Tabla, Tarjeta, Td, Texto, useAviso } from '../../components/ui';
-import { cls, dinero, etiqueta, fechaHora, MOTIVOS_DEVOLUCION, tipoIncidencia } from '../../lib/formato';
-import { HistorialIncidencia } from '../cuenta/DetalleSolicitud';
-import { AdjuntarEvidencias, GaleriaEvidencias } from '../../components/Archivos';
-import { ListaReposiciones } from '../../components/Reposiciones';
+import { Aviso, Boton, Campo, Cargando, Entrada, ErrorCaja, Estado, Modal, Paginacion, Selector, Tabla, Tarjeta, Td, Texto, useAviso, Vacio } from '../../components/ui';
+import ChipTurno from '../../components/ChipTurno';
+import PrioridadIncidencia from '../../components/PrioridadIncidencia';
+import TarjetaIncidencia from '../../components/TarjetaIncidencia';
+import { bandejasPanel, filtroBandeja, PestanasBandeja } from '../../components/BandejasIncidencia';
+import { cls, dinero, etiqueta, fechaHora, haceTiempo, MOTIVOS_DEVOLUCION, tipoIncidencia } from '../../lib/formato';
 import { Encabezado, useSucursalesAdmin } from './AdminLayout';
 
 const FILTROS_DEV = [['solicitada', 'Por autorizar'], ['autorizada,en_camino', 'Por recibir'], ['recibida', 'Por inspeccionar'], ['inspeccionada,reembolsada', 'Por cerrar'], ['', 'Todas']];
@@ -103,150 +104,80 @@ export function Devoluciones() {
   );
 }
 
+const PRIORIDADES = [['', 'Todas las prioridades'], ['critica', 'Crítica'], ['alta', 'Alta'], ['media', 'Media'], ['baja', 'Baja']];
+
 export function Incidencias() {
-  const qc = useQueryClient();
-  const avisar = useAviso();
-  const [estado, setEstado] = useState('abierta,en_atencion');
-  const [pagina, setPagina] = useState(1);
-  const q = useQuery({ queryKey: ['admin-incidencias', estado, pagina], queryFn: () => get<Pagina<Incidencia>>(`/admin/incidencias?pagina=${pagina}${estado ? `&estado=${estado}` : ''}`) });
-  const [sel, setSel] = useState<Incidencia | null>(null);
-  const [nuevoEstado, setNuevoEstado] = useState('');
-  const [comentario, setComentario] = useState('');
-  const [adjuntos, setAdjuntos] = useState<string[]>([]);
-  const m = useMutation({
-    mutationFn: () => patch<Incidencia>(`/admin/incidencias/${sel!.id}`, { estado: nuevoEstado || null, comentario: comentario || null, adjuntos }),
-    onSuccess: (i) => { qc.invalidateQueries({ queryKey: ['admin-incidencias'] }); setSel(i); setComentario(''); setAdjuntos([]); avisar('Incidencia actualizada.'); },
-  });
+  const { puede, usuario } = useAuth();
+  // Bandeja, prioridad y página viven en la URL: un solo estado, sin contradicciones.
+  const [params, setParams] = useSearchParams();
+  const cambiar = (cambios: Record<string, string>) => {
+    const p = new URLSearchParams(params);
+    Object.entries(cambios).forEach(([k, v]) => (v ? p.set(k, v) : p.delete(k)));
+    setParams(p, { replace: true });
+  };
+  const { bandejas, inicial } = bandejasPanel(puede('surtido.operar'), usuario?.rol.codigo);
+  const bandeja = bandejas.find((b) => b.clave === params.get('bandeja')) ?? inicial;
+  const prioridad = params.get('prioridad') ?? '';
+  const pagina = Math.max(1, Number(params.get('pagina')) || 1);
+  const filtro = [filtroBandeja(bandeja), prioridad && `prioridad=${prioridad}`].filter(Boolean).join('&');
+  const q = useQuery({ queryKey: ['admin-incidencias', bandeja.clave, prioridad, pagina],
+    queryFn: () => get<Pagina<Incidencia> & { conteo: ConteoBandejas }>(`/admin/incidencias?pagina=${pagina}${filtro ? `&${filtro}` : ''}`) });
+  // El detalle recibe la bandeja de origen (con prioridad y página) para regresar a ella
+  const detalle = (i: Incidencia) => ({ to: `/admin/incidencias/${i.id}`, state: { bandeja: params.toString() } });
+  const items = q.data?.items ?? [];
+  // Avisos anteriores a la 3B.3 enlazaban a ?abrir=<id>: se redirige a la página de detalle (que valida el acceso).
+  const abrir = Number(params.get('abrir')) || 0;
+  if (abrir > 0) return <Navigate to={`/admin/incidencias/${abrir}`} replace />;
+  const referencia = (i: Incidencia) => i.pedido_id ? (i.pedido_folio ?? `Pedido #${i.pedido_id}`)
+    : i.transferencia_id ? `Transferencia #${i.transferencia_id}` : i.devolucion_id ? `Devolución #${i.devolucion_id}` : '—';
   return (
     <>
       <Encabezado titulo="Incidencias" sub="Faltantes, daños, diferencias de recepción y problemas de entrega" />
       <Tarjeta>
-        <div className="mb-4 flex flex-wrap gap-1.5">{[['abierta,en_atencion', 'Abiertas'], ['resuelta', 'Resueltas'], ['cerrada', 'Cerradas'], ['', 'Todas']].map(([v, n]) =>
-          <button key={v} onClick={() => { setEstado(v); setPagina(1); }} className={cls('rounded-full px-3 py-1 text-xs font-semibold ring-1', estado === v ? 'bg-tinta-900 text-white ring-tinta-900' : 'ring-tinta-200')}>{n}</button>)}</div>
-        {q.isLoading ? <Cargando forma="tabla" /> : (
-          <Tabla columnas={['Folio', 'Tipo', 'Referencia', 'Empleado / artículo', 'Descripción', 'Prioridad', 'Estado', '']} vacia={!q.data?.items.length}>
-            {q.data?.items.map((i) => (
-              <tr key={i.id}><Td><p className="font-semibold">{i.folio}</p><p className="text-xs text-tinta-400">{fechaHora(i.creado)}</p></Td><Td className="text-xs">{tipoIncidencia(i.tipo)}</Td>
-                <Td className="text-xs">{i.pedido_id ? <Link to={`/admin/pedidos/${i.pedido_id}`} className="text-menta-700">Pedido #{i.pedido_id}</Link> : i.transferencia_id ? `Transferencia #${i.transferencia_id}` : i.devolucion_id ? `Devolución #${i.devolucion_id}` : '—'}</Td>
-                <Td className="text-xs">{i.empleado?.nombre || '—'}{i.articulo && <span className="block text-tinta-400">{i.articulo.nombre} ({i.articulo.talla})</span>}</Td>
-                <Td className="max-w-sm text-xs">{i.descripcion}{!!i.evidencias?.length && <div className="mt-2"><GaleriaEvidencias urls={i.evidencias} titulo={`Evidencia de ${i.folio}`} /></div>}</Td><Td><Estado valor={i.prioridad} /></Td><Td><Estado valor={i.estado} />{i.respondio_sucursal && <span className="mt-1 block text-[11px] font-semibold text-coral-700">Respondió la sucursal</span>}</Td>
-                <Td><Boton tam="sm" variante="secundario" onClick={() => { setSel(i); setNuevoEstado(''); setAdjuntos([]); }}>Gestionar</Boton></Td></tr>
-            ))}
-          </Tabla>
-        )}
-        {q.data && <Paginacion pagina={q.data.pagina} paginas={q.data.paginas} total={q.data.total} onCambio={setPagina} />}
+        <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <PestanasBandeja etiqueta="Bandejas de incidencias" bandejas={bandejas} activa={bandeja.clave} conteo={q.data?.conteo}
+            onCambio={(clave) => cambiar({ bandeja: clave, pagina: '' })} />
+          <Selector aria-label="Filtrar por prioridad" className="lg:w-56" value={prioridad}
+            onChange={(e) => cambiar({ prioridad: e.target.value, pagina: '' })}>
+            {PRIORIDADES.map(([v, n]) => <option key={v} value={v}>{n}</option>)}
+          </Selector>
+        </div>
+        <div role="tabpanel" aria-label={bandeja.titulo}>
+          <ErrorCaja error={q.error} />
+          {q.isLoading ? <Cargando forma="tabla" /> : q.error ? null : !items.length
+            ? <Vacio titulo={`Sin incidencias en «${bandeja.titulo}»`} texto={prioridad ? 'Prueba sin el filtro de prioridad.' : bandeja.vacio} /> : (
+            <>
+              {/* Escritorio: tabla de 6 columnas */}
+              <div className="hidden lg:block">
+                <Tabla columnas={['Incidencia', 'Solicitud · sucursal', 'Turno', 'Prioridad', 'Última actividad', '']}>
+                  {items.map((i) => (
+                    <tr key={i.id}>
+                      <Td className="max-w-xs"><p className="font-semibold text-tinta-900">{i.folio}</p><p className="text-xs text-tinta-600">{tipoIncidencia(i.tipo)}</p>
+                        <p className="truncate text-xs text-tinta-500" title={i.descripcion}>{i.descripcion}</p></Td>
+                      <Td className="text-xs">{i.pedido_id ? <Link to={`/admin/pedidos/${i.pedido_id}`} className="font-semibold text-menta-700 hover:underline">{referencia(i)}</Link> : referencia(i)}
+                        {i.cliente && <span className="block text-tinta-600">{i.cliente}</span>}</Td>
+                      <Td><ChipTurno turno={i.turno} portal="lurima" desde={i.turno_desde} /></Td>
+                      <Td><PrioridadIncidencia prioridad={i.prioridad} /></Td>
+                      <Td className="whitespace-nowrap text-xs text-tinta-600"><span title={fechaHora(i.ultima_actividad)}>{haceTiempo(i.ultima_actividad)}</span></Td>
+                      <Td><Link {...detalle(i)} aria-label={`Gestionar ${i.folio}`} className="inline-flex min-h-9 items-center rounded-xl px-3 text-xs font-semibold text-tinta-800 ring-1 ring-tinta-200 hover:bg-white">Gestionar</Link></Td>
+                    </tr>
+                  ))}
+                </Tabla>
+              </div>
+              {/* Tableta y móvil: tarjetas (sin desplazamiento horizontal) */}
+              <ul className="divide-y divide-tinta-100 lg:hidden">
+                {items.map((i) => (
+                  <li key={i.id}>
+                    <TarjetaIncidencia i={i} portal="lurima" a={`/admin/incidencias/${i.id}`} state={detalle(i).state} etiqueta={`Gestionar ${i.folio}`}
+                      contexto={<span>{referencia(i)}{i.cliente ? ` · ${i.cliente}` : ''}</span>} />
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          {q.data && <Paginacion pagina={q.data.pagina} paginas={q.data.paginas} total={q.data.total} onCambio={(p) => cambiar({ pagina: String(p) })} />}
+        </div>
       </Tarjeta>
-      <Modal abierto={!!sel} titulo={sel ? `Incidencia ${sel.folio}` : ''} onCerrar={() => setSel(null)}>
-        {sel && (
-          <div className="space-y-4 text-sm">
-            <div className="flex items-center gap-2"><Estado valor={sel.estado} /><Estado valor={sel.prioridad} /></div>
-            <p className="rounded-lg bg-tinta-50 p-3"><b>Descripción original:</b> {sel.descripcion}</p>
-            {!!sel.evidencias?.length && <div><p className="mb-1.5 text-xs font-semibold uppercase text-tinta-400">Evidencia</p><GaleriaEvidencias urls={sel.evidencias} titulo={`Evidencia de ${sel.folio}`} /></div>}
-            {(sel.empleado || sel.articulo) && <p className="text-xs"><b>Relacionada con:</b> {[sel.empleado && `${sel.empleado.nombre} (${sel.empleado.puesto})`, sel.articulo && `${sel.articulo.nombre} talla ${sel.articulo.talla}`].filter(Boolean).join(' · ')}</p>}
-            {sel.pedido_id && <Reposicion inc={sel} onCambio={(i) => { setSel(i); qc.invalidateQueries({ queryKey: ['admin-incidencias'] }); }} />}
-            <div><p className="text-xs font-semibold uppercase text-tinta-400">Historial</p><HistorialIncidencia i={sel} /></div>
-            {sel.cierre_por_sucursal && <Aviso>La sucursal confirma la solución para cerrarla; si no queda conforme, puede reabrirla. Tus comentarios los ve la sucursal.</Aviso>}
-            <Campo etiqueta="Agregar comentario o resolución" ayuda="Se agrega al historial; no reemplaza lo anterior."><Texto value={comentario} onChange={(e) => setComentario(e.target.value)} /></Campo>
-            {sel.pedido_id && <Campo etiqueta="Fotos o documentos (opcional)" ayuda="Los verá la sucursal en la conversación."><AdjuntarEvidencias valor={adjuntos} onCambio={setAdjuntos} /></Campo>}
-            <Campo etiqueta="Cambiar estado"><Selector value={nuevoEstado} onChange={(e) => setNuevoEstado(e.target.value)}><option value="">Sin cambio</option>
-              {(sel.transiciones ?? []).map((x) => <option key={x} value={x}>{etiqueta(x)}</option>)}</Selector></Campo>
-            <ErrorCaja error={m.error} />
-            <div className="flex justify-end gap-2"><Boton variante="secundario" onClick={() => setSel(null)}>Cerrar</Boton><Boton disabled={!comentario.trim() && !nuevoEstado && !adjuntos.length} cargando={m.isPending} onClick={() => m.mutate()}>Guardar</Boton></div>
-          </div>
-        )}
-      </Modal>
     </>
-  );
-}
-
-// ---------------------------------------------------------------- reposición (envío adicional con su propia guía)
-
-/**
- * Resolver la incidencia con un envío de reposición: se eligen las piezas (sugeridas a partir de la recepción), se
- * prepara el paquete en el almacén y sale con su propia paquetería y guía. Al llegar, la sucursal registra su recepción
- * y entrega a cada persona; si llega completo, la incidencia queda resuelta para que la sucursal confirme.
- */
-function Reposicion({ inc, onCambio }: { inc: Incidencia; onCambio: (i: Incidencia) => void }) {
-  const avisar = useAviso();
-  const [armando, setArmando] = useState(false);
-  const [cant, setCant] = useState<Record<number, number>>({});
-  const [guia, setGuia] = useState<Record<number, { paqueteria: string; guia: string }>>({});
-  const activa = ['abierta', 'en_atencion'].includes(inc.estado);
-  const enCurso = (inc.reposiciones || []).some((r) => !['entregado', 'cancelado'].includes(r.estado));
-  const pedido = useQuery({ queryKey: ['admin-pedido', String(inc.pedido_id)], queryFn: () => get<Pedido>(`/admin/pedidos/${inc.pedido_id}`), enabled: armando });
-  const recargar = async () => onCambio(await get<Incidencia>(`/admin/incidencias/${inc.id}`));
-  const abrir = () => {
-    setCant(Object.fromEntries((inc.reposicion_sugerida || []).map((x) => [x.pedido_detalle_id, x.cantidad])));
-    setArmando(true);
-  };
-  const preparar = useMutation({
-    mutationFn: () => post<Incidencia>(`/admin/incidencias/${inc.id}/reposicion`, {
-      partidas: Object.entries(cant).filter(([, c]) => c > 0).map(([id, c]) => ({ pedido_detalle_id: Number(id), cantidad: c })) }),
-    onSuccess: (i) => { setArmando(false); onCambio(i); avisar('Reposición preparada. Captura la paquetería y la guía para enviarla.'); },
-  });
-  const despachar = useMutation({
-    mutationFn: (pq: Paquete) => post(`/admin/paquetes/${pq.id}/despachar`, guia[pq.id]),
-    onSuccess: async () => { await recargar(); avisar('Reposición enviada: la sucursal ya ve la guía.'); },
-  });
-  const entregado = useMutation({
-    mutationFn: (pq: Paquete) => post(`/admin/paquetes/${pq.id}/eventos`, { estado: 'entregado', descripcion: 'Reposición entregada en la sucursal' }),
-    onSuccess: async () => { await recargar(); avisar('Marcada como entregada. La sucursal registrará su recepción.'); },
-  });
-  const cancelar = useMutation({
-    mutationFn: (pq: Paquete) => post<Incidencia>(`/admin/paquetes/${pq.id}/cancelar-reposicion`),
-    onSuccess: (i) => { onCambio(i); avisar('Reposición cancelada; se liberó lo apartado.'); },
-  });
-  const porPersona = new Map<string, Pedido['detalles']>();
-  for (const d of pedido.data?.detalles || []) {
-    const k = d.empleado?.nombre ?? 'Sin asignar';
-    porPersona.set(k, [...(porPersona.get(k) || []), d]);
-  }
-  const piezas = Object.values(cant).reduce((a, b) => a + b, 0);
-  const fijarGuia = (id: number, campo: 'paqueteria' | 'guia', valor: string) =>
-    setGuia({ ...guia, [id]: { paqueteria: guia[id]?.paqueteria || '', guia: guia[id]?.guia || '', [campo]: valor } });
-  return (
-    <div className="rounded-xl bg-sky-50/60 p-3 ring-1 ring-sky-200">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs font-bold uppercase tracking-wide text-sky-900">Reposición</p>
-        {activa && !armando && <Boton tam="sm" icono={<PackagePlus className="h-3.5 w-3.5" />} onClick={abrir}>
-          {enCurso ? 'Preparar otra reposición' : 'Preparar reposición'}</Boton>}
-      </div>
-      {!inc.reposiciones?.length && !armando && <p className="mt-1 text-xs text-sky-900/80">
-        Envía piezas nuevas en un paquete aparte, con su propia guía.{(inc.reposicion_sugerida || []).length ? ' Ya están sugeridas las piezas que llegaron mal.' : ''}</p>}
-      <ListaReposiciones paquetes={inc.reposiciones} acciones={(pq) => pq.estado === 'preparado' ? (
-        <div className="flex w-full flex-wrap items-end gap-2">
-          <Entrada className="min-w-0 flex-1 basis-32" placeholder="Paquetería" aria-label={`Paquetería de ${pq.folio}`} value={guia[pq.id]?.paqueteria || ''}
-            onChange={(e) => fijarGuia(pq.id, 'paqueteria', e.target.value)} />
-          <Entrada className="min-w-0 flex-1 basis-32" placeholder="Número de guía" aria-label={`Guía de ${pq.folio}`} value={guia[pq.id]?.guia || ''}
-            onChange={(e) => fijarGuia(pq.id, 'guia', e.target.value)} />
-          <Boton tam="sm" icono={<Truck className="h-3.5 w-3.5" />} disabled={!guia[pq.id]?.paqueteria?.trim() || !guia[pq.id]?.guia?.trim()}
-            cargando={despachar.isPending} onClick={() => despachar.mutate(pq)}>Enviar con esta guía</Boton>
-          <Boton tam="sm" variante="fantasma" cargando={cancelar.isPending} onClick={() => cancelar.mutate(pq)}>Cancelar</Boton>
-        </div>
-      ) : ['despachado', 'en_transito'].includes(pq.estado)
-        ? <Boton tam="sm" variante="secundario" cargando={entregado.isPending} onClick={() => entregado.mutate(pq)}>Marcar como entregada</Boton>
-        : null} />
-      <ErrorCaja error={despachar.error || entregado.error || cancelar.error} />
-      {armando && (
-        <div className="mt-3 space-y-3">
-          {pedido.isLoading ? <Cargando /> : [...porPersona.entries()].map(([nombre, dets]) => (
-            <div key={nombre} className="rounded-lg bg-white p-2.5 ring-1 ring-sky-100">
-              <p className="text-xs font-bold">{nombre}</p>
-              <ul className="mt-1 space-y-1">{dets.map((d) => (
-                <li key={d.id} className="flex items-center justify-between gap-2 text-xs">
-                  <span className="min-w-0">{d.nombre} · {d.talla}</span>
-                  <Selector className="w-24 shrink-0" value={cant[d.id] || 0} aria-label={`Piezas de ${d.nombre} para ${nombre}`}
-                    onChange={(e) => setCant({ ...cant, [d.id]: Number(e.target.value) })}>
-                    {Array.from({ length: d.cantidad + 1 }, (_, k) => <option key={k} value={k}>{k}</option>)}</Selector>
-                </li>))}</ul>
-            </div>
-          ))}
-          <Aviso>Las piezas salen del inventario disponible del almacén que surtió cada artículo. El surtido original no cambia.</Aviso>
-          <ErrorCaja error={preparar.error} />
-          <div className="flex flex-wrap justify-end gap-2"><Boton variante="secundario" onClick={() => setArmando(false)}>Cancelar</Boton>
-            <Boton disabled={!piezas} cargando={preparar.isPending} onClick={() => preparar.mutate()}>Preparar {piezas} pieza(s)</Boton></div>
-        </div>
-      )}
-    </div>
   );
 }
