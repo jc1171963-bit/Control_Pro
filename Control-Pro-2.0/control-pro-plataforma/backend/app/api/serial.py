@@ -299,10 +299,10 @@ def devolucion(dv):
 
 
 def incidencia(i, interno=True):
-    """`interno=False` (vista de la sucursal) muestra al personal como "Control Pro" en lugar de su nombre."""
+    """`interno=False` (vista de la sucursal) muestra al personal como "Distribuidora" en lugar de su nombre."""
     def actor(s):
         if s.usuario_id:
-            return s.usuario.nombre if interno and s.usuario else "Control Pro"
+            return s.usuario.nombre if interno and s.usuario else "Distribuidora"
         return "Sucursal" if s.cliente_id else "Sistema"
 
     from ..models import Paquete, Pedido

@@ -371,7 +371,7 @@ def solicitar_recuperacion(tipo: str, correo: str) -> str | None:
                                      hash_token=hashlib.sha256(token.encode()).hexdigest(),
                                      expira=ahora() + timedelta(minutes=current_app.config["RECUPERACION_MINUTOS"])))
     ruta = "/admin/restablecer" if tipo == "usuario" else "/cuenta/restablecer"
-    enviar_correo(cuenta.correo, "Recupera tu acceso a Control Pro",
+    enviar_correo(cuenta.correo, "Recupera tu acceso",
                   f"Para crear una nueva contraseña entra a {current_app.config['FRONTEND_URL']}{ruta}?token={token} "
                   f"(válido {current_app.config['RECUPERACION_MINUTOS']} minutos).")
     auditar("auth.recuperacion_solicitada", tipo, cuenta.id)

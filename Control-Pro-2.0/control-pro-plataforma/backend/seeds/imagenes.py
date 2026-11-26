@@ -120,7 +120,6 @@ def svg_producto(tipo: str, color_hex: str, etiqueta: str, angulo: float = 0) ->
 <g clip-path="url(#p)"><rect x="40" y="0" width="320" height="400" fill="url(#l)"/>
 <rect width="400" height="400" fill="#000" opacity="{sombra}"/></g>
 </g>
-<text x="22" y="380" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#142B4A" opacity=".55">CONTROL PRO</text>
 </svg>"""
 
 

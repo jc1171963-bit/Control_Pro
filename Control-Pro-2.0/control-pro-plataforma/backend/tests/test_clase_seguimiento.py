@@ -39,7 +39,7 @@ def test_mensajes_eventos_y_adjuntos(app, como):
         ("mensaje", "sucursal", "Aquí va la foto"),
         ("mensaje", "sucursal", None),
     ]
-    # Mismo resultado en el portal de la sucursal (que ve «Control Pro» en lugar del nombre, pero el mismo lado y clase)
+    # Mismo resultado en el portal de la sucursal (que ve «Distribuidora» en lugar del nombre, pero el mismo lado y clase)
     assert [(c, l) for c, l, _ in _entradas(emp, cuenta_url)] == [(c, l) for c, l, _ in _entradas(aten, admin_url)]
     _coincide_con_es_humana(app, aten, inc["id"], admin_url)
 

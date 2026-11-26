@@ -39,7 +39,7 @@ def test_conversacion_resolucion_reapertura_y_cierre_por_la_sucursal(como):
     assert aten.patch(f"/api/admin/incidencias/{inc['id']}", {"estado": "resuelta", "comentario": "Se cambió por talla EG"}).status_code == 200
     r = suc.post(f"{base}/confirmar")
     assert r.status_code == 200 and r.get_json()["estado"] == "cerrada"
-    # Cerrada es final y el historial conserva todo, con el personal como «Control Pro» para la sucursal
+    # Cerrada es final y el historial conserva todo, con el personal como «Distribuidora» para la sucursal
     assert suc.post(f"{base}/mensajes", {"texto": "Otra cosa"}).status_code == 409
     assert suc.post(f"{base}/reabrir", {"motivo": "Sigue sin quedarle bien"}).status_code == 409
     seg = suc.get(base).get_json()["seguimiento"]
@@ -47,7 +47,7 @@ def test_conversacion_resolucion_reapertura_y_cierre_por_la_sucursal(como):
     assert "Ya la subimos al expediente" in comentarios and "Se envió la talla G" in comentarios
     assert any(c and c.startswith("Reabierta por la sucursal") for c in comentarios)
     assert seg[-1]["nuevo"] == "cerrada" and seg[-1]["actor"] == "Sucursal"
-    assert {s["actor"] for s in seg if s["comentario"] == "Envíanos una foto"} == {"Control Pro"}
+    assert {s["actor"] for s in seg if s["comentario"] == "Envíanos una foto"} == {"Distribuidora"}
     detalle = aten.get("/api/admin/incidencias?estado=cerrada").get_json()["items"]
     assert next(i for i in detalle if i["id"] == inc["id"])["resolucion"] == "Se cambió por talla EG"
 

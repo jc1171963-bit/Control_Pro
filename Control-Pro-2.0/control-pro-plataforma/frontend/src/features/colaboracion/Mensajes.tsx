@@ -316,7 +316,7 @@ export function Hilo({ conversacionId, alto = 'alto-chat' }: { conversacionId: n
           </div>
           <BotonWhatsApp numero={c.whatsapp} texto={c.tipo === 'distribuidora' && c.con === 'Distribuidora'
             ? `Hola, te escribe el aprobador corporativo para acordar la cotización y los precios de: ${c.asunto}.`
-            : `Hola, te escribo por Control Pro sobre: ${c.asunto}.`} />
+            : `Hola, te escribo sobre: ${c.asunto}.`} />
         </div>
       )}
       <div className="relative min-h-0 flex-1">

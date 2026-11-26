@@ -19,7 +19,7 @@ def _f(v):
 
 def documento_json(d: Documento, interno: bool, puede_borrar: bool) -> dict:
     if d.usuario:
-        autor = d.usuario.nombre if interno else "Control Pro"
+        autor = d.usuario.nombre if interno else "Distribuidora"
     else:
         autor = d.cliente.nombre if d.cliente else "Sucursal"
     return {"id": d.id, "nombre": d.nombre, "tipo": d.tipo, "tipo_nombre": TIPOS.get(d.tipo, "Documento"), "url": d.url,

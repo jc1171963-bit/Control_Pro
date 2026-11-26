@@ -19,7 +19,7 @@ def pdf_pedido(p, con_precios: bool = True) -> bytes:
     """Comprobante del pedido. Sin precios (`con_precios=False`) para la sucursal: en su portal no se muestran importes."""
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=letter, leftMargin=18 * mm, rightMargin=18 * mm, topMargin=16 * mm,
-                            bottomMargin=16 * mm, title=f"Pedido {p.folio}", author="Control Pro")
+                            bottomMargin=16 * mm, title=f"Pedido {p.folio}")
     est = getSampleStyleSheet()
     h = ParagraphStyle("h", parent=est["Heading1"], textColor=AZUL, fontSize=16, spaceAfter=2)
     peq = ParagraphStyle("p", parent=est["Normal"], fontSize=8.5, leading=11)
@@ -28,7 +28,7 @@ def pdf_pedido(p, con_precios: bool = True) -> bytes:
     entrega = (f"Recoger en {p.sucursal_recoger.nombre}" if p.modalidad == "recoger" else
                "{calle} {numero}, {colonia}, {ciudad}, {estado}, CP {cp}".format(**p.direccion_envio))
     elems = [
-        Paragraph("Control Pro · Comprobante de pedido", h),
+        Paragraph("Comprobante de pedido", h),
         Paragraph(f"Folio <b>{p.folio}</b> · Canal {p.canal} · Estado <b>{p.estado.replace('_', ' ')}</b> · "
                   f"Creado {p.creado:%d/%m/%Y %H:%M} UTC", norm),
         Spacer(1, 6),
@@ -70,7 +70,7 @@ def pdf_pedido(p, con_precios: bool = True) -> bytes:
             elems.append(Paragraph(f"{a.sucursal.nombre}: {a.estado.replace('_', ' ')} · "
                                    f"{sum(x.cantidad for x in a.detalles)} unidad(es), "
                                    f"{sum(x.despachada for x in a.detalles)} despachada(s)", peq))
-    elems += [Spacer(1, 12), Paragraph("Documento generado por Control Pro a partir de los registros del servidor. "
+    elems += [Spacer(1, 12), Paragraph("Documento generado a partir de los registros del servidor. "
                                        "No es un comprobante fiscal (CFDI).", peq)]
     doc.build(elems)
     return buf.getvalue()
