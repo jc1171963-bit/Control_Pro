@@ -82,6 +82,8 @@ def registrar_incidencia(**campos):
     asignar_folio(inc, "INC")
     db.session.add(IncidenciaSeguimiento(incidencia_id=inc.id, estado_anterior=None, estado_nuevo=inc.estado or "abierta",
                                          comentario="Incidencia registrada", usuario_id=usuario_id, cliente_id=cliente_id))
+    from . import aviso_incidencia
+    aviso_incidencia.creada(inc)  # toda incidencia avisa al nacer, manual o automática
     return inc
 
 
@@ -109,9 +111,14 @@ def notificar_personal(permiso: str, evento: str, entidad: str, entidad_id: int,
         consulta = consulta.where(or_(Rol.alcance_global.is_(True), Usuario.id.in_(en_sucursal)))
     else:
         consulta = consulta.where(Rol.alcance_global.is_(True))
+    notificar_usuarios(db.session.scalars(consulta.distinct()), evento, entidad, entidad_id, mensaje, enlace)
+
+
+def notificar_usuarios(usuario_ids, evento: str, entidad: str, entidad_id: int, mensaje: str, enlace: str | None = None):
+    """Un aviso por usuario; el mismo evento no se repite (uq_notif_evento) ni vuelve a sonar."""
     from .push_service import encolar
     nuevos = []
-    for usuario_id in db.session.scalars(consulta.distinct()):
+    for usuario_id in usuario_ids:
         r = db.session.execute(insert(Notificacion).values(
             usuario_id=usuario_id, evento=evento, entidad=entidad, entidad_id=entidad_id, mensaje=mensaje[:300],
             enlace=enlace,
