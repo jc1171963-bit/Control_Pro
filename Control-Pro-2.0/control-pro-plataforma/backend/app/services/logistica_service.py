@@ -13,6 +13,7 @@ from ..extensions import db
 from ..models import (AsignacionDetalle, AsignacionSurtido, EntregaIndividual, EntregaIndividualDetalle, Envio,
                       EventoEnvio, Paquete, PaqueteDetalle, Pedido, PedidoDetalle, Recepcion, RecepcionDetalle,
                       ReservaInventario, ahora)
+from . import aviso_incidencia
 from . import inventario_service as inv_srv
 from . import pedido_service as ped
 from .comun import (actor_ids, asignar_folio, auditar, cambiar_estado, dinero, notificar_cliente, notificar_personal,
@@ -253,12 +254,11 @@ def despachar(paq: Paquete, paqueteria: str, guia: str):
     _actualizar_asignacion(a)
     ped.recalcular(pedido)
     if paq.incidencia_id:
-        inc = paq.incidencia
-        _nota_incidencia(inc, f"Reposición {paq.folio} enviada con {paqueteria.strip()}, guía {guia.strip()}.")
-        aviso = f"La reposición de la incidencia {inc.folio} salió: paquete {paq.folio} con {paqueteria}, guía {guia}."
-    else:
-        aviso = f"Tu paquete {paq.folio} salió con {paqueteria}, guía {guia}."
-    notificar_cliente(pedido.cliente_id, f"paquete_despachado_{paq.id}", "paquete", paq.id, aviso, f"/cuenta/pedidos/{pedido.id}")
+        _nota_incidencia(paq.incidencia, f"Reposición {paq.folio} enviada con {paqueteria.strip()}, guía {guia.strip()}.")
+    aviso, enlace = aviso_incidencia.aviso_paquete(
+        paq, pedido, f"Tu paquete {paq.folio} salió con {paqueteria}, guía {guia}.",
+        paq.incidencia_id and f"La reposición de {paq.incidencia.folio} salió\nPaquete {paq.folio} con {paqueteria}, guía {guia}.")
+    notificar_cliente(pedido.cliente_id, f"paquete_despachado_{paq.id}", "paquete", paq.id, aviso, enlace)
     auditar("paquete.despachar", "paquete", paq.id, despues={"paqueteria": paqueteria, "guia": guia},
             sucursal_id=a.sucursal_id)
     db.session.commit()
@@ -311,8 +311,12 @@ def registrar_evento(paq: Paquete, estado: str, descripcion: str):
     avisos = {"en_transito": f"Tu paquete {paq.folio} va en camino ({envio.paqueteria}, guía {envio.guia}).",
               "entregado": f"El paquete {paq.folio} se entregó en tu sucursal. Registra la recepción.",
               "incidencia": f"Hubo una incidencia con el paquete {paq.folio}: {descripcion.strip()}"}
-    notificar_cliente(pedido.cliente_id, f"envio_{estado}_{paq.id}_{len(envio.eventos)}", "paquete", paq.id, avisos[estado],
-                      f"/cuenta/pedidos/{pedido.id}")
+    de_reposicion = paq.incidencia_id and {
+        "en_transito": f"La reposición de {paq.incidencia.folio} va en camino\nPaquete {paq.folio} ({envio.paqueteria}, guía {envio.guia}).",
+        "entregado": f"La reposición de {paq.incidencia.folio} llegó a tu sucursal\nPaquete {paq.folio}. Registra su recepción.",
+        "incidencia": f"Hubo un problema con el envío de la reposición de {paq.incidencia.folio}\n{descripcion.strip()}"}[estado]
+    aviso, enlace = aviso_incidencia.aviso_paquete(paq, pedido, avisos[estado], de_reposicion)
+    notificar_cliente(pedido.cliente_id, f"envio_{estado}_{paq.id}_{len(envio.eventos)}", "paquete", paq.id, aviso, enlace)
     auditar(f"envio.{estado}", "paquete", paq.id, despues={"descripcion": descripcion}, sucursal_id=a.sucursal_id)
     db.session.commit()
     return paq
@@ -328,9 +332,10 @@ def listo_para_recoger(paq: Paquete):
     if a.sucursal_id != pedido.sucursal_recoger_id:
         raise Conflicto("El paquete debe estar en la sucursal donde se recoge.")
     paq.estado = "listo_para_recoger"
-    notificar_cliente(pedido.cliente_id, f"paquete_listo_{paq.id}", "paquete", paq.id,
-                      f"Tu paquete {paq.folio} está listo para recoger en {a.sucursal.nombre}.",
-                      f"/cuenta/pedidos/{pedido.id}")
+    aviso, enlace = aviso_incidencia.aviso_paquete(
+        paq, pedido, f"Tu paquete {paq.folio} está listo para recoger en {a.sucursal.nombre}.",
+        paq.incidencia_id and f"Tu reposición de {paq.incidencia.folio} está lista para recoger\nPaquete {paq.folio} en {a.sucursal.nombre}.")
+    notificar_cliente(pedido.cliente_id, f"paquete_listo_{paq.id}", "paquete", paq.id, aviso, enlace)
     auditar("paquete.listo_recoger", "paquete", paq.id, sucursal_id=a.sucursal_id)
     db.session.commit()
     return paq
@@ -377,8 +382,11 @@ def _nota_incidencia(inc, comentario: str, estado: str | None = None, resolucion
             inc.resolucion = resolucion
         cambiar_estado(inc, "incidencia", estado, TRANSICIONES_INCIDENCIA, comentario)
     usuario_id, cliente_id = actor_ids()
-    db.session.add(IncidenciaSeguimiento(incidencia_id=inc.id, estado_anterior=anterior, estado_nuevo=inc.estado,
-                                         comentario=comentario, adjuntos=[], usuario_id=usuario_id, cliente_id=cliente_id))
+    s = IncidenciaSeguimiento(incidencia_id=inc.id, estado_anterior=anterior, estado_nuevo=inc.estado,
+                              comentario=comentario, adjuntos=[], usuario_id=usuario_id, cliente_id=cliente_id)
+    db.session.add(s)
+    db.session.flush()
+    return s
 
 
 def _ajustar_entregas(paq: Paquete, faltan: dict[int, int]):
@@ -465,8 +473,9 @@ def registrar_recepcion(paq: Paquete, cliente_id: int, completa: bool, diferenci
                              empleado_id=unico.empleado_id if unico else None)
     elif paq.incidencia_id and paq.incidencia.estado in {"abierta", "en_atencion"}:
         # La reposición llegó completa y en buen estado: la incidencia queda resuelta y la sucursal confirma el cierre.
-        _nota_incidencia(paq.incidencia, f"La sucursal recibió completa la reposición {paq.folio}.", estado="resuelta",
-                         resolucion=f"Reposición {paq.folio} recibida completa y en buen estado.")
+        s = _nota_incidencia(paq.incidencia, f"La sucursal recibió completa la reposición {paq.folio}.", estado="resuelta",
+                             resolucion=f"Reposición {paq.folio} recibida completa y en buen estado.")
+        aviso_incidencia.reposicion_recibida(paq.incidencia, paq, s)
     auditar("recepcion.registrar", "paquete", paq.id, despues={"completa": completa, "diferencias": diferencias,
                                                                "partidas": partidas or [], "evidencias": fotos})
     db.session.commit()
@@ -616,9 +625,7 @@ def preparar_reposicion(inc, partidas: list[dict]) -> list[Paquete]:
         paquetes.append(paq)
     resumen = ", ".join(p.folio for p in paquetes)
     _nota_incidencia(inc, f"Se preparó la reposición {resumen}. Saldrá con su propia guía.", estado="en_atencion")
-    notificar_cliente(pedido.cliente_id, f"reposicion_{inc.id}_{paquetes[0].id}", "incidencia", inc.id,
-                      f"Estamos preparando la reposición de la incidencia {inc.folio} ({resumen}).",
-                      f"/cuenta/pedidos/{pedido.id}")
+    aviso_incidencia.reposicion_preparada(inc, paquetes)
     auditar("incidencia.reposicion", "incidencia", inc.id, despues={"paquetes": [p.id for p in paquetes],
                                                                      "partidas": partidas}, sucursal_id=inc.sucursal_id)
     db.session.commit()
@@ -637,6 +644,7 @@ def cancelar_reposicion(paq: Paquete):
         invs[(a.sucursal_id, x.asignacion_detalle.pedido_detalle.variante_id)].comprometido -= x.cantidad
     paq.estado = "cancelado"
     _nota_incidencia(paq.incidencia, f"Se canceló la reposición {paq.folio} antes de salir.")
+    aviso_incidencia.reposicion_cancelada(paq.incidencia, paq)
     auditar("paquete.cancelar_reposicion", "paquete", paq.id, sucursal_id=a.sucursal_id)
     db.session.commit()
     return paq

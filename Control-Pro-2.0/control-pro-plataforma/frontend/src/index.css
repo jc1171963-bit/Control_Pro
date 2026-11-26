@@ -172,8 +172,10 @@
   html.oscuro .ring-sd-100 { --tw-ring-color: rgb(255 255 255 / .1); }
 
   /* --- estados y avisos (paleta estándar) --- */
-  html.oscuro :is(.bg-sky-50, .bg-sky-100) { background-color: rgb(56 189 248 / .14); }
+  /* Superficies de reposición (lista, sección del detalle y paquete de la solicitud) usan estas variantes */
+  html.oscuro :is(.bg-sky-50, .bg-sky-100, .bg-sky-50\/50, .bg-sky-50\/60, .bg-sky-50\/70) { background-color: rgb(56 189 248 / .14); }
   html.oscuro :is(.text-sky-700, .text-sky-800, .text-sky-900) { color: rgb(125 211 252); }
+  html.oscuro :is(.text-sky-800\/80, .text-sky-900\/80, .text-sky-950\/80) { color: rgb(125 211 252 / .8); }
   html.oscuro :is(.bg-amber-50, .bg-amber-100, .bg-amber-50\/60, .bg-amber-50\/50) { background-color: rgb(245 158 11 / .14); }
   html.oscuro :is(.text-amber-700, .text-amber-800, .text-amber-900, .text-amber-950) { color: rgb(252 211 77); }
   html.oscuro .bg-amber-200 { background-color: rgb(245 158 11 / .3); }
@@ -183,7 +185,7 @@
   html.oscuro :is(.text-emerald-700, .text-emerald-800) { color: rgb(110 231 183); }
   html.oscuro :is(.bg-coral-50, .bg-coral-100, .hover\:bg-coral-50:hover) { background-color: rgb(228 87 46 / .14); }
   html.oscuro :is(.text-coral-600, .text-coral-700, .hover\:text-coral-600:hover) { color: rgb(255 154 122); }
-  html.oscuro :is(.ring-sky-100, .ring-amber-100, .ring-amber-200, .ring-amber-300, .ring-coral-100, .ring-coral-200) { --tw-ring-color: rgb(255 255 255 / .1); }
+  html.oscuro :is(.ring-sky-100, .ring-sky-200, .ring-amber-100, .ring-amber-200, .ring-amber-300, .ring-coral-100, .ring-coral-200) { --tw-ring-color: rgb(255 255 255 / .1); }
 
   /* --- colores fijos de los layouts de los paneles --- */
   html.oscuro :is(.bg-\[\#d9eee9\], .bg-\[\#e8eef8\]) { background-color: rgb(var(--fondo)); }

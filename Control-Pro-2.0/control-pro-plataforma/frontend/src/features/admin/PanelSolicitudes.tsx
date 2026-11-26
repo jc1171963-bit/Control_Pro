@@ -10,6 +10,7 @@ import { ErrorCaja, Tarjeta } from '../../components/ui';
 import { Aparecer, Contador, EsqueletoLista } from '../../components/movimiento';
 import { cls, fecha } from '../../lib/formato';
 import Dashboard from './Dashboard';
+import ResumenIncidencias from './ResumenIncidencias';
 import { Encabezado } from './AdminLayout';
 
 type Panel = {
@@ -44,7 +45,8 @@ function Kpi({ titulo, valor, detalle, icono, orden, enlace, alerta }: { titulo:
   return <Aparecer orden={orden}>{enlace ? <Link to={enlace} className="block h-full">{cuerpo}</Link> : cuerpo}</Aparecer>;
 }
 
-export default function PanelSolicitudes({ encabezado = true }: { encabezado?: boolean }) {
+/** `incidencias`: resumen de incidencias del inicio (reemplaza al indicador «Incidencias abiertas»). */
+export default function PanelSolicitudes({ encabezado = true, incidencias }: { encabezado?: boolean; incidencias?: ReactNode }) {
   const base = useBasePanel();
   const { puede } = useAuth();
   const q = useQuery({ queryKey: ['panel-solicitudes'], queryFn: () => get<Panel>('/admin/reportes/solicitudes'), refetchInterval: 60_000 });
@@ -54,6 +56,7 @@ export default function PanelSolicitudes({ encabezado = true }: { encabezado?: b
   return (
     <>
       {encabezado && <Encabezado titulo="Panel de solicitudes" sub="Sucursales, solicitudes y entregas en tiempo real" />}
+      {incidencias && <div className="mb-5">{incidencias}</div>}
       <ErrorCaja error={q.error} />
       {q.isLoading || !k ? <EsqueletoLista filas={4} /> : (
         <div className="space-y-5">
@@ -71,7 +74,7 @@ export default function PanelSolicitudes({ encabezado = true }: { encabezado?: b
               detalle={`${k.entregas.pendientes} pendientes · ${k.entregas.conformidades_pendientes} sin conformidad`} />
             <Kpi orden={6} titulo="Satisfacción promedio" valor={k.entregas.valoracion_promedio ? Math.round(k.entregas.valoracion_promedio * 10) / 10 : 0} icono={<Star className="h-4 w-4" />}
               detalle={k.entregas.valoracion_promedio ? `${k.entregas.valoracion_promedio} de 5 estrellas` : 'Sin conformidades aún'} />
-            <Kpi orden={7} titulo="Incidencias abiertas" valor={k.incidencias_abiertas} alerta icono={<AlertTriangle className="h-4 w-4" />} enlace={puede('incidencia.gestionar') ? '/admin/incidencias' : undefined} />
+            {!incidencias && <Kpi orden={7} titulo="Incidencias abiertas" valor={k.incidencias_abiertas} alerta icono={<AlertTriangle className="h-4 w-4" />} enlace={puede('incidencia.gestionar') ? '/admin/incidencias' : undefined} />}
           </div>
 
           <Tarjeta titulo="Solicitudes por etapa" sub="Cada etapa lleva su propio estado: revisión, surtido, envío y entrega">
@@ -142,5 +145,6 @@ export default function PanelSolicitudes({ encabezado = true }: { encabezado?: b
 /** Inicio del panel: quien ve reportes generales entra al tablero completo; el aprobador, al panel de solicitudes. */
 export function InicioAdmin() {
   const { puede } = useAuth();
-  return puede('reporte.ver') ? <Dashboard /> : <PanelSolicitudes />;
+  const incidencias = puede('incidencia.gestionar') ? <ResumenIncidencias /> : undefined;
+  return puede('reporte.ver') ? <Dashboard incidencias={incidencias} /> : <PanelSolicitudes incidencias={incidencias} />;
 }
