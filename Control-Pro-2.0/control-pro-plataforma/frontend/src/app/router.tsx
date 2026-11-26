@@ -198,6 +198,7 @@ export const router = createBrowserRouter([
           { path: 'pagos', lazy: () => c(import('../features/admin/Pagos')) },
           { path: 'devoluciones', lazy: () => c(import('../features/admin/Posventa'), 'Devoluciones') },
           { path: 'incidencias', lazy: () => c(import('../features/admin/Posventa'), 'Incidencias') },
+          { path: 'incidencias/:id', lazy: () => c(import('../features/admin/IncidenciaDetalle'), 'IncidenciaDetalle') },
           { path: 'clientes', lazy: () => c(import('../features/admin/Sistema'), 'Clientes') },
           { path: 'sucursales', lazy: () => c(import('../features/admin/Sistema'), 'Sucursales') },
           { path: 'usuarios', lazy: () => c(import('../features/admin/Sistema'), 'Usuarios') },

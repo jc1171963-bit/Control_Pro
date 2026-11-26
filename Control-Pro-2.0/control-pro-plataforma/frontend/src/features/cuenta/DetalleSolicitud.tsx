@@ -5,7 +5,7 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, ArrowDown, ArrowRightCircle, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, Clock, FileText, History, MessagesSquare, Package, PenLine, Send, ShieldAlert, Star, Truck, Users } from 'lucide-react';
+import { AlertTriangle, ArrowDown, ArrowRightCircle, CheckCircle2, ChevronLeft, ClipboardCheck, Clock, FilePlus2, FileText, History, Info, MessageSquare, MessagesSquare, Package, PenLine, RotateCcw, Send, ShieldAlert, Star, Truck, Users } from 'lucide-react';
 import ConfirmarEnvio from '../portal/ConfirmarEnvio';
 import { post } from '../../api/cliente';
 import type { EntregaIndividual, Incidencia, Paquete, Pedido } from '../../api/tipos';
@@ -16,13 +16,14 @@ import FirmaEnLinea from '../../components/FirmaEnLinea';
 import Expediente from '../../components/Expediente';
 import { CabezaIndividual, ContenidoPorPersona, individualesDe } from '../../components/PaqueteIndividual';
 import { ListaReposiciones } from '../../components/Reposiciones';
+import TarjetaIncidencia from '../../components/TarjetaIncidencia';
 import { PanelPestana, Pestanas, usePestana } from '../../components/Pestanas';
 import { Aparecer, Etapa, LineaProceso, Palomita } from '../../components/movimiento';
 import ComprobanteEntrega from './ComprobanteEntrega';
 import LineaTiempoSolicitud from '../../components/LineaTiempoSolicitud';
 import { useConfig } from '../../app/config';
 import { BotonWhatsApp, ChatSolicitud } from '../colaboracion/Mensajes';
-import { cls, etiqueta, fechaHora, PROBLEMAS_CONFORMIDAD, PROBLEMAS_RECEPCION, tipoIncidencia, TIPOS_INCIDENCIA } from '../../lib/formato';
+import { cls, etiqueta, fechaHora, PROBLEMAS_CONFORMIDAD, PROBLEMAS_RECEPCION, TIPOS_INCIDENCIA } from '../../lib/formato';
 
 
 function etapasPaquete(pq: Paquete): Etapa[] {
@@ -78,8 +79,11 @@ const TONOS_SIGUIENTE = {
   fin: ['bg-tinta-50 ring-tinta-100', 'bg-tinta-500 text-white', CheckCircle2],
 } as const;
 
-function QueSigue({ s, abiertas, onIr }: { s: Siguiente; abiertas: number; onIr: (ir: 'paquetes' | 'empleados' | 'incidencias') => void }) {
+/** Qué sigue en la solicitud; las incidencias se separan por su turno (backend: turno_actor), sin calcular nada. */
+function QueSigue({ s, incidencias, onIr }: { s: Siguiente; incidencias: Incidencia[]; onIr: (ir: 'paquetes' | 'empleados' | 'incidencias') => void }) {
   const [fondo, icono, Icono] = TONOS_SIGUIENTE[s.tono];
+  const teEsperan = incidencias.filter((i) => i.turno_actor === 'sucursal');
+  const conLurima = incidencias.filter((i) => i.turno_actor === 'lurima').length;
   return (
     <section aria-labelledby="t-que-sigue" className={cls('flex flex-col gap-4 rounded-2xl p-5 ring-1 sm:flex-row sm:items-center', fondo)}>
       <span className={cls('grid h-11 w-11 shrink-0 place-items-center rounded-xl', icono)} aria-hidden><Icono className="h-5 w-5" /></span>
@@ -87,7 +91,13 @@ function QueSigue({ s, abiertas, onIr }: { s: Siguiente; abiertas: number; onIr:
         <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-tinta-500">Qué sigue</p>
         <h2 id="t-que-sigue" className="font-display text-lg font-bold text-tinta-900">{s.titulo}</h2>
         <p className="mt-0.5 text-sm text-tinta-700">{s.texto}</p>
-        {abiertas > 0 && <button type="button" onClick={() => onIr('incidencias')} className="mt-1 text-left text-sm font-semibold text-coral-700 underline-offset-2 hover:underline">{abiertas} incidencia(s) abierta(s): revisa su avance en Incidencias.</button>}
+        {teEsperan.length > 0 && (
+          <p className="mt-1 text-sm font-semibold text-amber-800">
+            {teEsperan.length === 1 ? '1 incidencia te espera' : `${teEsperan.length} incidencias te esperan`}:{' '}
+            {teEsperan.map((i, n) => <span key={i.id}>{n > 0 && ', '}<Link to={`/cuenta/incidencias/${i.id}`} className="underline hover:text-amber-950">{i.folio}</Link></span>)}
+          </p>
+        )}
+        {conLurima > 0 && <p className="mt-1 text-sm text-tinta-600">{conLurima === 1 ? '1 incidencia en seguimiento con Lurima.' : `${conLurima} incidencias en seguimiento con Lurima.`}</p>}
       </div>
       {s.ir && (
         <Boton variante="secundario" className="shrink-0" icono={<ArrowDown className="h-4 w-4" aria-hidden />}
@@ -101,7 +111,8 @@ function QueSigue({ s, abiertas, onIr }: { s: Siguiente; abiertas: number; onIr:
 
 // ---------------------------------------------------------------- recepción del paquete
 
-function RecepcionPaquete({ pq, p, onCerrar }: { pq: Paquete; p: Pedido; onCerrar: () => void }) {
+/** También se usa desde la incidencia (D-7) para recibir una reposición: mismo formulario y mismo endpoint. */
+export function RecepcionPaquete({ pq, p, onCerrar }: { pq: Paquete; p: Pedido; onCerrar: () => void }) {
   const qc = useQueryClient();
   const avisar = useAviso();
   const filas = pq.contenido;
@@ -125,6 +136,8 @@ function RecepcionPaquete({ pq, p, onCerrar }: { pq: Paquete; p: Pedido; onCerra
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['pedido', String(p.id)] }); qc.invalidateQueries({ queryKey: ['resumen-sucursal'] });
+      // Una reposición recibida cambia su incidencia (turno y estado): se recargan también las incidencias
+      qc.invalidateQueries({ queryKey: ['mi-incidencia'] }); qc.invalidateQueries({ queryKey: ['mis-incidencias'] });
       avisar(conProblema.length ? `Recepción de ${pq.folio} registrada con incidencia.` : `Recepción del paquete ${pq.folio} registrada.`); onCerrar();
     },
   });
@@ -338,37 +351,82 @@ function NuevaIncidencia({ p, onCerrar }: { p: Pedido; onCerrar: () => void }) {
   );
 }
 
+type EntradaSeguimiento = Incidencia['seguimiento'][number];
+
+/** Mensajes de la sucursal con significado propio, por su estructura (no por el texto): siguen siendo mensajes humanos. */
+function especial(s: EntradaSeguimiento): 'confirmada' | 'reabierta' | null {
+  if (s.clase !== 'mensaje' || s.lado !== 'sucursal' || s.anterior !== 'resuelta') return null;
+  return s.nuevo === 'cerrada' ? 'confirmada' : s.nuevo !== 'resuelta' ? 'reabierta' : null;
+}
+
+/** Ícono del evento según lo que cambió (creación, resolución o cierre, otro cambio de estado, nota). */
+function iconoEvento(s: EntradaSeguimiento) {
+  if (!s.anterior) return FilePlus2;
+  if (s.anterior !== s.nuevo) return s.nuevo === 'resuelta' || s.nuevo === 'cerrada' ? CheckCircle2 : ArrowRightCircle;
+  return Info;
+}
+
+/** Quién figura en un evento. Del lado de la sucursal, salvo su alta, un evento es una nota automática (p. ej. la
+ *  resolución al recibir completa la reposición): no se le atribuye como si la hubiera escrito. */
+const autorEvento = (s: EntradaSeguimiento) => (s.lado === 'sucursal' && s.anterior ? 'Registro automático' : s.actor);
+
+const cambioEstado = (s: EntradaSeguimiento) => (s.anterior && s.anterior !== s.nuevo ? `${etiqueta(s.anterior)} → ${etiqueta(s.nuevo)}` : null);
+
+/**
+ * Seguimiento en orden cronológico (el del backend). `clase` (backend: es_humana) decide la forma: los mensajes de
+ * personas van en una tarjeta con su autor; los eventos automáticos, en una línea discreta con ícono. La confirmación
+ * y la reapertura de la sucursal se ven como mensajes con su etiqueta. El contenido se muestra tal cual.
+ */
 export function HistorialIncidencia({ i }: { i: Incidencia }) {
+  if (!i.seguimiento.length) return <p className="mt-2 text-xs text-tinta-500">Todavía no hay movimientos ni mensajes.</p>;
   return (
-    <ol className="relative mt-2 space-y-2 border-l-2 border-arena-200 pl-4">
-      {i.seguimiento.map((s, k) => (
-        <Aparecer como="li" orden={k} key={k} className="relative text-xs">
-          <span className={cls('absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full ring-4 ring-white', s.nuevo === 'resuelta' || s.nuevo === 'cerrada' ? 'bg-emerald-500' : 'bg-amber-400')} />
-          <p><b>{s.anterior && s.anterior !== s.nuevo ? `${etiqueta(s.anterior)} → ${etiqueta(s.nuevo)}` : etiqueta(s.nuevo)}</b> · {fechaHora(s.fecha)} · {s.actor}</p>
-          {s.comentario && <p className="text-tinta-500">{s.comentario}</p>}
-          {!!s.adjuntos?.length && <div className="mt-1"><GaleriaEvidencias urls={s.adjuntos} titulo={`Adjuntos de ${s.actor}`} /></div>}
-          {s.responsable && <p className="text-tinta-400">Responsable: {s.responsable}</p>}
-        </Aparecer>
-      ))}
+    <ol className="mt-2 space-y-2.5">
+      {i.seguimiento.map((s, k) => {
+        if (s.clase === 'evento') {
+          const Icono = iconoEvento(s);
+          return (
+            <Aparecer como="li" orden={k} key={k} className="flex gap-2 px-1 text-xs text-tinta-500">
+              <Icono className="mt-0.5 h-3.5 w-3.5 shrink-0 text-tinta-400" aria-hidden />
+              <p className="min-w-0 break-words"><span className="sr-only">Evento del sistema: </span>
+                {[...new Set([s.anterior ? cambioEstado(s) : 'Incidencia registrada', s.comentario])].filter(Boolean).join(' · ')}
+                <span className="text-tinta-400"> · {autorEvento(s)} · {fechaHora(s.fecha)}</span>
+                {s.responsable && <span className="text-tinta-400"> · Responsable: {s.responsable}</span>}</p>
+            </Aparecer>
+          );
+        }
+        const tipo = especial(s);
+        const Icono = tipo === 'confirmada' ? CheckCircle2 : tipo === 'reabierta' ? RotateCcw : MessageSquare;
+        return (
+          <Aparecer como="li" orden={k} key={k} className={cls('rounded-xl p-3 text-sm ring-1',
+            tipo === 'confirmada' ? 'bg-menta-50 ring-menta-200' : tipo === 'reabierta' ? 'bg-amber-50 ring-amber-200' : 'bg-white ring-tinta-100')}>
+            <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-tinta-600"><span className="sr-only">Mensaje: </span>
+              <Icono className={cls('h-3.5 w-3.5 shrink-0', tipo === 'confirmada' ? 'text-menta-700' : tipo === 'reabierta' ? 'text-amber-700' : 'text-tinta-400')} aria-hidden />
+              <b className="text-tinta-900">{s.actor}</b>
+              {s.actor !== (s.lado === 'sucursal' ? 'Sucursal' : 'Lurima') && <span>{s.lado === 'sucursal' ? 'Sucursal' : 'Lurima'}</span>}
+              <span>· {fechaHora(s.fecha)}</span>
+              {tipo && <span className={cls('rounded-full px-2 py-0.5 font-semibold', tipo === 'confirmada' ? 'bg-menta-100 text-menta-800' : 'bg-amber-100 text-amber-900')}>
+                {tipo === 'confirmada' ? 'Solución confirmada' : 'Reabrió la incidencia'}</span>}
+              {!tipo && cambioEstado(s) && <span className="text-tinta-500">· {cambioEstado(s)}</span>}
+            </p>
+            {s.comentario && <p className="mt-1.5 whitespace-pre-line break-words text-tinta-800">{s.comentario}</p>}
+            {!!s.adjuntos?.length && <div className="mt-2"><GaleriaEvidencias urls={s.adjuntos} titulo={`Adjuntos de ${s.actor}`} /></div>}
+            {s.responsable && <p className="mt-1 text-xs text-tinta-500">Responsable: {s.responsable}</p>}
+          </Aparecer>
+        );
+      })}
     </ol>
   );
 }
 
-function TarjetaIncidencia({ i }: { i: Incidencia }) {
-  const [abierta, setAbierta] = useState(false);
+/** Incidencia dentro de la solicitud: la tarjeta común, con lo que solo importa aquí (persona, evidencias, reposiciones). */
+function IncidenciaDeSolicitud({ i }: { i: Incidencia }) {
+  const persona = [i.empleado?.nombre, i.articulo && `${i.articulo.nombre} (${i.articulo.talla})`].filter(Boolean).join(' · ');
   return (
-    <div className={cls('rounded-xl p-3 text-sm ring-1', i.estado === 'abierta' ? 'animate-sacudir ring-coral-200' : 'ring-arena-200')}>
-      <button type="button" onClick={() => setAbierta(!abierta)} className="flex w-full items-start justify-between gap-2 text-left">
-        <span><b>{i.folio}</b> · {tipoIncidencia(i.tipo)}
-          {(i.empleado || i.articulo) && <span className="block text-xs text-tinta-500">{[i.empleado?.nombre, i.articulo && `${i.articulo.nombre} (${i.articulo.talla})`].filter(Boolean).join(' · ')}</span>}</span>
-        <span className="flex items-center gap-2"><Estado valor={i.estado} />{abierta ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</span>
-      </button>
-      <p className="mt-1 text-xs text-tinta-600">{i.descripcion}</p>
+    <TarjetaIncidencia i={i} portal="sucursal" a={`/cuenta/incidencias/${i.id}`}
+      contexto={<>{persona && <span>{persona}</span>}<span>Estado: {etiqueta(i.estado)}</span></>}>
       {!!i.evidencias?.length && <div className="mt-2"><GaleriaEvidencias urls={i.evidencias} titulo={`Evidencia de ${i.folio}`} /></div>}
       <ListaReposiciones paquetes={i.reposiciones} />
-      {abierta && <HistorialIncidencia i={i} />}
-      <Link to={`/cuenta/incidencias/${i.id}`} className="mt-2 inline-flex min-h-8 items-center text-xs font-semibold text-menta-700 hover:underline">{i.estado === 'resuelta' ? 'Confirmar o reabrir' : 'Abrir conversación'}</Link>
-    </div>
+    </TarjetaIncidencia>
   );
 }
 
@@ -472,7 +530,7 @@ export default function DetalleSolicitud({ p }: { p: Pedido }) {
         {p.notas && <p className="mt-4 rounded-lg bg-tinta-50 p-3 text-xs"><b>Notas:</b> {p.notas}</p>}
       </Tarjeta>
 
-      <QueSigue s={siguiente} abiertas={abiertas} onIr={(ir) => cambiarPestana(ir)} />
+      <QueSigue s={siguiente} incidencias={p.incidencias || []} onIr={(ir) => cambiarPestana(ir)} />
 
       <Pestanas etiqueta={`Secciones de la solicitud ${p.folio}`} activa={pestana} onCambio={cambiarPestana} className="sticky top-[74px] z-10 lg:top-[84px]"
         items={[
@@ -597,7 +655,7 @@ export default function DetalleSolicitud({ p }: { p: Pedido }) {
       <PanelPestana clave="incidencias" activa={pestana}>
         <Tarjeta titulo="Incidencias" sub="Cada actualización queda en su historial"
           accion={p.estado !== 'borrador' && <Boton tam="sm" variante="secundario" icono={<ShieldAlert className="h-3.5 w-3.5" />} onClick={() => setIncidencia(true)}>Reportar incidencia</Boton>}>
-          <div className="grid gap-3 lg:grid-cols-2 [&>*]:min-w-0">{(p.incidencias || []).map((i) => <TarjetaIncidencia key={i.id} i={i} />)}</div>
+          <div className="grid gap-3 lg:grid-cols-2 [&>*]:min-w-0">{(p.incidencias || []).map((i) => <IncidenciaDeSolicitud key={i.id} i={i} />)}</div>
         </Tarjeta>
       </PanelPestana>
 

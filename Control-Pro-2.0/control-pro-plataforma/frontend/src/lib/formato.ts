@@ -6,6 +6,23 @@ export const dinero = (v: string | number | null | undefined) => (v == null ? '�
 export const fecha = (v: string | null | undefined) => (v ? fmtFecha.format(new Date(v)) : '—');
 export const fechaHora = (v: string | null | undefined) => (v ? fmtFechaHora.format(new Date(v)) : '—');
 
+/**
+ * Tiempo transcurrido: «hace 3 horas» o, con `corto`, «3 h». Desde 30 días se muestra la fecha. Nula o inválida: «—».
+ * Una fecha futura (reloj desfasado) cuenta como «hace unos segundos».
+ */
+export function haceTiempo(v: string | null | undefined, { corto = false, ahora = Date.now() } = {}): string {
+  const t = v ? new Date(v).getTime() : NaN;
+  if (Number.isNaN(t)) return '—';
+  const seg = Math.max(0, Math.floor((ahora - t) / 1000));
+  const min = Math.floor(seg / 60), h = Math.floor(min / 60), d = Math.floor(h / 24);
+  const plural = (n: number, uno: string, varios: string) => `hace ${n} ${n === 1 ? uno : varios}`;
+  if (seg < 60) return corto ? 'ahora' : 'hace unos segundos';
+  if (min < 60) return corto ? `${min} min` : plural(min, 'minuto', 'minutos');
+  if (h < 24) return corto ? `${h} h` : plural(h, 'hora', 'horas');
+  if (d < 30) return corto ? `${d} d` : plural(d, 'día', 'días');
+  return fmtFecha.format(new Date(t));
+}
+
 type Tono = 'gris' | 'azul' | 'menta' | 'ambar' | 'coral' | 'violeta' | 'verde';
 
 export const ESTADOS: Record<string, [string, Tono]> = {

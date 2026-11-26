@@ -5,9 +5,9 @@ from .test_flujos import FIRMA
 from .test_pulido import _subir
 
 
-def _entregado(como):
+def _entregado(como, bata_m=1):
     """Solicitud surtida en un solo paquete, despachada y entregada en la sucursal."""
-    emp, alm, a = _solicitud(como)
+    emp, alm, a = _solicitud(como, bata_m)
     aid = a["id"]
     alm.post(f"/api/admin/surtido/{aid}/registrar",
              {"partidas": [{"asignacion_detalle_id": d["id"], "surtida": d["cantidad"]} for d in a["detalles"]]})

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, Banknote, ClipboardList, PackageOpen, Receipt, Truck } from 'lucide-react';
@@ -37,7 +37,8 @@ function Barras({ serie }: { serie: Dash['serie_diaria'] }) {
   );
 }
 
-export default function Dashboard() {
+/** `incidencias`: resumen de incidencias del inicio (reemplaza a la alerta «Incidencias abiertas»). */
+export default function Dashboard({ incidencias }: { incidencias?: ReactNode }) {
   const { puede } = useAuth();
   const [sucursal, setSucursal] = useState('');
   const [dias, setDias] = useState(30);
@@ -58,6 +59,7 @@ export default function Dashboard() {
         </select>
         <FiltroSucursal valor={sucursal} onCambio={setSucursal} />
       </Encabezado>
+      {incidencias && <div className="mb-5">{incidencias}</div>}
       <ErrorCaja error={q.error} />
       {q.isLoading || !d ? <Cargando forma="pagina" /> : (
         <div className="space-y-5">
@@ -77,7 +79,7 @@ export default function Dashboard() {
               <ul className="space-y-2 text-sm">
                 <li className="flex justify-between"><Link to="/admin/pagos" className="hover:underline">Pagos por validar</Link><b>{d.pagos_confirmados.por_validar}</b></li>
                 <li className="flex justify-between"><Link to="/admin/devoluciones" className="hover:underline">Devoluciones abiertas</Link><b>{d.devoluciones_abiertas}</b></li>
-                <li className="flex justify-between"><Link to="/admin/incidencias" className="hover:underline">Incidencias abiertas</Link><b className={d.incidencias_abiertas ? 'text-coral-600' : ''}>{d.incidencias_abiertas}</b></li>
+                {!incidencias && <li className="flex justify-between"><Link to="/admin/incidencias" className="hover:underline">Incidencias abiertas</Link><b className={d.incidencias_abiertas ? 'text-coral-600' : ''}>{d.incidencias_abiertas}</b></li>}
                 <li className="flex justify-between"><Link to="/admin/inventario?bajo=1" className="hover:underline">Existencias bajas</Link><b className={d.existencias_bajas.length ? 'text-amber-700' : ''}>{d.existencias_bajas.length}{d.existencias_bajas.length === 10 ? '+' : ''}</b></li>
               </ul>
             </Tarjeta>

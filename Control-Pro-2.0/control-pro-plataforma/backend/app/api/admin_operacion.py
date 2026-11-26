@@ -1,10 +1,10 @@
 """Pagos, reembolsos, devoluciones e incidencias (personal interno)."""
 from flask import Blueprint, jsonify, request
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 
 from ..errors import AppError, NoEncontrado
 from ..extensions import db
-from ..models import Devolucion, Incidencia, Pago, Pedido, Reembolso, Usuario
+from ..models import Devolucion, Incidencia, Paquete, Pago, Pedido, Reembolso, Usuario
 from ..schemas import (AutorizarDevolucionSchema, CantidadesSchema, IncidenciaCambioSchema, IncidenciaSchema,
                        InspeccionSchema, MotivoSchema, NotaSchema, PagoEfectivoSchema, ReferenciaSchema, ReposicionSchema,
                        cargar)
@@ -14,6 +14,7 @@ from ..services import devolucion_service as dev
 from ..services import logistica_service as log
 from ..services import pago_service as pagos
 from ..services import pedido_service as ped
+from ..services import turno_service as turno_srv
 from ..services.comun import paginar
 from . import serial
 from .admin_pedidos import _filtro_pedidos, _pedido
@@ -189,11 +190,20 @@ def incidencias():
     permitidas = sucursales_permitidas()
     if permitidas is not None:
         q = q.where(or_(Incidencia.sucursal_id.in_(permitidas or {-1}), Incidencia.pedido_id.in_(_ids_pedidos_visibles())))
-    if estado := request.args.get("estado"):
-        q = q.where(Incidencia.estado.in_(estado.split(",")))
     if prioridad := request.args.get("prioridad"):
         q = q.where(Incidencia.prioridad == prioridad)
-    return jsonify(paginar(q, *pagina(), serial.incidencia))
+    # «Por enviar» es logístico, no un turno: incidencias con un paquete de reposición preparado y sin salir
+    por_enviar = select(Paquete.id).where(Paquete.incidencia_id == Incidencia.id, Paquete.estado == "preparado").exists()
+    # Contadores de las bandejas sobre la misma consulta (alcance y prioridad) que la lista
+    conteo = turno_srv.conteo_bandejas(q)
+    conteo["por_enviar"] = db.session.scalar(select(func.count()).select_from(q.where(por_enviar).order_by(None).subquery()))
+    if request.args.get("por_enviar") in {"1", "true"}:
+        q = q.where(por_enviar)
+    if estado := request.args.get("estado"):
+        q = q.where(Incidencia.estado.in_(estado.split(",")))
+    if pedidos := turno_srv.codigos(request.args.get("turno")):
+        q = turno_srv.filtrar(q, pedidos)
+    return jsonify({**paginar(q, *pagina(), serial.incidencia), "conteo": conteo})
 
 
 @bp.post("/incidencias")

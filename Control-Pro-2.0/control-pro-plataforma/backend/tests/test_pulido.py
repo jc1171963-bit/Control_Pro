@@ -84,7 +84,7 @@ def test_expediente_de_la_solicitud(como):
     did = aprob.post(f"/api/admin/pedidos/{p['id']}/documentos", {"nombre": "Cotización LURIMA", "tipo": "cotizacion", "url": cot}).get_json()["id"]
     docs = emp.get(f"/api/cuenta/pedidos/{p['id']}/expediente").get_json()["documentos"]
     assert {x["nombre"] for x in docs} == {"Orden de compra 4512", "Cotización LURIMA"}
-    assert next(x for x in docs if x["id"] == did)["autor"] == "Control Pro" and emp.c.get(cot, headers=emp._h()).status_code == 200
+    assert next(x for x in docs if x["id"] == did)["autor"] == "Distribuidora" and emp.c.get(cot, headers=emp._h()).status_code == 200
     # Solo quien lo subió lo quita; otra cuenta no ve el expediente
     assert emp.delete(f"/api/cuenta/pedidos/{p['id']}/documentos/{did}").status_code == 403
     assert aprob.delete(f"/api/admin/pedidos/{p['id']}/documentos/{did}").status_code == 200

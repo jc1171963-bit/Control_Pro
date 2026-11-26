@@ -160,7 +160,7 @@ def test_recepcion_por_articulo_entrega_y_conformidad(app, como):
     seg = r.get_json()["seguimiento"]
     assert [s["nuevo"] for s in seg] == ["abierta", "en_atencion", "resuelta"] and seg[1]["actor"] == "Mario Atención"
     vista_sucursal = next(i for i in emp.get(f"/api/cuenta/pedidos/{p['id']}").get_json()["incidencias"] if i["id"] == talla["id"])
-    assert vista_sucursal["seguimiento"][1]["actor"] == "Control Pro"
+    assert vista_sucursal["seguimiento"][1]["actor"] == "Distribuidora"
     with app.app_context():
         with pytest.raises(DBAPIError):
             db.session.execute(text("update incidencia_seguimiento set comentario = 'x'"))

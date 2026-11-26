@@ -8,6 +8,7 @@ from ..errors import AppError, Conflicto, NoEncontrado, TransicionInvalida
 from ..extensions import db
 from ..models import (Cliente, Devolucion, DevolucionDetalle, Incidencia, IncidenciaSeguimiento, Pedido,
                       PedidoDetalle, Sucursal)
+from . import aviso_incidencia
 from . import inventario_service as inv_srv
 from .comun import (actor_ids, asignar_folio, auditar, cambiar_estado, notificar_cliente, notificar_personal,
                     registrar_incidencia)
@@ -203,9 +204,7 @@ def crear_incidencia(tipo: str, descripcion: str, prioridad: str = "media", pedi
         from ..api.archivos import dueno_actual, vincular_a_pedido
         vincular_a_pedido(evidencias, pedido_id, dueno_actual())
     auditar("incidencia.crear", "incidencia", inc.id, despues={"tipo": tipo, "prioridad": prioridad},
-            sucursal_id=sucursal_id)
-    notificar_personal("incidencia.gestionar", "incidencia_nueva", "incidencia", inc.id,
-                       f"Nueva incidencia {inc.folio}: {tipo}.", sucursal_id=sucursal_id, enlace="/admin/incidencias")
+            sucursal_id=sucursal_id)  # el aviso a Lurima lo da registrar_incidencia (aviso_incidencia.creada)
     db.session.commit()
     return inc
 
@@ -240,18 +239,16 @@ def actualizar_incidencia(inc: Incidencia, estado: str | None, comentario: str |
         cambiar_estado(inc, "incidencia", estado, TRANSICIONES_INCIDENCIA, comentario)
         if estado == "resuelta":  # la resolución vigente; los mensajes y resoluciones anteriores siguen en el seguimiento
             inc.resolucion = comentario
-    if inc.pedido_id and (comentario or adjuntos or inc.estado != anterior):
-        pedido = db.session.get(Pedido, inc.pedido_id)
-        n = len(inc.seguimiento) + 1
-        notificar_cliente(pedido.cliente_id, f"incidencia_{inc.id}_{n}", "incidencia", inc.id,
-                          f"Actualización de la incidencia {inc.folio}: {etiqueta_incidencia(inc.estado)}"
-                          + (f". {comentario}" if comentario else "") + (f" ({len(adjuntos)} archivo(s) adjunto(s))" if adjuntos else ""),
-                          f"/cuenta/pedidos/{pedido.id}")
     if comentario or adjuntos or cambio_responsable or inc.estado != anterior:
-        db.session.add(IncidenciaSeguimiento(incidencia_id=inc.id, estado_anterior=anterior, estado_nuevo=inc.estado,
-                                             comentario=comentario, adjuntos=adjuntos,
-                                             responsable_id=responsable_id if cambio_responsable else None,
-                                             usuario_id=usuario_id, cliente_id=cliente_id))
+        s = IncidenciaSeguimiento(incidencia_id=inc.id, estado_anterior=anterior, estado_nuevo=inc.estado,
+                                  comentario=comentario, adjuntos=adjuntos,
+                                  responsable_id=responsable_id if cambio_responsable else None,
+                                  usuario_id=usuario_id, cliente_id=cliente_id)
+        db.session.add(s)
+        db.session.flush()  # el id de la entrada es la clave del aviso
+        if cambio_responsable:
+            aviso_incidencia.asignada(inc, s)
+        aviso_incidencia.actualizada_por_lurima(inc, s, anterior)
     auditar("incidencia.actualizar", "incidencia", inc.id, antes, {"estado": inc.estado, "responsable": inc.responsable_id},
             sucursal_id=inc.sucursal_id)
     db.session.commit()
@@ -276,8 +273,11 @@ def transiciones_personal(inc: Incidencia) -> list[str]:
 
 def _entrada_sucursal(inc: Incidencia, anterior: str, comentario: str | None, adjuntos: list[str] | None = None):
     _, cliente_id = actor_ids()
-    db.session.add(IncidenciaSeguimiento(incidencia_id=inc.id, estado_anterior=anterior, estado_nuevo=inc.estado,
-                                         comentario=comentario, adjuntos=adjuntos or [], cliente_id=cliente_id))
+    s = IncidenciaSeguimiento(incidencia_id=inc.id, estado_anterior=anterior, estado_nuevo=inc.estado,
+                              comentario=comentario, adjuntos=adjuntos or [], cliente_id=cliente_id)
+    db.session.add(s)
+    db.session.flush()  # el id de la entrada es la clave del aviso
+    return s
 
 
 def _exigir_de_sucursal(inc: Incidencia):
@@ -293,7 +293,8 @@ def mensaje_sucursal(inc: Incidencia, texto: str, adjuntos: list[str] | None = N
         raise AppError("Escribe tu mensaje (entre 2 y 2000 caracteres) o adjunta un archivo.")
     if inc.estado == "cerrada":
         raise TransicionInvalida("La incidencia está cerrada; si el problema continúa, reporta una nueva.")
-    _entrada_sucursal(inc, inc.estado, texto or None, _adjuntar(inc, adjuntos))
+    s = _entrada_sucursal(inc, inc.estado, texto or None, _adjuntar(inc, adjuntos))
+    aviso_incidencia.mensaje_de_sucursal(inc, s)
     auditar("incidencia.mensaje_sucursal", "incidencia", inc.id, sucursal_id=inc.sucursal_id)
     db.session.commit()
     return inc
@@ -303,7 +304,8 @@ def confirmar_solucion(inc: Incidencia) -> Incidencia:
     _exigir_de_sucursal(inc)
     anterior = inc.estado
     cambiar_estado(inc, "incidencia", "cerrada", TRANSICIONES_SUCURSAL, "Solución confirmada por la sucursal")
-    _entrada_sucursal(inc, anterior, "Solución confirmada por la sucursal")
+    s = _entrada_sucursal(inc, anterior, "Solución confirmada por la sucursal")
+    aviso_incidencia.confirmada(inc, s)
     auditar("incidencia.confirmar", "incidencia", inc.id, {"estado": anterior}, {"estado": inc.estado}, sucursal_id=inc.sucursal_id)
     db.session.commit()
     return inc
@@ -316,7 +318,8 @@ def reabrir(inc: Incidencia, motivo: str) -> Incidencia:
         raise AppError("Explica por qué no quedó resuelta (entre 10 y 1000 caracteres).")
     anterior = inc.estado
     cambiar_estado(inc, "incidencia", "en_atencion", TRANSICIONES_SUCURSAL, f"Reabierta por la sucursal: {motivo}")
-    _entrada_sucursal(inc, anterior, f"Reabierta por la sucursal: {motivo}")
+    s = _entrada_sucursal(inc, anterior, f"Reabierta por la sucursal: {motivo}")
+    aviso_incidencia.reabierta(inc, s, motivo)
     auditar("incidencia.reabrir", "incidencia", inc.id, {"estado": anterior}, {"estado": inc.estado, "motivo": motivo},
             sucursal_id=inc.sucursal_id)
     db.session.commit()
