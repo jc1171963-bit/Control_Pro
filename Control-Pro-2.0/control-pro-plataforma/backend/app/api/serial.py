@@ -32,7 +32,12 @@ def usuario(u):
             "rol": {"codigo": u.rol.codigo, "nombre": u.rol.nombre, "alcance_global": u.rol.alcance_global},
             "permisos": sorted(u.codigos_permiso), "sucursales": [{"id": s.id, "nombre": s.nombre} for s in u.sucursales],
             "ultimo_acceso": f(u.ultimo_acceso), "bloqueado_hasta": f(u.bloqueado_hasta), "foto": u.foto_url,
-            "telefono": u.telefono, "area": u.area, "cargo": u.cargo}
+            "telefono": u.telefono, "area": u.area, "cargo": u.cargo, "presentacion": _presentacion(u.id)}
+
+
+def _presentacion(usuario_id):
+    from ..services.presentacion_service import datos_para_interfaz
+    return datos_para_interfaz(usuario_id)
 
 
 def cliente(c):

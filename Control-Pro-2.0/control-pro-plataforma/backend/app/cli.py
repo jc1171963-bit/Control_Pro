@@ -95,3 +95,84 @@ def registrar_comandos(app):
                 click.echo(f"Diferencia sucursal {f.sucursal_id} variante {f.variante_id}: físico {f.fisico}, kardex {f.kardex}")
             raise SystemExit(1)
         click.echo("Inventario conciliado: el kardex coincide con la existencia física.")
+
+    # ---------------------------------------------------------------- modo presentación
+    def _zona():
+        from zoneinfo import ZoneInfo
+        return ZoneInfo(app.config.get("ZONA_HORARIA", "America/Mexico_City"))
+
+    def _leer_inicio(inicio):
+        from datetime import datetime
+        return datetime.strptime(inicio, "%Y-%m-%d %H:%M").replace(tzinfo=_zona()) if inicio else None
+
+    def _vigencia(c) -> str:
+        from datetime import datetime
+        local = lambda iso: datetime.fromisoformat(iso).astimezone(_zona()).strftime("%d/%m/%Y %H:%M")  # noqa: E731
+        return (f"válida del {local(c['desde'])} al {local(c['hasta'])} ({_zona().key})"
+                f"{'  (solo consulta)' if c.get('solo_lectura') else ''}")
+
+    @app.cli.command("presentacion-crear")
+    @click.option("--nombre", required=True, help="Nombre de la persona (aparece en la marca de agua).")
+    @click.option("--correo", required=True, help="Correo con el que entrará (aparece en la marca de agua).")
+    @click.option("--inicio", default=None, help="Inicio en hora local, AAAA-MM-DD HH:MM (por omisión: ahora).")
+    @click.option("--horas", default=2.0, type=float, help="Duración del acceso en horas (por omisión 2).")
+    @click.option("--empresa", default="LURIMA", help="Dueño del sistema que aparece en la marca de agua.")
+    @click.option("--solo-lectura", is_flag=True, help="Puede recorrer todo, pero no hacer cambios.")
+    def presentacion_crear(nombre, correo, inicio, horas, empresa, solo_lectura):
+        """Crea la cuenta temporal de aprobador para una presentación y muestra su contraseña (una sola vez)."""
+        from .errors import AppError
+        from .models import ahora
+        from .services import presentacion_service as pres
+        try:
+            u, password = pres.crear(nombre, correo, _leer_inicio(inicio) or ahora(), horas, empresa, solo_lectura)
+        except AppError as e:
+            raise click.ClickException(e.mensaje)
+        click.echo(f"Cuenta de presentación lista para {u.nombre}.")
+        click.echo(f"  Entra por: /entrar   Correo: {u.correo}   Contraseña: {password}")
+        click.echo(f"  {_vigencia(pres.config())}")
+
+    @app.cli.command("presentacion-ajustar")
+    @click.option("--inicio", default=None, help="Nuevo inicio en hora local, AAAA-MM-DD HH:MM.")
+    @click.option("--horas", default=None, type=float, help="Nueva duración total en horas, contada desde el inicio.")
+    @click.option("--nombre", default=None, help="Nuevo nombre para la marca de agua.")
+    @click.option("--solo-lectura/--puede-modificar", default=None, help="Activa o quita «solo consulta».")
+    def presentacion_ajustar(inicio, horas, nombre, solo_lectura):
+        """Cambia horario, nombre o «solo consulta» de la presentación SIN cambiar la contraseña."""
+        from .errors import AppError
+        from .services import presentacion_service as pres
+        try:
+            c = pres.ajustar(_leer_inicio(inicio), horas, nombre, solo_lectura)
+        except AppError as e:
+            raise click.ClickException(e.mensaje)
+        click.echo(f"Presentación de {c['nombre']} ajustada: {_vigencia(c)}")
+
+    @app.cli.command("presentacion-prueba")
+    @click.option("--horas", default=3.0, type=float, help="Duración de la ventana de pruebas desde ahora (por omisión 3).")
+    @click.option("--terminar", is_flag=True, help="Termina ya la ventana de pruebas.")
+    def presentacion_prueba(horas, terminar):
+        """Abre (o termina) una ventana de pruebas desde ahora, SIN tocar el horario acordado ni la contraseña."""
+        from .errors import AppError
+        from .services import presentacion_service as pres
+        try:
+            c = pres.ventana_de_prueba(None if terminar else horas)
+        except AppError as e:
+            raise click.ClickException(e.mensaje)
+        if c.get("prueba"):
+            click.echo(f"Ventana de pruebas abierta: {_vigencia({**c['prueba'], 'solo_lectura': c.get('solo_lectura')})}")
+        else:
+            click.echo("Ventana de pruebas terminada.")
+        click.echo(f"Horario acordado (sin cambios): {_vigencia(c)}")
+
+    @app.cli.command("presentacion-cerrar")
+    def presentacion_cerrar():
+        """Termina la presentación ahora: desactiva la cuenta y cierra su sesión en todos los dispositivos."""
+        from .services import presentacion_service as pres
+        u = pres.cerrar()
+        click.echo(f"Presentación cerrada ({u.correo})." if u else "No hay presentación configurada.")
+
+    @app.cli.command("presentacion-bitacora")
+    def presentacion_bitacora():
+        """Muestra lo que vio e hizo la cuenta de presentación (lo más reciente primero)."""
+        from .services import presentacion_service as pres
+        for r in pres.bitacora():
+            click.echo(f"{r['fecha']}  {r['accion']:<28} {r['detalle'] or ''}")

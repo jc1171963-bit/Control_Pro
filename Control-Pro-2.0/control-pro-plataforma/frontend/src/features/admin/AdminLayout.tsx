@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, ArrowLeftRight, Bell, Boxes, ClipboardCheck, ClipboardList, CreditCard, FileBarChart, History,
-  ChevronRight, Gauge, Inbox, Network, LayoutDashboard, LogOut, Menu, MessagesSquare, PackageOpen, Shirt, Store, Tag, Undo2, Users, UserSquare2, Warehouse, X } from 'lucide-react';
+  ChevronRight, Gauge, Inbox, Network, LayoutDashboard, LogOut, Menu, MessagesSquare, MonitorPlay, PackageOpen, Shirt, Store, Tag, Undo2, Users, UserSquare2, Warehouse, X } from 'lucide-react';
 import { get } from '../../api/cliente';
 import type { Sucursal } from '../../api/tipos';
 import { useAuth } from '../../app/auth';
@@ -28,7 +28,8 @@ const GRUPOS: { titulo: string; items: [string, string, any, string][] }[] = [
   { titulo: 'Posventa', items: [['devoluciones', 'Devoluciones', Undo2, 'pedido.ver'], ['incidencias', 'Incidencias', AlertTriangle, 'incidencia.gestionar']] },
   { titulo: 'Catálogo', items: [['catalogo', 'Productos', Shirt, 'inventario.ver'], ['promociones', 'Promociones', Tag, 'inventario.ver']] },
   { titulo: 'Administración', items: [['reportes', 'Reportes', FileBarChart, 'reporte.ver'], ['sucursales', 'Centros de distribución', Warehouse, 'sucursal.ver'],
-    ['usuarios', 'Usuarios y roles', Users, 'usuario.gestionar'], ['auditoria', 'Auditoría', History, 'auditoria.ver']] },
+    ['usuarios', 'Usuarios y roles', Users, 'usuario.gestionar'], ['auditoria', 'Auditoría', History, 'auditoria.ver'],
+    ['presentacion', 'Presentación en vivo', MonitorPlay, 'auditoria.ver']] },
 ];
 
 /**

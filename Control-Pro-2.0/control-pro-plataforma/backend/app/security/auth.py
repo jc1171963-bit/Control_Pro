@@ -79,6 +79,9 @@ def motivo_rechazo_sesion(payload: dict, comprobar_inactividad: bool | None = No
         return "sesion_expirada"
     if comprobar_inactividad and inactiva(s, t):
         return "sesion_inactiva"  # solo lectura: la revocación la hacen refresh, actividad y logout
+    if s.tipo_cuenta == "usuario":
+        from ..services.presentacion_service import motivo_rechazo
+        return motivo_rechazo(int(cuenta_id))  # cuenta de presentación fuera de su horario
     return None
 
 
@@ -120,7 +123,21 @@ def _cargar_usuario():
         raise NoAutenticado("La cuenta no está activa.")
     g.usuario = usuario
     g.cliente = None
+    _exigir_lectura_en_presentacion(usuario)
     return usuario
+
+
+# Lo que la cuenta de presentación en «solo consulta» sí puede enviar (sesión y registro de la propia presentación).
+_ESCRITURA_PERMITIDA_PRESENTACION = ("/api/auth/", "/api/presentacion/")
+
+
+def _exigir_lectura_en_presentacion(usuario):
+    if request.method in ("GET", "HEAD", "OPTIONS") or request.path.startswith(_ESCRITURA_PERMITIDA_PRESENTACION):
+        return
+    from ..services import presentacion_service as pres
+    c = pres.config()
+    if c and c.get("solo_lectura") and pres.es_presentacion(usuario.id):
+        raise SinPermiso("Modo presentación: puedes recorrer todo el sistema, pero no hacer cambios.", codigo="solo_consulta")
 
 
 def _cargar_cliente():

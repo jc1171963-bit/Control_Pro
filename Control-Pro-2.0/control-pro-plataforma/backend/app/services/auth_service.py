@@ -323,6 +323,11 @@ def login(tipo: str, correo: str, password: str):
             auditar("auth.bloqueo", tipo, cuenta.id)
         db.session.commit()
         raise NoAutenticado(MENSAJE_GENERICO)
+    if tipo == "usuario":
+        from . import presentacion_service as pres
+        if pres.es_presentacion(cuenta.id) and not pres.en_ventana():
+            pres.registrar_intento_fuera_de_horario(cuenta)
+            raise NoAutenticado("Este acceso de presentación solo funciona en el horario acordado.")
     huella = cuenta.hash_password
     cuenta.intentos_fallidos = 0
     cuenta.bloqueado_hasta = None

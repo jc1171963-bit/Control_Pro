@@ -203,6 +203,7 @@ export const router = createBrowserRouter([
           { path: 'sucursales', lazy: () => c(import('../features/admin/Sistema'), 'Sucursales') },
           { path: 'usuarios', lazy: () => c(import('../features/admin/Sistema'), 'Usuarios') },
           { path: 'auditoria', lazy: () => c(import('../features/admin/Sistema'), 'Auditoria') },
+          { path: 'presentacion', lazy: () => c(import('../features/admin/PresentacionEnVivo')) },
           { path: 'notificaciones', lazy: () => c(import('../features/admin/Sistema'), 'NotificacionesAdmin') },
           { path: 'mensajes', lazy: () => c(import('../features/colaboracion/Mensajes')) },
           { path: 'reportes', lazy: () => c(import('../features/admin/Reportes')) },

@@ -2,7 +2,7 @@
 import logging
 import os
 
-from flask import Flask, jsonify
+from flask import Flask, g, jsonify, request
 from sqlalchemy import text
 
 from .config import CONFIGS, ProdConfig
@@ -54,6 +54,21 @@ def create_app(nombre_config: str | None = None) -> Flask:
         except Exception:  # pragma: no cover
             estado_bd = "sin conexión"
         return jsonify({"servicio": "control-pro", "base_de_datos": estado_bd}), (200 if estado_bd == "ok" else 503)
+
+    @app.after_request
+    def bitacora_presentacion(resp):
+        """Cuenta de presentación: cada petición queda en la bitácora (salvo los pulsos automáticos); el pulso de 2 s
+        marca que su pestaña sigue abierta y visible (lo usa la pantalla «Presentación en vivo»)."""
+        u = getattr(g, "usuario", None)
+        if u is not None and request.path.startswith("/api/"):
+            from .services import presentacion_service as pres
+            if pres.es_presentacion(u.id):
+                if request.path == "/api/actividad":
+                    pres.marcar_pulso(u.id)
+                elif not request.path.startswith(pres.SIN_REGISTRO):
+                    pres.registrar("peticion", {"metodo": request.method, "ruta": request.full_path.rstrip("?")[:200],
+                                                "estado": resp.status_code})
+        return resp
 
     @app.after_request
     def cabeceras_seguridad(resp):

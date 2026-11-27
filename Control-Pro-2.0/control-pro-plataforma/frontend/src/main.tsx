@@ -6,6 +6,7 @@ import { AuthProvider } from './app/auth';
 import { ToastProvider } from './components/ui';
 import { CelebracionProvider } from './components/Celebracion';
 import { router } from './app/router';
+import ModoPresentacion from './components/ModoPresentacion';
 import { registrarServiceWorker } from './app/pwa';
 import './index.css';
 
@@ -22,6 +23,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <ToastProvider>
           <CelebracionProvider>
             <RouterProvider router={router} />
+            <ModoPresentacion />
           </CelebracionProvider>
         </ToastProvider>
       </AuthProvider>

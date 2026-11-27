@@ -8,6 +8,8 @@ export type Usuario = {
   rol: { codigo: string; nombre: string; alcance_global: boolean }; permisos: string[];
   sucursales: { id: number; nombre: string }[]; ultimo_acceso: string | null; bloqueado_hasta: string | null; foto?: string | null;
   telefono?: string | null; area?: string | null; cargo?: string | null;
+  /** Solo la cuenta temporal de una presentación: marca de agua, horario y si es de solo consulta. */
+  presentacion?: { nombre: string; correo: string; empresa: string; desde: string; hasta: string; solo_lectura: boolean } | null;
 };
 export type Cliente = {
   id: number; correo: string; nombre: string; telefono: string | null; tipo: 'persona' | 'empresa';

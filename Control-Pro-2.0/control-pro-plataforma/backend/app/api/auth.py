@@ -39,6 +39,12 @@ def _respuesta_sesion(tipo, cuenta, status=200, sesion=None, huella=None):
     """Sin `sesion` es un inicio de sesión (o registro): abre una nueva (con `huella`, la contraseña verificada) y
     reemplaza la que tenía este navegador (H-05). En la renovación se recibe la generación vigente ya rotada."""
     vigente = sesion or auth_service.crear_sesion(tipo, cuenta, huella, reemplaza=_sesion_de_la_cookie())
+    if sesion is None and tipo == "usuario":
+        from ..services import presentacion_service as pres
+        if pres.es_presentacion(cuenta.id):  # presentación: una sola sesión; cualquier otro dispositivo queda fuera
+            auth_service.revocar_sesiones_de_cuenta("usuario", cuenta.id, "reemplazo", excepto_sid=vigente.sid)
+            g.usuario = cuenta
+            pres.registrar("entrada", {"agente": request.headers.get("User-Agent", "")[:200]})
     tokens = auth_service.emitir_tokens(tipo, cuenta, vigente)
     datos = serial.usuario(cuenta) if tipo == "usuario" else serial.cliente(cuenta)
     resp = jsonify({"access_token": tokens["access_token"], "tipo": tipo, "cuenta": datos,

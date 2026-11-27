@@ -330,3 +330,21 @@
    poco más profundo llega a 4.6:1 sin cambiar el carácter del color. */
 .bg-coral-500.text-white { background-color: #C8441F; }
 .bg-coral-500.text-white.hover\:bg-coral-600:hover:not(:disabled) { background-color: #A3361A; }
+
+/* ===== MODO PRESENTACIÓN =====
+   Solo para la cuenta temporal de una presentación (components/ModoPresentacion.tsx pone la clase en <html>). */
+html.modo-presentacion, html.modo-presentacion body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+html.modo-presentacion :is(input, textarea, [contenteditable="true"]) { -webkit-user-select: text; user-select: text; }
+html.modo-presentacion img { -webkit-user-drag: none; }
+html.presentacion-velada #root { filter: blur(22px) saturate(.4) !important; }
+#velo-presentacion {
+  position: fixed; inset: 0; z-index: 2147483645; display: grid; place-items: center; padding: 24px; text-align: center;
+  background: rgb(9 24 42 / .6); color: #fff; font: 600 16px/1.4 system-ui, sans-serif;
+}
+@media print {
+  html.modo-presentacion body > * { display: none !important; }
+  html.modo-presentacion body::before {
+    content: "Documento confidencial: la impresión no está permitida en esta sesión de presentación.";
+    display: block; padding: 48px; font: 600 18px/1.5 Arial, sans-serif; color: #000;
+  }
+}
